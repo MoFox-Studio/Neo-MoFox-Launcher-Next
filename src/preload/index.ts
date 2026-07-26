@@ -1,0 +1,91 @@
+import { contextBridge, ipcRenderer } from 'electron';
+import type { IpcRendererEvent } from 'electron';
+import {
+  IPC_EVENT_CHANNELS,
+  IPC_INVOKE_CHANNELS,
+  type MofoxApi,
+  type MofoxEventMap,
+} from '../shared/ipc';
+import { deserializeIpcError } from '../shared/domain/error';
+
+interface IpcRendererBridge {
+  invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+  on(channel: string, listener: (event: IpcRendererEvent, payload: unknown) => void): unknown;
+  removeListener(
+    channel: string,
+    listener: (event: IpcRendererEvent, payload: unknown) => void,
+  ): unknown;
+}
+
+export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
+  const invoke = async <T>(channel: string, ...args: unknown[]): Promise<T> => {
+    try {
+      return (await ipc.invoke(channel, ...args)) as T;
+    } catch (error) {
+      throw deserializeIpcError(error);
+    }
+  };
+  return {
+    windowMinimize: () => invoke(IPC_INVOKE_CHANNELS.windowMinimize),
+    windowToggleMaximize: () =>
+      invoke(IPC_INVOKE_CHANNELS.windowToggleMaximize),
+    windowClose: () => invoke(IPC_INVOKE_CHANNELS.windowClose),
+    windowIsMaximized: () =>
+      invoke<boolean>(IPC_INVOKE_CHANNELS.windowIsMaximized),
+    listInstances: () => invoke(IPC_INVOKE_CHANNELS.listInstances),
+    startInstance: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.startInstance, instanceId),
+    stopInstance: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.stopInstance, instanceId),
+    restartInstance: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.restartInstance, instanceId),
+    removeInstance: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.removeInstance, instanceId),
+    openInstanceFolder: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.openInstanceFolder, instanceId),
+    getInstanceLogBuffer: (instanceId, source) =>
+      invoke(IPC_INVOKE_CHANNELS.getInstanceLogBuffer, instanceId, source),
+    clearInstanceLogBuffer: (instanceId, source) =>
+      invoke(IPC_INVOKE_CHANNELS.clearInstanceLogBuffer, instanceId, source),
+    writeInstancePty: (instanceId, source, data) =>
+      invoke(IPC_INVOKE_CHANNELS.writeInstancePty, instanceId, source, data),
+    resizeInstancePty: (instanceId, source, cols, rows) =>
+      invoke(IPC_INVOKE_CHANNELS.resizeInstancePty, instanceId, source, cols, rows),
+    getInstanceStats: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.getInstanceStats, instanceId),
+    exportInstanceLogs: (instanceId, source) =>
+      invoke(IPC_INVOKE_CHANNELS.exportInstanceLogs, instanceId, source),
+    startInstall: (request) =>
+      invoke(IPC_INVOKE_CHANNELS.startInstall, request),
+    retryInstall: (taskId) =>
+      invoke(IPC_INVOKE_CHANNELS.retryInstall, taskId),
+    cancelInstall: (taskId) =>
+      invoke(IPC_INVOKE_CHANNELS.cancelInstall, taskId),
+    detectSystemEnv: () =>
+      invoke(IPC_INVOKE_CHANNELS.detectSystemEnv),
+    listMirrors: () => invoke(IPC_INVOKE_CHANNELS.listMirrors),
+    selectBestMirror: () =>
+      invoke(IPC_INVOKE_CHANNELS.selectBestMirror),
+    listBotPlatforms: () =>
+      invoke(IPC_INVOKE_CHANNELS.listBotPlatforms),
+    getSettings: () => invoke(IPC_INVOKE_CHANNELS.getSettings),
+    updateSettings: (patch) =>
+      invoke(IPC_INVOKE_CHANNELS.updateSettings, patch),
+    on: <K extends keyof MofoxEventMap>(
+      event: K,
+      listener: (payload: MofoxEventMap[K]) => void,
+    ) => {
+      const channel = IPC_EVENT_CHANNELS[event];
+      if (!channel) throw new Error(`Unsupported IPC event: ${String(event)}`);
+      const wrappedListener = (_event: IpcRendererEvent, payload: unknown) => {
+        listener(payload as MofoxEventMap[K]);
+      };
+      ipc.on(channel, wrappedListener);
+      return () => ipc.removeListener(channel, wrappedListener);
+    },
+  };
+}
+
+if (process.contextIsolated) {
+  contextBridge.exposeInMainWorld('mofoxAPI', createMofoxApi(ipcRenderer));
+}

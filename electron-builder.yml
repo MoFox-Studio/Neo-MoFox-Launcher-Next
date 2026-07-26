@@ -1,0 +1,27 @@
+appId: com.neomofox.launcher
+productName: Neo-MoFox Launcher
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+asar: true
+asarUnpack:
+  - node_modules/node-pty/**
+  - node_modules/@lydell/node-pty/**
+extraResources:
+  - from: ../Neo-MoFox-Launcher/Neo-MoFox-Launcher/assets/images/icon/icon.ico
+    to: icon.ico
+win:
+  target:
+    - dir
+  icon: ../Neo-MoFox-Launcher/Neo-MoFox-Launcher/assets/images/icon/icon.ico
+linux:
+  target:
+    - AppImage
+  category: Utility
+mac:
+  target:
+    - dmg
+publish: null
+npmRebuild: false

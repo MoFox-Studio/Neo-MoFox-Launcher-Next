@@ -1,0 +1,370 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import type { Instance, InstanceStatus } from '@shared/domain/instance';
+import { useInstancesStore } from '@/stores/instances';
+import { mofoxApi } from '@/services/mofox-api';
+import PageHeader from '@/components/PageHeader.vue';
+import InstanceCard from '@/components/InstanceCard.vue';
+
+type FilterKey = 'all' | 'running' | 'stopped' | 'error';
+
+interface FilterOption {
+  key: FilterKey;
+  label: string;
+}
+
+const FILTERS: FilterOption[] = [
+  { key: 'all', label: '全部' },
+  { key: 'running', label: '运行中' },
+  { key: 'stopped', label: '已停止' },
+  { key: 'error', label: '异常' },
+];
+
+const router = useRouter();
+const route = useRoute();
+const instancesStore = useInstancesStore();
+
+const keyword = ref('');
+const activeFilter = ref<FilterKey>('all');
+const pendingRemoveInstance = ref<Instance | null>(null);
+
+onMounted(() => {
+  instancesStore.refresh();
+  const logsQuery = route.query.logs;
+  if (typeof logsQuery === 'string' && logsQuery) {
+    void router.replace({ name: 'instance-logs', params: { id: logsQuery } });
+  }
+});
+
+function matchesFilter(status: InstanceStatus, filter: FilterKey): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'running') return status === 'running';
+  if (filter === 'stopped') return status === 'stopped';
+  return status === 'error';
+}
+
+const filteredInstances = computed(() => {
+  const kw = keyword.value.trim().toLowerCase();
+  return instancesStore.instances.filter((instance) => {
+    const matchName = kw === '' || instance.name.toLowerCase().includes(kw);
+    return matchName && matchesFilter(instance.status, activeFilter.value);
+  });
+});
+
+const hasInstances = computed(() => instancesStore.instances.length > 0);
+const hasResults = computed(() => filteredInstances.value.length > 0);
+
+function onRefresh(): void {
+  instancesStore.refresh();
+}
+
+function goInstall(): void {
+  router.push({ name: 'install' });
+}
+
+function onStart(id: string): void {
+  instancesStore.start(id);
+}
+
+function onStop(id: string): void {
+  instancesStore.stop(id);
+}
+
+function onRestart(id: string): void {
+  instancesStore.restart(id);
+}
+
+function onOpenFolder(id: string): void {
+  mofoxApi.openInstanceFolder(id);
+}
+
+function openLogs(id: string): void {
+  void router.push({ name: 'instance-logs', params: { id } });
+}
+
+function requestRemove(id: string): void {
+  pendingRemoveInstance.value = instancesStore.byId(id) ?? null;
+}
+
+function cancelRemove(): void {
+  pendingRemoveInstance.value = null;
+}
+
+async function confirmRemove(): Promise<void> {
+  if (!pendingRemoveInstance.value) return;
+  await instancesStore.remove(pendingRemoveInstance.value.id);
+  pendingRemoveInstance.value = null;
+}
+</script>
+
+<template>
+  <div class="instances-view">
+    <PageHeader title="实例">
+      <button class="icon-btn state-layer" type="button" title="刷新" aria-label="刷新" @click="onRefresh">
+        <span class="msr" aria-hidden="true">refresh</span>
+      </button>
+      <button class="btn btn--filled state-layer" type="button" @click="goInstall">新建实例</button>
+    </PageHeader>
+
+    <div class="instances-view__body">
+      <div class="toolbar">
+        <label class="search-box">
+          <span class="msr search-box__icon" aria-hidden="true">search</span>
+          <input
+            v-model="keyword"
+            type="text"
+            class="search-box__input"
+            placeholder="搜索实例名称"
+          />
+        </label>
+
+        <div class="filter-row">
+          <button
+            v-for="filter in FILTERS"
+            :key="filter.key"
+            class="filter-chip state-layer"
+            type="button"
+            :class="{ 'filter-chip--selected': activeFilter === filter.key }"
+            @click="activeFilter = filter.key"
+          >
+            <span
+              v-if="activeFilter === filter.key"
+              class="msr filter-chip__icon"
+              aria-hidden="true"
+              >check</span
+            >
+            {{ filter.label }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="!hasInstances" class="empty-state">
+        <span class="msr empty-state__icon" aria-hidden="true">deployed_code</span>
+        <p class="empty-state__text">还没有任何实例，安装一个即可开始使用</p>
+        <button class="btn btn--filled state-layer" type="button" @click="goInstall">
+          去安装
+        </button>
+      </div>
+
+      <div v-else-if="!hasResults" class="empty-state">
+        <span class="msr empty-state__icon" aria-hidden="true">search_off</span>
+        <p class="empty-state__text">没有找到匹配的实例，换个关键词或筛选条件试试</p>
+      </div>
+
+      <div v-else class="instances-grid">
+        <InstanceCard
+          v-for="instance in filteredInstances"
+          :key="instance.id"
+          :instance="instance"
+          @start="onStart"
+          @stop="onStop"
+          @restart="onRestart"
+          @logs="openLogs"
+          @remove="requestRemove"
+          @open-folder="onOpenFolder"
+        />
+      </div>
+    </div>
+
+    <div v-if="pendingRemoveInstance" class="dialog-scrim" @click.self="cancelRemove">
+      <div class="dialog" role="alertdialog" aria-modal="true">
+        <h2 class="dialog__title">删除实例</h2>
+        <p class="dialog__body">
+          确定要删除实例「{{ pendingRemoveInstance.name }}」吗？此操作无法撤销。
+        </p>
+        <div class="dialog__actions">
+          <button class="btn btn--text state-layer" type="button" @click="cancelRemove">
+            取消
+          </button>
+          <button class="btn btn--error state-layer" type="button" @click="confirmRemove">
+            删除
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.instances-view {
+  height: 100%;
+  overflow-y: auto;
+  position: relative;
+}
+
+.instances-view__body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 32px 32px;
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.search-box__icon {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.search-box__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-large);
+}
+
+.search-box__input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-label-large);
+  cursor: pointer;
+  transition:
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.filter-chip__icon {
+  font-size: 18px;
+}
+
+.filter-chip--selected {
+  border-color: transparent;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.instances-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 64px 32px;
+  text-align: center;
+}
+
+.empty-state__icon {
+  font-size: 64px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.empty-state__text {
+  margin: 0;
+  font: var(--md-sys-typescale-body-large);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.btn {
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  font: var(--md-sys-typescale-label-large);
+  cursor: pointer;
+}
+
+.btn--filled {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.btn--text {
+  padding: 0 12px;
+  background: transparent;
+  color: var(--md-sys-color-primary);
+}
+
+.btn--error {
+  background: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.dialog-scrim {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--md-sys-color-scrim) 32%, transparent);
+  display: grid;
+  place-items: center;
+  z-index: 20;
+}
+
+.dialog {
+  width: 320px;
+  padding: 24px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--md-sys-elevation-level3);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dialog__title {
+  margin: 0;
+  font: var(--md-sys-typescale-headline-small);
+  color: var(--md-sys-color-on-surface);
+}
+
+.dialog__body {
+  margin: 0;
+  font: var(--md-sys-typescale-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+</style>
