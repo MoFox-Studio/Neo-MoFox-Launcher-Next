@@ -10,7 +10,6 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   seedColor: '#7C5CDB',
   language: 'zh-CN',
   defaultInstallDir: '',
-  mirrorAutoSelect: true,
   closeToTray: true,
   hardwareAcceleration: true,
   maxLogFileSizeMb: 16,
@@ -30,8 +29,7 @@ export class SettingsService {
 
   constructor(
     dataDirectory: string,
-    private readonly report: DiagnosticReporter = (message, error) =>
-      console.error(message, error),
+    private readonly report: DiagnosticReporter = (message, error) => console.error(message, error),
   ) {
     this.settingsPath = join(dataDirectory, 'launcher-settings.json');
     this.legacyPath = join(dataDirectory, 'settings.json');
@@ -81,9 +79,11 @@ export class SettingsService {
 
 export function validateSettingsPatch(patch: unknown): Partial<LauncherSettings> {
   /** IPC 边界仅接受已知字段与领域允许的值，防止任意 JSON 进入持久化文件。 */
-  if (!isRecord(patch)) throw new MofoxError('INVALID_ARGUMENT', 'Settings patch must be an object');
+  if (!isRecord(patch))
+    throw new MofoxError('INVALID_ARGUMENT', 'Settings patch must be an object');
   for (const key of Object.keys(patch)) {
-    if (!SETTING_KEYS.has(key)) throw new MofoxError('INVALID_ARGUMENT', `Unknown settings field: ${key}`);
+    if (!SETTING_KEYS.has(key))
+      throw new MofoxError('INVALID_ARGUMENT', `Unknown settings field: ${key}`);
   }
   const normalized = normalizeSettings({ ...DEFAULT_SETTINGS, ...patch });
   for (const key of Object.keys(patch) as Array<keyof LauncherSettings>) {
@@ -91,13 +91,16 @@ export function validateSettingsPatch(patch: unknown): Partial<LauncherSettings>
       throw new MofoxError('INVALID_ARGUMENT', `Invalid value for settings field: ${key}`);
     }
   }
-  return Object.fromEntries(Object.keys(patch).map((key) => [key, normalized[key as keyof LauncherSettings]]));
+  return Object.fromEntries(
+    Object.keys(patch).map((key) => [key, normalized[key as keyof LauncherSettings]]),
+  );
 }
 
 function normalizeSettings(source: unknown): LauncherSettings {
   if (!isRecord(source)) return { ...DEFAULT_SETTINGS };
   const logging = isRecord(source.logging) ? source.logging : {};
-  const legacyMaxFileSize = typeof logging.maxFileSize === 'number' ? logging.maxFileSize / 1_048_576 : undefined;
+  const legacyMaxFileSize =
+    typeof logging.maxFileSize === 'number' ? logging.maxFileSize / 1_048_576 : undefined;
   const candidate: Record<string, unknown> = {
     ...source,
     themeMode: source.themeMode ?? source.theme,
@@ -124,7 +127,6 @@ function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boole
     case 'language':
       return value === 'zh-CN' || value === 'en-US';
     case 'defaultInstallDir':
-    case 'preferredMirrorId':
       return typeof value === 'string';
     case 'maxLogFileSizeMb':
       return typeof value === 'number' && Number.isFinite(value) && value >= 1 && value <= 1024;

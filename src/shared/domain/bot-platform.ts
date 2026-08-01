@@ -1,3 +1,5 @@
+import type { MirrorSource } from './mirror';
+
 /** 平台运行前置条件的检查结果，供界面展示不可用原因。 */
 export interface SystemRequirement {
   label: string;
@@ -32,14 +34,14 @@ export interface StartCommand {
 
 /**
  * 安装和更新流程共用的执行上下文。
- * `workDir` 用于临时产物，`targetDir` 是最终安装根目录；调用方可通过 `signal` 取消流程。
+ * `workDir` 用于临时产物，`targetDir` 是最终安装根目录；`mirrors` 供安装器顺序轮询，调用方可通过 `signal` 取消流程。
  */
 export interface InstallContext {
   instanceId: string;
   version: string;
   workDir: string;
   targetDir: string;
-  mirrorId?: string;
+  mirrors: readonly MirrorSource[];
   signal?: AbortSignal;
 }
 

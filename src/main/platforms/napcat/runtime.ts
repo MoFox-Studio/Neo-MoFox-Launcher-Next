@@ -22,6 +22,7 @@ export class NapCatPlatform extends BaseBotPlatform {
     // 官方 Windows Shell 包的固定文件名同时充当资产选择与安装内容约束。
     return installGithubRelease(
       context,
+      context.mirrors,
       'NapNeko/NapCatQQ',
       (release) => release.assets.find((asset) => asset.name === 'NapCat.Shell.Windows.Node.zip'),
       (root) => hasFiles(root, ['node.exe', 'index.js', 'napcat.bat', 'napcat']),

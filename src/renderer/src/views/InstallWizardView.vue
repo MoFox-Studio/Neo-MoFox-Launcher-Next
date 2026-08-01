@@ -5,11 +5,10 @@ import { useSettingsStore } from '@/stores/settings';
 import { useInstallStore } from '@/stores/install';
 import { mofoxApi } from '@/services/mofox-api';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
-import type { MirrorSource } from '@shared/domain/mirror';
 import type { InstallRequest, InstallStepId } from '@shared/domain/instance';
 
-// 六步安装向导：收集请求参数，并持续呈现安装仓库中的后台进度。
-const STEP_TITLES = ['选择平台', '实例信息', '安装位置', '镜像源', '确认摘要', '执行安装'];
+// 五步安装向导：收集请求参数，并持续呈现安装仓库中的后台进度；镜像源由安装器内部自动轮询。
+const STEP_TITLES = ['选择平台', '实例信息', '安装位置', '确认摘要', '执行安装'];
 
 const PLATFORM_LABELS: Record<string, string> = {
   win32: 'Windows',
@@ -95,55 +94,20 @@ function onTargetDirInput(): void {
   targetDirTouched.value = true;
 }
 
-// ---- Step 4: mirrors ----
-// 镜像列表、选择结果和测速态构成第四步的响应式状态。
-const mirrors = ref<MirrorSource[]>([]);
-const selectedMirrorId = ref<string | null>(null);
-const remeasuring = ref(false);
-
-const mirrorAutoSelect = computed({
-  get: () => settingsStore.settings.mirrorAutoSelect,
-  set: (value: boolean) => {
-    void settingsStore.update({ mirrorAutoSelect: value });
-  },
-});
-
-async function loadMirrors(): Promise<void> {
-  mirrors.value = await mofoxApi.listMirrors();
-}
-
-async function remeasure(): Promise<void> {
-  // 测速完成后重新拉取列表，并选中 API 给出的最佳镜像。
-  remeasuring.value = true;
-  try {
-    const best = await mofoxApi.selectBestMirror();
-    await loadMirrors();
-    selectedMirrorId.value = best.mirror.id;
-  } finally {
-    remeasuring.value = false;
-  }
-}
-
-function latencyClass(ms?: number): string {
-  if (ms === undefined) return '';
-  return ms < 100 ? 'mirror-item__latency--fast' : 'mirror-item__latency--normal';
-}
-
 // ---- Step validation & navigation ----
 // 每一步独立校验，导航只能前进到已满足条件的下一步。
 const stepValid = computed<Record<number, boolean>>(() => ({
   1: selectedPlatformId.value !== null,
   2: nameError.value === '' && resolvedVersion.value !== '',
   3: targetDir.value.trim() !== '',
-  4: mirrorAutoSelect.value || selectedMirrorId.value !== null,
+  4: true,
   5: true,
-  6: true,
 }));
 
 const canGoNext = computed(() => stepValid.value[currentStep.value] ?? false);
 
 function goNext(): void {
-  if (!canGoNext.value || currentStep.value >= 5) return;
+  if (!canGoNext.value || currentStep.value >= 4) return;
   currentStep.value += 1;
 }
 
@@ -152,10 +116,10 @@ function goPrev(): void {
 }
 
 function goToStep(step: number): void {
-  if (step < currentStep.value && currentStep.value < 6) currentStep.value = step;
+  if (step < currentStep.value && currentStep.value < 5) currentStep.value = step;
 }
 
-// ---- Step 5/6: confirm & execute ----
+// ---- Step 4/5: confirm & execute ----
 const progress = computed(() => installStore.progress);
 const progressPercent = computed(() => {
   const p = progress.value;
@@ -177,15 +141,14 @@ watch(
 );
 
 async function startInstall(): Promise<void> {
-  // 从已确认字段构造不可变安装请求，再切换到后台执行步骤。
+  // 从已确认字段构造不可变安装请求，再切换到后台执行步骤；镜像源由安装器内部自动轮询。
   const request: InstallRequest = {
     instanceName: instanceName.value.trim(),
     platformId: selectedPlatformId.value ?? '',
     version: resolvedVersion.value,
     targetDir: targetDir.value.trim(),
-    mirrorId: mirrorAutoSelect.value ? undefined : (selectedMirrorId.value ?? undefined),
   };
-  currentStep.value = 6;
+  currentStep.value = 5;
   await installStore.begin(request);
 }
 
@@ -202,9 +165,9 @@ function goToInstances(): void {
 }
 
 onMounted(async () => {
-  // 恢复后台安装时直接回到执行页，并异步加载平台和镜像数据。
+  // 恢复后台安装时直接回到执行页，并异步加载平台数据。
   if (installStore.isInstalling) {
-    currentStep.value = 6;
+    currentStep.value = 5;
   }
   platformsLoading.value = true;
   try {
@@ -212,7 +175,6 @@ onMounted(async () => {
   } finally {
     platformsLoading.value = false;
   }
-  await loadMirrors();
 });
 </script>
 
@@ -351,71 +313,8 @@ onMounted(async () => {
             </div>
           </section>
 
-          <section v-else-if="currentStep === 4" class="step">
-            <h2 class="step__title">镜像源</h2>
-
-            <div class="switch-row">
-              <span class="switch-row__label">自动选择最快镜像</span>
-              <button
-                type="button"
-                class="switch"
-                role="switch"
-                :aria-checked="mirrorAutoSelect"
-                :class="{ 'switch--on': mirrorAutoSelect }"
-                @click="mirrorAutoSelect = !mirrorAutoSelect"
-              >
-                <span class="switch__thumb"></span>
-              </button>
-            </div>
-
-            <template v-if="!mirrorAutoSelect">
-              <div class="mirror-toolbar">
-                <button
-                  type="button"
-                  class="btn btn--text state-layer"
-                  :disabled="remeasuring"
-                  @click="remeasure"
-                >
-                  <span
-                    v-if="remeasuring"
-                    class="spinner spinner--small"
-                    aria-hidden="true"
-                  ></span>
-                  <span v-else class="msr" aria-hidden="true">speed</span>
-                  重新测速
-                </button>
-              </div>
-
-              <ul class="mirror-list">
-                <li v-for="m in mirrors" :key="m.id">
-                  <button
-                    type="button"
-                    class="mirror-item state-layer"
-                    :class="{ 'mirror-item--selected': selectedMirrorId === m.id }"
-                    @click="selectedMirrorId = m.id"
-                  >
-                    <span
-                      class="mirror-item__radio"
-                      :class="{ 'mirror-item__radio--checked': selectedMirrorId === m.id }"
-                    ></span>
-                    <span class="mirror-item__body">
-                      <span class="mirror-item__name">{{ m.name }}</span>
-                      <span class="mirror-item__url">{{ m.baseUrl }}</span>
-                    </span>
-                    <span
-                      v-if="m.latencyMs !== undefined"
-                      class="mirror-item__latency"
-                      :class="latencyClass(m.latencyMs)"
-                      >{{ m.latencyMs }} ms</span
-                    >
-                  </button>
-                </li>
-              </ul>
-            </template>
-          </section>
-
           <!-- 安装请求确认摘要 -->
-          <section v-else-if="currentStep === 5" class="step">
+          <section v-else-if="currentStep === 4" class="step">
             <h2 class="step__title">确认摘要</h2>
 
             <dl class="summary">
@@ -435,19 +334,13 @@ onMounted(async () => {
                 <dt>安装目录</dt>
                 <dd>{{ targetDir || '-' }}</dd>
               </div>
-              <div class="summary__row">
-                <dt>镜像源</dt>
-                <dd>
-                  {{
-                    mirrorAutoSelect
-                      ? '自动选择最快镜像'
-                      : (mirrors.find((m) => m.id === selectedMirrorId)?.name ?? '-')
-                  }}
-                </dd>
-              </div>
             </dl>
 
-            <button type="button" class="btn btn--filled btn--large state-layer" @click="startInstall">
+            <button
+              type="button"
+              class="btn btn--filled btn--large state-layer"
+              @click="startInstall"
+            >
               <span class="msr" aria-hidden="true">rocket_launch</span>
               开始安装
             </button>
@@ -515,13 +408,18 @@ onMounted(async () => {
       </transition>
 
       <!-- 非执行步骤的前进与回退控制 -->
-      <div v-if="currentStep < 6" class="wizard__nav">
-        <button v-if="currentStep > 1" type="button" class="btn btn--text state-layer" @click="goPrev">
+      <div v-if="currentStep < 5" class="wizard__nav">
+        <button
+          v-if="currentStep > 1"
+          type="button"
+          class="btn btn--text state-layer"
+          @click="goPrev"
+        >
           上一步
         </button>
         <div class="wizard__nav-spacer"></div>
         <button
-          v-if="currentStep < 5"
+          v-if="currentStep < 4"
           type="button"
           class="btn btn--filled state-layer"
           :disabled="!canGoNext"
@@ -834,153 +732,6 @@ onMounted(async () => {
 .info-banner__icon {
   color: var(--md-sys-color-primary);
   font-size: 20px;
-}
-
-/* 自动镜像选择开关 */
-.switch-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 0 24px;
-}
-
-.switch-row__label {
-  font: var(--md-sys-typescale-body-large);
-}
-
-.switch {
-  flex: none;
-  width: 52px;
-  height: 32px;
-  border-radius: var(--md-sys-shape-corner-full);
-  border: 2px solid var(--md-sys-color-outline);
-  background: var(--md-sys-color-surface-container-highest);
-  position: relative;
-  cursor: pointer;
-  transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.switch__thumb {
-  position: absolute;
-  top: 50%;
-  left: 4px;
-  width: 16px;
-  height: 16px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-outline);
-  transform: translate(0, -50%);
-  transition:
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized),
-    width var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized),
-    height var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized),
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.switch--on {
-  background: var(--md-sys-color-primary);
-  border-color: var(--md-sys-color-primary);
-}
-
-.switch--on .switch__thumb {
-  width: 24px;
-  height: 24px;
-  background: var(--md-sys-color-on-primary);
-  transform: translate(20px, -50%);
-}
-
-/* 镜像测速、选择与延迟标签 */
-.mirror-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.mirror-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mirror-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: var(--md-sys-shape-corner-medium);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  background: var(--md-sys-color-surface-container-low);
-  color: var(--md-sys-color-on-surface);
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.mirror-item--selected {
-  background: var(--md-sys-color-secondary-container);
-  border-color: var(--md-sys-color-primary);
-}
-
-.mirror-item__radio {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--md-sys-shape-corner-full);
-  border: 2px solid var(--md-sys-color-outline);
-  position: relative;
-}
-
-.mirror-item__radio--checked {
-  border-color: var(--md-sys-color-primary);
-}
-
-.mirror-item__radio--checked::after {
-  content: '';
-  position: absolute;
-  inset: 3px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-primary);
-}
-
-.mirror-item__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mirror-item__name {
-  font: var(--md-sys-typescale-title-small);
-}
-
-.mirror-item__url {
-  font: var(--md-sys-typescale-body-small);
-  color: var(--md-sys-color-on-surface-variant);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mirror-item__latency {
-  flex: none;
-  font: var(--md-sys-typescale-label-medium);
-  padding: 2px 10px;
-  border-radius: var(--md-sys-shape-corner-full);
-  color: var(--md-sys-color-on-surface-variant);
-  background: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 12%, transparent);
-}
-
-.mirror-item__latency--fast {
-  color: var(--md-sys-color-tertiary);
-  background: color-mix(in srgb, var(--md-sys-color-tertiary) 16%, transparent);
 }
 
 /* 安装请求确认摘要 */

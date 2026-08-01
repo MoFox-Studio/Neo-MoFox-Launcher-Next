@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Instance } from '../../shared/domain/instance';
+import {
+  INSTANCES_VERSION,
+  type Instance,
+  type InstanceRepositoryFile,
+} from '../../shared/domain/instance';
 import { MofoxError } from '../../shared/domain/error';
 import { writeJsonAtomic } from '../utils/atomic-json';
 
@@ -42,12 +46,42 @@ export class InstanceRepository {
     });
   }
 
+  /**
+   * 批量合并外部迁移记录：同 ID 或同 installPath 视为冲突并跳过。
+   * 调用方据此决定是否覆盖；返回实际写入的实例与被跳过的实例。
+   */
+  async mergeExternal(incoming: Instance[]): Promise<{ imported: Instance[]; skipped: Instance[] }> {
+    const imported: Instance[] = [];
+    const skipped: Instance[] = [];
+    await this.mutate((instances) => {
+      const byId = new Set(instances.map((instance) => instance.id));
+      const byPath = new Set(instances.map((instance) => instance.installPath));
+      for (const candidate of incoming) {
+        try {
+          validateInstance(candidate);
+        } catch {
+          skipped.push(candidate);
+          continue;
+        }
+        if (byId.has(candidate.id) || byPath.has(candidate.installPath)) {
+          skipped.push(candidate);
+          continue;
+        }
+        byId.add(candidate.id);
+        byPath.add(candidate.installPath);
+        instances.push({ ...candidate });
+        imported.push({ ...candidate });
+      }
+    });
+    return { imported, skipped };
+  }
+
   private async mutate(change: (instances: Instance[]) => void): Promise<void> {
     // 所有变更复用同一队列，避免安装、运行时状态更新等并发写丢失记录。
     const operation = this.writeQueue.then(async () => {
       const instances = await this.list();
       change(instances);
-      await writeJsonAtomic(this.path, { version: 1, instances });
+      await writeJsonAtomic(this.path, { version: INSTANCES_VERSION, instances });
       this.instances = instances;
     });
     this.writeQueue = operation.catch(() => undefined);
@@ -57,21 +91,17 @@ export class InstanceRepository {
   private async load(): Promise<Instance[]> {
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown;
-      const records = Array.isArray(parsed)
-        ? parsed
-        : isRecord(parsed) && Array.isArray(parsed.instances)
-          ? parsed.instances
-          : [];
-      const instances: Instance[] = [];
-      for (const record of records) {
-        try {
-          instances.push(normalizeInstance(record));
-        } catch (error) {
-          // 单条历史记录异常不阻断其余实例恢复，诊断留给调用方日志系统。
-          this.report('Skipped invalid instance record', toError(error));
-        }
+      const file = normalizeRepositoryFile(parsed, this.report);
+      // 即时升级：磁盘版本落后于当前版本时，立即用迁移后的内容覆写文件，
+      // 避免下次读取仍走迁移分支；不可读/未找到文件不触发写入。
+      if (file.version !== INSTANCES_VERSION) {
+        const upgraded = upgradeRepositoryFile(file);
+        await writeJsonAtomic(this.path, upgraded).catch((error) => {
+          this.report('Unable to persist upgraded instance repository', toError(error));
+        });
+        return upgraded.instances;
       }
-      return instances;
+      return file.instances;
     } catch (error) {
       // 文件不存在和损坏文件都以空集合恢复，且不在读取阶段覆盖用户原文件。
       if (!isRecord(error) || error.code !== 'ENOENT') {
@@ -82,7 +112,49 @@ export class InstanceRepository {
   }
 }
 
-function normalizeInstance(value: unknown): Instance {
+/**
+ * 把任意磁盘 JSON 规范化为仓库文件结构；单条记录异常不阻断其余实例恢复。
+ * 导出供迁移器复用同一套字段映射逻辑；可选 reporter 收集坏记录诊断。
+ */
+export function normalizeRepositoryFile(
+  value: unknown,
+  report: (message: string, error: Error) => void = () => undefined,
+): InstanceRepositoryFile {
+  const records = Array.isArray(value)
+    ? value
+    : isRecord(value) && Array.isArray(value.instances)
+      ? value.instances
+      : [];
+  const instances: Instance[] = [];
+  for (const record of records) {
+    try {
+      instances.push(normalizeInstance(record));
+    } catch (error) {
+      report('Skipped invalid instance record', toError(error));
+    }
+  }
+  return {
+    version: extractVersion(isRecord(value) ? value.version : undefined),
+    instances,
+  };
+}
+
+/** 当前版本无需迁移；保留显式分支以承载未来字段升级。 */
+function upgradeRepositoryFile(file: InstanceRepositoryFile): InstanceRepositoryFile {
+  if (file.version === INSTANCES_VERSION) return file;
+  // 版本 1 是初始版本，无需转换；更高版本到来时在此追加迁移分支。
+  return { version: INSTANCES_VERSION, instances: file.instances.map((instance) => ({ ...instance })) };
+}
+
+function extractVersion(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 1;
+}
+
+/**
+ * 规范化单条实例记录；导出供迁移器在预览阶段复用。
+ * 历史字段（napcatDir、qqNickname 等）在此被收敛到当前 schema。
+ */
+export function normalizeInstance(value: unknown): Instance {
   if (!isRecord(value) || typeof value.id !== 'string' || !value.id.trim()) {
     throw new MofoxError('INVALID_ARGUMENT', 'Invalid instance: ID is required');
   }
@@ -99,7 +171,7 @@ function normalizeInstance(value: unknown): Instance {
   return {
     id: value.id,
     name,
-    version: firstString(value.version, value.platformVersion, value.napcatVersion, 'unknown'),
+    version: firstString(value.version, value.neomofoxVersion, value.platformVersion, value.napcatVersion, 'unknown'),
     platformId,
     installPath,
     status: value.status === 'error' ? 'error' : 'stopped',

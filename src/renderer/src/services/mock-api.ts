@@ -3,7 +3,13 @@
  * 以可控延迟、事件和内存状态复现渲染进程依赖的主进程交互。
  */
 import type { MofoxApi, MofoxEventMap, Unsubscribe } from '@shared/ipc';
-import type { Instance, LauncherSettings } from '@shared/domain/instance';
+import type {
+  Instance,
+  LegacyLauncherInfo,
+  LauncherSettings,
+  MigrationPreview,
+  MigrationResult,
+} from '@shared/domain/instance';
 
 type Listener<K extends keyof MofoxEventMap> = (payload: MofoxEventMap[K]) => void;
 
@@ -57,7 +63,6 @@ let settings: LauncherSettings = {
   seedColor: '#7C5CDB',
   language: 'zh-CN',
   defaultInstallDir: 'D:\\MoFox',
-  mirrorAutoSelect: true,
   closeToTray: true,
   hardwareAcceleration: true,
   maxLogFileSizeMb: 16,
@@ -103,15 +108,22 @@ function startMockLogStream(id: string): void {
   stopMockLogStream(id);
   startTimes.set(id, Date.now());
   for (const source of MOCK_SOURCES) {
-    appendMockLog(id, source, `\x1b[36m[Launcher]\x1b[0m ${source === 'mofox' ? 'MoFox' : '平台'}进程已启动 (mock)\r\n`);
+    appendMockLog(
+      id,
+      source,
+      `\x1b[36m[Launcher]\x1b[0m ${source === 'mofox' ? 'MoFox' : '平台'}进程已启动 (mock)\r\n`,
+    );
     logTimers.set(
       `${id}:${source}`,
-      setInterval(() => {
-        const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-        const pool = MOCK_MESSAGES[source];
-        const message = pool[Math.floor(Math.random() * pool.length)];
-        appendMockLog(id, source, `\x1b[90m${time}\x1b[0m ${message}\r\n`);
-      }, source === 'mofox' ? 1500 : 1000),
+      setInterval(
+        () => {
+          const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+          const pool = MOCK_MESSAGES[source];
+          const message = pool[Math.floor(Math.random() * pool.length)];
+          appendMockLog(id, source, `\x1b[90m${time}\x1b[0m ${message}\r\n`);
+        },
+        source === 'mofox' ? 1500 : 1000,
+      ),
     );
   }
 }
@@ -160,7 +172,8 @@ export const mockApi: MofoxApi = {
     emit('instance-status-changed', { instanceId: id, status: 'stopping' });
     await delay(700);
     stopMockLogStream(id);
-    for (const source of MOCK_SOURCES) appendMockLog(id, source, `\x1b[36m[Launcher]\x1b[0m 进程已停止 (mock)\r\n`);
+    for (const source of MOCK_SOURCES)
+      appendMockLog(id, source, `\x1b[36m[Launcher]\x1b[0m 进程已停止 (mock)\r\n`);
     ins.status = 'stopped';
     emit('instance-status-changed', { instanceId: id, status: 'stopped' });
   },
@@ -203,7 +216,14 @@ export const mockApi: MofoxApi = {
     // 后台异步逐步派发进度；调用方立即获得任务 ID 以保持非阻塞。
     const taskId = `task-${Date.now()}`;
     void (async () => {
-      const steps = ['prepare', 'download', 'extract', 'dependencies', 'configure', 'finalize'] as const;
+      const steps = [
+        'prepare',
+        'download',
+        'extract',
+        'dependencies',
+        'configure',
+        'finalize',
+      ] as const;
       for (let s = 0; s < steps.length; s += 1) {
         for (let p = 0; p <= 10; p += 1) {
           await delay(steps[s] === 'download' ? 260 : 90);
@@ -260,21 +280,6 @@ export const mockApi: MofoxApi = {
       gitVersion: '2.47.1',
     };
   },
-  async listMirrors() {
-    await delay(200);
-    return [
-      { id: 'gh-direct', type: 'github', name: 'GitHub 官方', baseUrl: 'https://github.com', latencyMs: 312 },
-      { id: 'gh-ghproxy', type: 'github', name: 'ghproxy 镜像', baseUrl: 'https://ghproxy.net', latencyMs: 86 },
-      { id: 'py-hust', type: 'python-ftp', name: '华中科技大学', baseUrl: 'https://mirrors.hust.edu.cn', latencyMs: 41 },
-    ];
-  },
-  async selectBestMirror() {
-    await delay(600);
-    return {
-      mirror: { id: 'py-hust', type: 'python-ftp', name: '华中科技大学', baseUrl: 'https://mirrors.hust.edu.cn', latencyMs: 41 },
-      measuredAt: Date.now(),
-    };
-  },
   async listBotPlatforms() {
     await delay(150);
     return [
@@ -304,6 +309,35 @@ export const mockApi: MofoxApi = {
   async updateSettings(patch) {
     settings = { ...settings, ...patch };
     return { ...settings };
+  },
+
+  // 旧启动器迁移：演示构建中模拟一次成功的导入，便于在浏览器中预览界面。
+  async detectLegacyLauncher(): Promise<LegacyLauncherInfo | null> {
+    await delay(180);
+    return {
+      dataDirectory: 'C:\\Users\\mofox\\AppData\\Roaming\\Neo-MoFox-Launcher',
+      instanceCount: instances.length,
+      modifiedAt: Date.now() - 86_400_000,
+    };
+  },
+  async previewLegacyMigration(): Promise<MigrationPreview> {
+    await delay(260);
+    return {
+      legacy: {
+        dataDirectory: 'C:\\Users\\mofox\\AppData\\Roaming\\Neo-MoFox-Launcher',
+        instanceCount: instances.length,
+        modifiedAt: Date.now() - 86_400_000,
+      },
+      previews: instances.map((instance) => ({
+        instance: { ...instance },
+        conflict: null,
+        nameSource: 'name' as const,
+      })),
+    };
+  },
+  async importLegacyMigration(): Promise<MigrationResult> {
+    await delay(420);
+    return { imported: instances.length, skipped: 0, total: instances.length };
   },
 
   on(event, listener) {

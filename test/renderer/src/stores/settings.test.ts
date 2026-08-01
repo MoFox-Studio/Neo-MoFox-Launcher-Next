@@ -17,7 +17,6 @@ const settings = {
   seedColor: '#123456',
   language: 'zh-CN' as const,
   defaultInstallDir: 'D:\\Bots',
-  mirrorAutoSelect: true,
   closeToTray: false,
   hardwareAcceleration: true,
   maxLogFileSizeMb: 16,

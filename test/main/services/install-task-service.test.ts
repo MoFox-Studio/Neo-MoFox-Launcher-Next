@@ -3,11 +3,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BotPlatform } from '../../../src/shared/domain/bot-platform';
+import type { MirrorSource } from '../../../src/shared/domain/mirror';
 import { PlatformRegistry } from '../../../src/main/platforms/registry';
 import { InstallTaskService } from '../../../src/main/services/install-task-service';
 
 /** 覆盖安装提交的原子边界、失败步骤续试，以及 AbortSignal 取消后的临时目录清理。 */
 const temporaryDirectories: string[] = [];
+
+const TEST_MIRRORS: readonly MirrorSource[] = [
+  { id: 'gh-direct', type: 'github', name: 'GitHub', baseUrl: 'https://github.com' },
+];
+
+const mirrorsProvider = { list: () => [...TEST_MIRRORS] };
 
 afterEach(async () => {
   const { rm } = await import('node:fs/promises');
@@ -26,7 +33,7 @@ describe('InstallTaskService', () => {
       return { version: '2.0.0', installPath: payload };
     });
     const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository, tempRoot: root, now: () => 42 }, { progress });
+    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository, mirrors: mirrorsProvider, tempRoot: root, now: () => 42 }, { progress });
 
     const taskId = await service.start(request(target));
     await service.wait(taskId);
@@ -47,7 +54,7 @@ describe('InstallTaskService', () => {
     const platform = createPlatform(install);
     platform.configure = vi.fn().mockRejectedValueOnce(new Error('config failed')).mockResolvedValue(undefined);
     const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { upsert: vi.fn() }, tempRoot: root }, { progress });
+    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { upsert: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root }, { progress });
 
     const taskId = await service.start(request(join(root, 'installed')));
     await service.wait(taskId);
@@ -69,13 +76,36 @@ describe('InstallTaskService', () => {
       throw new Error('aborted');
     });
     const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { upsert: vi.fn() }, tempRoot: root }, { progress });
+    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { upsert: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root }, { progress });
 
     const taskId = await service.start(request(join(root, 'installed')));
     await service.cancel(taskId);
 
     await expect(access(workDir)).rejects.toMatchObject({ code: 'ENOENT' });
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'cancelled' }));
+  });
+
+  it('passes the configured mirror list through to the platform install context', async () => {
+    const root = await createTempRoot();
+    let receivedMirrors: readonly MirrorSource[] = [];
+    const platform = createPlatform(async (context) => {
+      receivedMirrors = context.mirrors;
+      const payload = join(context.workDir, 'payload');
+      await mkdir(payload, { recursive: true });
+      await writeFile(join(payload, 'ready.txt'), 'ready');
+      return { version: '2.0.0', installPath: payload };
+    });
+    const progress = vi.fn();
+    const service = new InstallTaskService(
+      new PlatformRegistry([platform]),
+      { repository: { upsert: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root },
+      { progress },
+    );
+
+    const taskId = await service.start(request(join(root, 'installed')));
+    await service.wait(taskId);
+
+    expect(receivedMirrors).toEqual(TEST_MIRRORS);
   });
 });
 

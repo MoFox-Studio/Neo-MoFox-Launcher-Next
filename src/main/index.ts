@@ -4,14 +4,19 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import * as nodePty from 'node-pty';
 import { IPC_EVENT_CHANNELS } from '../shared/ipc';
 import { registerCoreIpc } from './ipc/core';
-import { registerInstanceIpc } from './ipc/instances';
 import { registerInstallIpc } from './ipc/install';
+import { registerMigrationIpc } from './ipc/migration';
+import { registerInstanceIpc } from './ipc/instances';
 import { registerWindowIpc } from './ipc/window';
 import { PlatformRegistry } from './platforms/registry';
 import { EnvironmentService } from './services/environment-service';
 import { InstallTaskService } from './services/install-task-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
+import {
+  LegacyMigrationService,
+  resolveLegacyLauncherDataDir,
+} from './services/legacy-migration-service';
 import { MirrorService } from './services/mirror-service';
 import { PlatformMetadataService } from './services/platform-metadata-service';
 import { SettingsService } from './services/settings-service';
@@ -25,10 +30,7 @@ let mainWindow: BrowserWindow | null = null;
 function emitMaximizeState(window: BrowserWindow): void {
   // 最大化变化由窗口事件驱动，避免渲染端以本地推测替代 BrowserWindow 的真实状态。
   if (!window.isDestroyed()) {
-    window.webContents.send(
-      IPC_EVENT_CHANNELS['window-maximize-changed'],
-      window.isMaximized(),
-    );
+    window.webContents.send(IPC_EVENT_CHANNELS['window-maximize-changed'], window.isMaximized());
   }
 }
 
@@ -94,6 +96,7 @@ if (!hasSingleInstanceLock) {
     const settings = new SettingsService(dataDirectory, report);
     const instances = new InstanceRepository(dataDirectory, report);
     const platforms = new PlatformRegistry();
+    const mirrors = new MirrorService();
     logger = createLogger({
       directory: join(dataDirectory, 'logs'),
       getSettings: async () => {
@@ -108,7 +111,6 @@ if (!hasSingleInstanceLock) {
     registerCoreIpc(ipcMain, {
       instances,
       environment: new EnvironmentService(),
-      mirrors: new MirrorService(),
       platforms: new PlatformMetadataService(platforms),
       settings,
     });
@@ -120,22 +122,19 @@ if (!hasSingleInstanceLock) {
       instances,
       platforms,
       {
-        statusChanged: (instanceId, status) => send(
-          IPC_EVENT_CHANNELS['instance-status-changed'],
-          { instanceId, status },
-        ),
-        ptyData: (instanceId, source, data) => send(
-          IPC_EVENT_CHANNELS['instance-pty-data'],
-          { instanceId, source, data },
-        ),
+        statusChanged: (instanceId, status) =>
+          send(IPC_EVENT_CHANNELS['instance-status-changed'], { instanceId, status }),
+        ptyData: (instanceId, source, data) =>
+          send(IPC_EVENT_CHANNELS['instance-pty-data'], { instanceId, source, data }),
       },
-      (command, args, options) => nodePty.spawn(command, args, {
-        name: 'xterm-256color',
-        cols: options.cols,
-        rows: options.rows,
-        cwd: options.cwd,
-        env: options.env,
-      }),
+      (command, args, options) =>
+        nodePty.spawn(command, args, {
+          name: 'xterm-256color',
+          cols: options.cols,
+          rows: options.rows,
+          cwd: options.cwd,
+          env: options.env,
+        }),
       removePathSafe,
       async (path) => {
         const error = await shell.openPath(path);
@@ -152,10 +151,17 @@ if (!hasSingleInstanceLock) {
     registerInstanceIpc(ipcMain, runtime);
     const installTasks = new InstallTaskService(
       platforms,
-      { repository: instances },
+      { repository: instances, mirrors },
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
     registerInstallIpc(ipcMain, installTasks);
+    // 旧启动器迁移：默认指向与当前 userData 同级的 Neo-MoFox-Launcher 目录。
+    const legacyDataDir = resolveLegacyLauncherDataDir({
+      appDataDir: app.getPath('appData'),
+      override: process.env.NEO_MOFOX_LEGACY_DATA,
+    });
+    const legacyMigration = new LegacyMigrationService(legacyDataDir, instances, report);
+    registerMigrationIpc(ipcMain, legacyMigration);
     mainWindow = createMainWindow();
 
     // 活跃安装任务必须先收到取消与清理机会，防止关闭窗口留下临时安装状态。

@@ -23,6 +23,7 @@ export class SnowLumaPlatform extends BaseBotPlatform {
     // 过滤 lite 包，并同时接受 Windows ZIP 与 Linux tar.gz 的完整发行包。
     return installGithubRelease(
       context,
+      context.mirrors,
       'SnowLuma/SnowLuma',
       (release) => release.assets.find((asset) =>
         !asset.name.includes('-lite') &&

@@ -14,7 +14,6 @@ export const useSettingsStore = defineStore('settings', () => {
     seedColor: DEFAULT_SEED,
     language: 'zh-CN',
     defaultInstallDir: '',
-    mirrorAutoSelect: true,
     closeToTray: true,
     hardwareAcceleration: true,
     maxLogFileSizeMb: 16,

@@ -1,6 +1,5 @@
 /** 主进程、预加载脚本与渲染进程共用的 IPC 契约唯一来源。 */
 import type { SystemEnvInfo } from './domain/system-env';
-import type { MirrorSelection, MirrorSource } from './domain/mirror';
 import type { BotPlatformMetadata } from './domain/bot-platform';
 import type { LogEntry } from './domain/logger';
 import type { DownloadProgress } from './domain/download';
@@ -12,6 +11,9 @@ import type {
   InstallProgressEvent,
   InstallRequest,
   LauncherSettings,
+  LegacyLauncherInfo,
+  MigrationPreview,
+  MigrationResult,
 } from './domain/instance';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
@@ -42,11 +44,12 @@ export const IPC_INVOKE_CHANNELS = {
   retryInstall: 'install:retry',
   cancelInstall: 'install:cancel',
   detectSystemEnv: 'environment:detect',
-  listMirrors: 'mirrors:list',
-  selectBestMirror: 'mirrors:select-best',
   listBotPlatforms: 'bot-platforms:list',
   getSettings: 'settings:get',
   updateSettings: 'settings:update',
+  detectLegacyLauncher: 'migration:detect-legacy',
+  previewLegacyMigration: 'migration:preview',
+  importLegacyMigration: 'migration:import',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -100,15 +103,18 @@ export interface MofoxApi {
   retryInstall(taskId: string): Promise<void>;
   cancelInstall(taskId: string): Promise<void>;
 
-  /** 系统探测、镜像与平台元数据查询。 */
+  /** 系统探测与平台元数据查询。 */
   detectSystemEnv(): Promise<SystemEnvInfo>;
-  listMirrors(): Promise<MirrorSource[]>;
-  selectBestMirror(): Promise<MirrorSelection>;
   listBotPlatforms(): Promise<BotPlatformMetadata[]>;
 
   /** 启动器设置读取与局部更新。 */
   getSettings(): Promise<LauncherSettings>;
   updateSettings(patch: Partial<LauncherSettings>): Promise<LauncherSettings>;
+
+  /** 从旧启动器数据目录探测、预览并导入实例。 */
+  detectLegacyLauncher(): Promise<LegacyLauncherInfo | null>;
+  previewLegacyMigration(): Promise<MigrationPreview>;
+  importLegacyMigration(): Promise<MigrationResult>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

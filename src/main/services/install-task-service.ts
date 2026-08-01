@@ -3,7 +3,13 @@ import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { InstallContext, InstallResult } from '../../shared/domain/bot-platform';
-import type { Instance, InstallProgressEvent, InstallRequest, InstallStepId } from '../../shared/domain/instance';
+import type {
+  Instance,
+  InstallProgressEvent,
+  InstallRequest,
+  InstallStepId,
+} from '../../shared/domain/instance';
+import type { MirrorSource } from '../../shared/domain/mirror';
 import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';
 
@@ -11,7 +17,14 @@ import type { PlatformRegistry } from '../platforms/registry';
  * 将平台安装拆为可观察、可重试的步骤状态机；进度事件是主进程到渲染进程的状态同步边界。
  * 工作目录始终位于临时区，成功后再以暂存目录提交目标路径，失败和取消均回收临时资源。
  */
-const STEPS: readonly InstallStepId[] = ['prepare', 'download', 'extract', 'dependencies', 'configure', 'finalize'];
+const STEPS: readonly InstallStepId[] = [
+  'prepare',
+  'download',
+  'extract',
+  'dependencies',
+  'configure',
+  'finalize',
+];
 
 interface TaskRecord {
   id: string;
@@ -31,6 +44,7 @@ export interface InstallTaskEvents {
 
 export interface InstallTaskDependencies {
   repository: { upsert(instance: Instance): Promise<void> };
+  mirrors: { list(): MirrorSource[] };
   now?: () => number;
   tempRoot?: string;
 }
@@ -56,7 +70,8 @@ export class InstallTaskService {
   async retry(taskId: string): Promise<void> {
     // 从失败步骤继续，保留已完成下载结果，避免无意义地重做前序步骤。
     const task = this.requireTask(taskId);
-    if (task.status !== 'failed' || !task.failedStep) throw new MofoxError('CONFLICT', '只有失败任务可以重试');
+    if (task.status !== 'failed' || !task.failedStep)
+      throw new MofoxError('CONFLICT', '只有失败任务可以重试');
     task.controller = new AbortController();
     task.status = 'running';
     const startIndex = STEPS.indexOf(task.failedStep);
@@ -79,7 +94,9 @@ export class InstallTaskService {
   }
 
   hasActiveTasks(): boolean {
-    return [...this.tasks.values()].some((task) => task.status === 'pending' || task.status === 'running');
+    return [...this.tasks.values()].some(
+      (task) => task.status === 'pending' || task.status === 'running',
+    );
   }
 
   async wait(taskId: string): Promise<void> {
@@ -140,7 +157,7 @@ export class InstallTaskService {
       version: task.request.version,
       workDir: task.workDir,
       targetDir: join(task.workDir, 'payload'),
-      ...(task.request.mirrorId ? { mirrorId: task.request.mirrorId } : {}),
+      mirrors: this.dependencies.mirrors.list(),
       signal: task.controller.signal,
     };
     return platform.install(context);
@@ -182,9 +199,24 @@ export class InstallTaskService {
     });
   }
 
-  private emit(task: TaskRecord, step: InstallStepId, progress: number, status: InstallProgressEvent['status'], message: string): void {
+  private emit(
+    task: TaskRecord,
+    step: InstallStepId,
+    progress: number,
+    status: InstallProgressEvent['status'],
+    message: string,
+  ): void {
     // 事件载荷保持完整步骤上下文，渲染端无需推断任务当前状态。
-    this.events.progress({ taskId: task.id, instanceName: task.request.instanceName, step, stepIndex: STEPS.indexOf(step), stepCount: STEPS.length, status, progress, message });
+    this.events.progress({
+      taskId: task.id,
+      instanceName: task.request.instanceName,
+      step,
+      stepIndex: STEPS.indexOf(step),
+      stepCount: STEPS.length,
+      status,
+      progress,
+      message,
+    });
   }
 
   private throwIfCancelled(task: TaskRecord): void {
@@ -200,9 +232,12 @@ export class InstallTaskService {
 }
 
 function validateRequest(request: InstallRequest): void {
-  if (!request.instanceName.trim() || !request.platformId.trim() || !request.version.trim()) throw new MofoxError('INVALID_ARGUMENT', '安装实例名、平台和版本不能为空');
-  if (!isAbsolute(request.targetDir)) throw new MofoxError('INVALID_ARGUMENT', '安装目标路径必须是绝对路径');
-  if (resolve(request.targetDir) === resolve(request.targetDir, '..')) throw new MofoxError('INVALID_ARGUMENT', '安装目标路径不能是文件系统根目录');
+  if (!request.instanceName.trim() || !request.platformId.trim() || !request.version.trim())
+    throw new MofoxError('INVALID_ARGUMENT', '安装实例名、平台和版本不能为空');
+  if (!isAbsolute(request.targetDir))
+    throw new MofoxError('INVALID_ARGUMENT', '安装目标路径必须是绝对路径');
+  if (resolve(request.targetDir) === resolve(request.targetDir, '..'))
+    throw new MofoxError('INVALID_ARGUMENT', '安装目标路径不能是文件系统根目录');
 }
 
 function isCrossDevice(error: unknown): boolean {

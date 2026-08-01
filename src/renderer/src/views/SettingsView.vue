@@ -1,7 +1,15 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useSettingsStore } from '@/stores/settings';
-import type { LauncherSettings } from '@shared/domain/instance';
+import { mofoxApi } from '@/services/mofox-api';
+import type {
+  LauncherSettings,
+  LegacyLauncherInfo,
+  MigrationPreview,
+  MigrationResult,
+} from '@shared/domain/instance';
+import { MofoxError } from '@shared/domain/error';
 
 // 设置页直接绑定持久化仓库，所有控件通过局部补丁提交更新。
 const settingsStore = useSettingsStore();
@@ -24,6 +32,76 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
   if (val > max) val = max;
   update({ [key]: val });
 };
+
+// ─── 旧启动器数据迁移 ───────────────────────────────────────────────────
+// 四态流程：空闲 → 已检测 → 已预览 → 已完成；busy 标志独立跟踪异步执行。
+type MigrationPhase = 'idle' | 'detected' | 'previewed' | 'done';
+
+const migrationPhase = ref<MigrationPhase>('idle');
+const migrationBusy = ref(false);
+const migrationError = ref<string | null>(null);
+const legacyInfo = ref<LegacyLauncherInfo | null>(null);
+const migrationPreview = ref<MigrationPreview | null>(null);
+const migrationResult = ref<MigrationResult | null>(null);
+
+function resetMigration(): void {
+  migrationPhase.value = 'idle';
+  migrationError.value = null;
+  legacyInfo.value = null;
+  migrationPreview.value = null;
+  migrationResult.value = null;
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof MofoxError) return error.message;
+  if (error instanceof Error) return error.message;
+  return '未知错误';
+}
+
+async function detectLegacy(): Promise<void> {
+  migrationBusy.value = true;
+  migrationError.value = null;
+  try {
+    legacyInfo.value = await mofoxApi.detectLegacyLauncher();
+    migrationPhase.value = legacyInfo.value ? 'detected' : 'idle';
+    if (!legacyInfo.value) migrationError.value = '未检测到旧启动器数据目录';
+  } catch (error) {
+    migrationError.value = describeError(error);
+  } finally {
+    migrationBusy.value = false;
+  }
+}
+
+async function previewMigration(): Promise<void> {
+  migrationBusy.value = true;
+  migrationError.value = null;
+  try {
+    migrationPreview.value = await mofoxApi.previewLegacyMigration();
+    migrationPhase.value = 'previewed';
+  } catch (error) {
+    migrationError.value = describeError(error);
+  } finally {
+    migrationBusy.value = false;
+  }
+}
+
+async function importMigration(): Promise<void> {
+  migrationBusy.value = true;
+  migrationError.value = null;
+  try {
+    migrationResult.value = await mofoxApi.importLegacyMigration();
+    migrationPhase.value = 'done';
+  } catch (error) {
+    migrationError.value = describeError(error);
+  } finally {
+    migrationBusy.value = false;
+  }
+}
+
+onMounted(() => {
+  // 进入设置页时静默探测一次旧启动器；存在则直接进入“已检测”态以减少手动操作。
+  void detectLegacy();
+});
 </script>
 
 <template>
@@ -51,7 +129,9 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
                 role="radio"
                 :aria-checked="settings.themeMode === 'system'"
               >
-                <span v-if="settings.themeMode === 'system'" class="msr segmented-button__check">check</span>
+                <span v-if="settings.themeMode === 'system'" class="msr segmented-button__check"
+                  >check</span
+                >
                 <span>跟随系统</span>
               </button>
               <button
@@ -61,7 +141,9 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
                 role="radio"
                 :aria-checked="settings.themeMode === 'light'"
               >
-                <span v-if="settings.themeMode === 'light'" class="msr segmented-button__check">check</span>
+                <span v-if="settings.themeMode === 'light'" class="msr segmented-button__check"
+                  >check</span
+                >
                 <span>浅色</span>
               </button>
               <button
@@ -71,7 +153,9 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
                 role="radio"
                 :aria-checked="settings.themeMode === 'dark'"
               >
-                <span v-if="settings.themeMode === 'dark'" class="msr segmented-button__check">check</span>
+                <span v-if="settings.themeMode === 'dark'" class="msr segmented-button__check"
+                  >check</span
+                >
                 <span>深色</span>
               </button>
             </div>
@@ -137,7 +221,9 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
             <span class="msr settings-item__icon">folder</span>
             <div class="settings-item__body">
               <span class="settings-item__label">默认安装目录</span>
-              <span class="settings-item__desc settings-item__desc--mono">{{ settings.defaultInstallDir }}</span>
+              <span class="settings-item__desc settings-item__desc--mono">{{
+                settings.defaultInstallDir
+              }}</span>
             </div>
             <button class="text-button state-layer">更改</button>
           </div>
@@ -181,25 +267,107 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
         </div>
       </section>
 
-      <!-- 网络 -->
+      <!-- 日志 -->
       <section class="settings-group">
-        <h2 class="settings-group__title">网络</h2>
+        <h2 class="settings-group__title">数据迁移</h2>
         <div class="settings-group__card">
           <div class="settings-item">
-            <span class="msr settings-item__icon">swap_driving_apps_wheel</span>
+            <span class="msr settings-item__icon">cloud_sync</span>
             <div class="settings-item__body">
-              <span class="settings-item__label">自动选择最快镜像</span>
+              <span class="settings-item__label">从旧启动器导入实例</span>
+              <span class="settings-item__desc" v-if="legacyInfo">
+                {{ legacyInfo.dataDirectory }} · {{ legacyInfo.instanceCount }} 个实例
+              </span>
+              <span class="settings-item__desc" v-else>
+                检测旧启动器（Neo-MoFox-Launcher）数据目录并导入其实例
+              </span>
             </div>
-            <div
-              class="md-switch"
-              role="switch"
-              :aria-checked="settings.mirrorAutoSelect"
-              :class="{ 'md-switch--checked': settings.mirrorAutoSelect }"
-              @click="update({ mirrorAutoSelect: !settings.mirrorAutoSelect })"
+            <button
+              v-if="migrationPhase === 'idle'"
+              class="text-button state-layer"
+              :disabled="migrationBusy"
+              @click="detectLegacy"
             >
-              <div class="md-switch__thumb"></div>
-            </div>
+              检测
+            </button>
+            <button
+              v-else-if="migrationPhase === 'detected'"
+              class="text-button state-layer"
+              :disabled="migrationBusy"
+              @click="previewMigration"
+            >
+              预览
+            </button>
+            <button
+              v-else-if="migrationPhase === 'previewed'"
+              class="text-button state-layer"
+              :disabled="migrationBusy"
+              @click="importMigration"
+            >
+              导入
+            </button>
+            <button
+              v-else
+              class="text-button state-layer"
+              :disabled="migrationBusy"
+              @click="resetMigration"
+            >
+              重置
+            </button>
           </div>
+
+          <!-- 检测失败提示 -->
+          <div v-if="migrationError" class="settings-divider"></div>
+          <div v-if="migrationError" class="migration-note migration-note--error">
+            <span class="msr migration-note__icon">error</span>
+            <span>{{ migrationError }}</span>
+          </div>
+
+          <!-- 预览结果：列出待导入实例与冲突项 -->
+          <template v-if="migrationPreview">
+            <div class="settings-divider"></div>
+            <div class="migration-preview">
+              <p class="migration-preview__hint">
+                共 {{ migrationPreview.previews.length }} 条记录，
+                <span class="migration-preview__conflict">
+                  {{ migrationPreview.previews.filter((p) => p.conflict).length }} 条冲突将被跳过
+                </span>
+              </p>
+              <ul class="migration-preview__list">
+                <li
+                  v-for="entry in migrationPreview.previews"
+                  :key="entry.instance.id"
+                  class="migration-preview__item"
+                  :class="{ 'migration-preview__item--conflict': entry.conflict }"
+                >
+                  <span class="msr migration-preview__icon">{{
+                    entry.conflict ? 'block' : 'check_circle'
+                  }}</span>
+                  <div class="migration-preview__text">
+                    <span class="migration-preview__name">{{ entry.instance.name }}</span>
+                    <span class="migration-preview__meta">
+                      {{ entry.instance.platformId }} · {{ entry.instance.installPath }}
+                    </span>
+                  </div>
+                  <span v-if="entry.conflict" class="migration-preview__tag">
+                    {{ entry.conflict === 'duplicate-id' ? 'ID 冲突' : '路径冲突' }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </template>
+
+          <!-- 导入完成统计 -->
+          <template v-if="migrationResult">
+            <div class="settings-divider"></div>
+            <div class="migration-note migration-note--ok">
+              <span class="msr migration-note__icon">check_circle</span>
+              <span>
+                导入 {{ migrationResult.imported }} 个，跳过 {{ migrationResult.skipped }} 个， 共
+                {{ migrationResult.total }} 个实例
+              </span>
+            </div>
+          </template>
         </div>
       </section>
 
@@ -418,7 +586,16 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
 }
 
 .color-dot--custom {
-  background: conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+  background: conic-gradient(
+    from 0deg,
+    #ff0000,
+    #ffff00,
+    #00ff00,
+    #00ffff,
+    #0000ff,
+    #ff00ff,
+    #ff0000
+  );
 }
 
 .color-dot__input {
@@ -545,6 +722,106 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
 .input-field__suffix {
   font: var(--md-sys-typescale-body-small);
   color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+/* 数据迁移：预览列表与状态提示 */
+.migration-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.migration-note--error {
+  color: var(--md-sys-color-error);
+}
+
+.migration-note--ok {
+  color: var(--md-sys-color-tertiary);
+}
+
+.migration-note__icon {
+  font-size: 20px;
+}
+
+.migration-preview {
+  padding: 12px 16px;
+}
+
+.migration-preview__hint {
+  margin: 0 0 8px;
+  font: var(--md-sys-typescale-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.migration-preview__conflict {
+  color: var(--md-sys-color-error);
+}
+
+.migration-preview__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.migration-preview__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.migration-preview__item--conflict {
+  opacity: 0.65;
+}
+
+.migration-preview__icon {
+  font-size: 18px;
+  color: var(--md-sys-color-tertiary);
+}
+
+.migration-preview__item--conflict .migration-preview__icon {
+  color: var(--md-sys-color-error);
+}
+
+.migration-preview__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.migration-preview__name {
+  font: var(--md-sys-typescale-body-medium);
+  color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.migration-preview__meta {
+  font: var(--md-sys-typescale-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--md-ref-typeface-mono);
+}
+
+.migration-preview__tag {
+  font: var(--md-sys-typescale-label-small);
+  color: var(--md-sys-color-error);
+  border: 1px solid var(--md-sys-color-error);
+  border-radius: var(--md-sys-shape-corner-full);
+  padding: 2px 8px;
   white-space: nowrap;
 }
 </style>

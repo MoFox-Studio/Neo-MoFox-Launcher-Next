@@ -44,11 +44,12 @@ describe('createMofoxApi', () => {
     await api.retryInstall('task-1');
     await api.cancelInstall('task-1');
     await api.detectSystemEnv();
-    await api.listMirrors();
-    await api.selectBestMirror();
     await api.listBotPlatforms();
     await api.getSettings();
     await api.updateSettings({ themeMode: 'dark' });
+    await api.detectLegacyLauncher();
+    await api.previewLegacyMigration();
+    await api.importLegacyMigration();
 
     expect(ipcRenderer.invoke.mock.calls.map(([channel]) => channel)).toEqual(
       Object.values(IPC_INVOKE_CHANNELS),

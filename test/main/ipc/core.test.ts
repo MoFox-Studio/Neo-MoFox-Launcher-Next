@@ -13,8 +13,6 @@ describe('registerCoreIpc', () => {
     expect(channels).toEqual([
       IPC_INVOKE_CHANNELS.listInstances,
       IPC_INVOKE_CHANNELS.detectSystemEnv,
-      IPC_INVOKE_CHANNELS.listMirrors,
-      IPC_INVOKE_CHANNELS.selectBestMirror,
       IPC_INVOKE_CHANNELS.listBotPlatforms,
       IPC_INVOKE_CHANNELS.getSettings,
       IPC_INVOKE_CHANNELS.updateSettings,
@@ -57,10 +55,6 @@ function createServices() {
   return {
     instances: { list: vi.fn(async () => []) },
     environment: { detect: vi.fn(async () => ({})) },
-    mirrors: {
-      list: vi.fn(async () => []),
-      selectBest: vi.fn(async () => ({ mirror: {}, measuredAt: 0 })),
-    },
     platforms: { list: vi.fn(() => []) },
     settings: {
       get: vi.fn(async () => ({})),
