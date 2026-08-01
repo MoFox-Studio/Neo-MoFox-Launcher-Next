@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { NapCatPlatform } from './napcat/runtime';
-import { SnowLumaPlatform } from './snowluma/runtime';
+import { NapCatPlatform } from '../../../src/main/platforms/napcat/runtime';
+import { SnowLumaPlatform } from '../../../src/main/platforms/snowluma/runtime';
 
 const temporaryDirectories: string[] = [];
 

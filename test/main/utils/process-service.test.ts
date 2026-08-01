@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runOneShot } from './process-service';
+import { runOneShot } from '../../../src/main/utils/process-service';
 
 describe('runOneShot', () => {
   it('captures stdout, stderr and the exit code separately', async () => {

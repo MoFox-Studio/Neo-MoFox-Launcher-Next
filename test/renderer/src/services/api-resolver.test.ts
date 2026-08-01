@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MofoxApi } from '@shared/ipc';
-import { resolveMofoxApi } from './api-resolver';
+import { resolveMofoxApi } from '../../../../src/renderer/src/services/api-resolver';
 
 describe('resolveMofoxApi', () => {
   const bridge = {} as MofoxApi;

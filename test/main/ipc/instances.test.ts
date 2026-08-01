@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
-import { registerInstanceIpc } from './instances';
+import { IPC_INVOKE_CHANNELS } from '../../../src/shared/ipc';
+import { registerInstanceIpc } from '../../../src/main/ipc/instances';
 
 function createService() {
   return {

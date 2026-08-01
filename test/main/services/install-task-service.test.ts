@@ -2,9 +2,9 @@ import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BotPlatform } from '../../shared/domain/bot-platform';
-import { PlatformRegistry } from '../platforms/registry';
-import { InstallTaskService } from './install-task-service';
+import type { BotPlatform } from '../../../src/shared/domain/bot-platform';
+import { PlatformRegistry } from '../../../src/main/platforms/registry';
+import { InstallTaskService } from '../../../src/main/services/install-task-service';
 
 const temporaryDirectories: string[] = [];
 

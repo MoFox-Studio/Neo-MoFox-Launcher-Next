@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
-import { registerCoreIpc } from './core';
+import { IPC_INVOKE_CHANNELS } from '../../../src/shared/ipc';
+import { registerCoreIpc } from '../../../src/main/ipc/core';
 
 describe('registerCoreIpc', () => {
   it('registers every stage-two service channel', () => {

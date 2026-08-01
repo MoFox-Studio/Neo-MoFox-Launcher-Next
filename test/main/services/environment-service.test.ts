@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EnvironmentService } from './environment-service';
+import { EnvironmentService } from '../../../src/main/services/environment-service';
 
 describe('EnvironmentService', () => {
   it('adds detected tool versions to system information', async () => {

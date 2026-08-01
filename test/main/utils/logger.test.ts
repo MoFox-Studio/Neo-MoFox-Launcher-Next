@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createLogger } from './logger';
+import { createLogger } from '../../../src/main/utils/logger';
 
 const directories: string[] = [];
 

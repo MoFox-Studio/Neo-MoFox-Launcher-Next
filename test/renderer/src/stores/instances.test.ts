@@ -19,7 +19,7 @@ vi.mock('@/services/mofox-api', () => ({
   },
 }));
 
-import { useInstancesStore } from './instances';
+import { useInstancesStore } from '../../../../src/renderer/src/stores/instances';
 
 describe('instances store', () => {
   beforeEach(() => {

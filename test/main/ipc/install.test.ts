@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
-import { registerInstallIpc } from './install';
+import { IPC_INVOKE_CHANNELS } from '../../../src/shared/ipc';
+import { registerInstallIpc } from '../../../src/main/ipc/install';
 
 describe('registerInstallIpc', () => {
   it('validates and forwards install actions', async () => {

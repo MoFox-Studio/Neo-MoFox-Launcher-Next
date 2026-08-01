@@ -5,8 +5,8 @@ vi.mock('electron', () => ({
   ipcRenderer: {},
 }));
 
-import { IPC_EVENT_CHANNELS, IPC_INVOKE_CHANNELS } from '../shared/ipc';
-import { createMofoxApi } from './index';
+import { IPC_EVENT_CHANNELS, IPC_INVOKE_CHANNELS } from '../../src/shared/ipc';
+import { createMofoxApi } from '../../src/preload/index';
 
 describe('createMofoxApi', () => {
   it('forwards every invoke method to its allowlisted channel', async () => {

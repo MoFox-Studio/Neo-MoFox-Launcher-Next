@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { InstanceRepository } from './instance-repository';
+import { InstanceRepository } from '../../../src/main/services/instance-repository';
 
 const tempDirectories: string[] = [];
 

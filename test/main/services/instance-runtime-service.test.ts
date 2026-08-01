@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Instance } from '../../shared/domain/instance';
-import { PlatformRegistry } from '../platforms/registry';
-import { InstanceRuntimeService, type PtyProcess } from './instance-runtime-service';
+import type { Instance } from '../../../src/shared/domain/instance';
+import { PlatformRegistry } from '../../../src/main/platforms/registry';
+import { InstanceRuntimeService, type PtyProcess } from '../../../src/main/services/instance-runtime-service';
 
 const FAST_TIMINGS = { sigterm: 10, sigkill: 10 };
 const temporaryDirectories: string[] = [];

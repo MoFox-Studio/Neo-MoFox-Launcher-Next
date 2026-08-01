@@ -10,7 +10,7 @@ vi.mock('@/services/mofox-api', () => ({
 }));
 vi.mock('@/services/theme', () => ({ applyTheme: vi.fn() }));
 
-import { useSettingsStore } from './settings';
+import { useSettingsStore } from '../../../../src/renderer/src/stores/settings';
 
 const settings = {
   themeMode: 'dark' as const,

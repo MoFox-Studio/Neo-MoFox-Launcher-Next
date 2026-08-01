@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { downloadRange } from './range-downloader';
+import { downloadRange } from '../../../src/main/utils/range-downloader';
 
 const directories: string[] = [];
 const servers: Server[] = [];

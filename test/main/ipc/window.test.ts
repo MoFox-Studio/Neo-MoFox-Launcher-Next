@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
-import { registerWindowIpc } from './window';
+import { IPC_INVOKE_CHANNELS } from '../../../src/shared/ipc';
+import { registerWindowIpc } from '../../../src/main/ipc/window';
 
 type Handler = () => unknown;
 

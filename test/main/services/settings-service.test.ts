@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_SETTINGS, SettingsService } from './settings-service';
+import { DEFAULT_SETTINGS, SettingsService } from '../../../src/main/services/settings-service';
 
 const tempDirectories: string[] = [];
 

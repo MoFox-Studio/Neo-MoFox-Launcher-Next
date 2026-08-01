@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { removePathSafe } from './native-file-remover';
+import { removePathSafe } from '../../../src/main/utils/native-file-remover';
 
 const directories: string[] = [];
 

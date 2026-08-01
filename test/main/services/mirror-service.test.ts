@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MirrorService } from './mirror-service';
+import { MirrorService } from '../../../src/main/services/mirror-service';
 
 describe('MirrorService', () => {
   it('measures every source and selects the lowest successful latency', async () => {

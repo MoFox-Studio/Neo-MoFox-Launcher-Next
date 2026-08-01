@@ -25,6 +25,7 @@
     "src/renderer/src/**/*.ts",
     "src/renderer/src/**/*.vue",
     "src/renderer/vite-env.d.ts",
-    "src/shared/**/*.ts"
+    "src/shared/**/*.ts",
+    "test/renderer/src/**/*.ts"
   ]
 }

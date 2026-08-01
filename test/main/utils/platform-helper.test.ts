@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSpawnEnv, parseOsRelease, prepareArgsForShell, quoteShellArg } from './platform-helper';
+import { buildSpawnEnv, parseOsRelease, prepareArgsForShell, quoteShellArg } from '../../../src/main/utils/platform-helper';
 
 describe('platform helper', () => {
   it.each([
