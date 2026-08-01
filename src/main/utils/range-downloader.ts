@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import type { DownloadProgress, RangeDownloadOptions } from '../../shared/domain/download';
 import { MofoxError } from '../../shared/domain/error';
 
+// 负责将 HTTP(S) 资源写入本地文件；在服务端支持时按字节范围并发下载。
 type ProgressListener = (progress: DownloadProgress) => void;
 
 interface ResolvedOptions {
@@ -31,6 +32,7 @@ export async function downloadRange(
     metadata.resume();
     const report = createProgressReporter(url, totalBytes, onProgress);
 
+    // 不可信的长度、小文件或不支持 Range 时保持单流，避免产生无效的分段请求。
     if (!supportsRanges || !Number.isFinite(totalBytes) || totalBytes < resolved.minChunkBytes) {
       await downloadSingle(url, destination, totalBytes, resolved, report);
     } else {
@@ -38,6 +40,7 @@ export async function downloadRange(
     }
     report(totalBytes, true);
   } catch (error) {
+    // 下载失败或取消时移除不完整文件，避免调用方误将其视为有效产物。
     await rm(destination, { force: true }).catch(() => undefined);
     throw error;
   }
@@ -68,6 +71,7 @@ async function downloadChunks(
   options: ResolvedOptions,
   report: (receivedBytes: number, force?: boolean) => void,
 ): Promise<void> {
+  // 预分配同一个文件后，各 Range 写入互不重叠的偏移区间，可安全并发执行。
   const handle = await open(destination, 'w');
   let received = 0;
   try {
@@ -118,6 +122,7 @@ function request(
       const status = response.statusCode ?? 0;
       const location = response.headers.location;
       if (status >= 300 && status < 400 && location) {
+        // 先消费当前响应，再递归发起下一跳，防止重定向链残留套接字。
         response.resume();
         if (redirectsRemaining <= 0) {
           reject(new MofoxError('IO_ERROR', 'Download redirect limit exceeded'));
@@ -162,6 +167,7 @@ function createProgressReporter(
     if (!listener) return;
     const now = performance.now();
     const percent = totalBytes > 0 ? Math.floor((receivedBytes / totalBytes) * 100) : 0;
+    // 在高并发分段写入时按时间和百分比双阈值节流，完成状态始终强制上报。
     if (!force && now - lastReportedAt < 200 && percent - lastPercent < 1) return;
     lastReportedAt = now;
     lastPercent = percent;

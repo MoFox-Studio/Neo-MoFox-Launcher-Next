@@ -2,6 +2,7 @@
 import { useRoute, useRouter } from 'vue-router';
 import { useInstallStore } from '@/stores/install';
 
+// 主导航：路由驱动选中态，并显示后台安装任务提示。
 interface NavItem {
   name: string;
   label: string;
@@ -15,6 +16,7 @@ const items: NavItem[] = [
   { name: 'settings', label: '设置', icon: 'settings' },
 ];
 
+// 当前路由和安装仓库共同决定导航的动态视觉状态。
 const route = useRoute();
 const router = useRouter();
 const install = useInstallStore();
@@ -26,6 +28,7 @@ function isActive(item: NavItem): boolean {
 
 <template>
   <nav class="rail" aria-label="主导航">
+    <!-- 快捷创建入口 -->
     <button
       class="rail__fab state-layer"
       type="button"
@@ -35,6 +38,7 @@ function isActive(item: NavItem): boolean {
       <span class="msr" aria-hidden="true">add</span>
     </button>
 
+    <!-- 路由导航项与安装中徽标 -->
     <ul class="rail__list">
       <li v-for="item in items" :key="item.name">
         <button
@@ -62,7 +66,7 @@ function isActive(item: NavItem): boolean {
 </template>
 
 <style scoped>
-/* MD3 navigation rail */
+/* 导航栏、快捷入口和选中态 */
 .rail {
   width: var(--app-navrail-width);
   display: flex;

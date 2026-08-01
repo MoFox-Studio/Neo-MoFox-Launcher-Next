@@ -6,6 +6,7 @@ import { mofoxApi } from '@/services/mofox-api';
 import type { SystemEnvInfo } from '@shared/domain/system-env';
 import type { ThemeMode } from '@shared/domain/instance';
 
+// 首次引导依次完成欢迎、环境检测和基础偏好配置。
 interface ThemeOption {
   value: ThemeMode;
   label: string;
@@ -29,6 +30,7 @@ const SEED_COLORS = ['#7C5CDB', '#B3261E', '#006A6A', '#9C4400', '#386A20', '#34
 const router = useRouter();
 const settingsStore = useSettingsStore();
 
+// 当前步骤、环境请求状态和编辑中的目录构成引导流程状态。
 const totalSteps = 3;
 const currentStep = ref(1);
 
@@ -37,6 +39,7 @@ const envInfo = ref<SystemEnvInfo | null>(null);
 const envLoading = ref(false);
 
 async function loadEnv(): Promise<void> {
+  // 环境检测始终在 finally 中退出加载态。
   envLoading.value = true;
   try {
     envInfo.value = await mofoxApi.detectSystemEnv();
@@ -108,6 +111,7 @@ onMounted(async () => {
 
 <template>
   <div class="oobe">
+    <!-- 步骤进度与切换内容区 -->
     <div class="oobe__dots">
       <span
         v-for="step in totalSteps"
@@ -169,6 +173,7 @@ onMounted(async () => {
           </button>
         </section>
 
+        <!-- 主题、种子色和默认安装目录偏好 -->
         <section v-else key="prefs" class="oobe__step">
           <h2 class="oobe__step-title">偏好设置</h2>
 
@@ -238,6 +243,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 首次引导的居中舞台与步骤进度 */
 .oobe {
   height: 100%;
   display: flex;
@@ -333,7 +339,7 @@ onMounted(async () => {
   margin-bottom: 24px;
 }
 
-/* ---- Environment list ---- */
+/* 环境检测结果列表 */
 .env-list {
   list-style: none;
   margin: 0 0 32px;
@@ -385,7 +391,7 @@ onMounted(async () => {
   color: var(--md-sys-color-error);
 }
 
-/* ---- Preferences ---- */
+/* 偏好选择、色板与输入框 */
 .pref-block {
   margin-bottom: 32px;
 }
@@ -453,7 +459,7 @@ onMounted(async () => {
   outline-color: var(--md-sys-color-primary);
 }
 
-/* ---- Outlined text field (self-drawn, shared pattern) ---- */
+/* 浮动标签输入框 */
 .field {
   position: relative;
   display: block;
@@ -501,7 +507,7 @@ onMounted(async () => {
   color: var(--md-sys-color-primary);
 }
 
-/* ---- Buttons (MD3 self-drawn) ---- */
+/* 引导操作按钮与加载动画 */
 .btn {
   position: relative;
   display: inline-flex;
@@ -550,7 +556,7 @@ onMounted(async () => {
   }
 }
 
-/* ---- Step transition ---- */
+/* 步骤切换动画 */
 .oobe-slide-enter-active,
 .oobe-slide-leave-active {
   transition:

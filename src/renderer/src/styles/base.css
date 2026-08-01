@@ -1,4 +1,4 @@
-/* Global resets and app chrome built on MD3 tokens. */
+/* 基础重置与依赖 MD3 令牌的全局应用外观。 */
 *,
 *::before,
 *::after {
@@ -12,6 +12,7 @@ body,
   margin: 0;
 }
 
+/* 页面根容器、文字渲染与主题过渡 */
 body {
   font: var(--md-sys-typescale-body-medium);
   color: var(--md-sys-color-on-surface);
@@ -28,7 +29,7 @@ body {
   color: var(--md-sys-color-on-primary-container);
 }
 
-/* Material Symbols icon helper */
+/* Material Symbols 图标字体工具类 */
 .msr {
   font-family: 'Material Symbols Rounded';
   font-weight: normal;
@@ -50,7 +51,7 @@ body {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* Scrollbars themed with MD3 colors */
+/* 使用 MD3 颜色的滚动条 */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -73,14 +74,13 @@ body {
   background: transparent;
 }
 
-/* Focus visibility (keyboard users) */
+/* 键盘焦点可见性 */
 :focus-visible {
   outline: 3px solid var(--md-sys-color-primary);
   outline-offset: 2px;
 }
 
-/* Utility: MD3 state layer host. Elements add `.state-layer` and get
-   hover/pressed tint of currentColor per MD3 interaction states. */
+/* MD3 状态层工具类，为承载元素提供悬停与按下色调反馈。 */
 .state-layer {
   position: relative;
   overflow: hidden;

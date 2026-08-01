@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
+// Electron 渲染进程使用 Hash 路由，页面组件按路由懒加载。
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [

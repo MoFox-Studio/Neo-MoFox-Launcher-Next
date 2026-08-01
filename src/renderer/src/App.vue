@@ -5,12 +5,13 @@ import AppTitleBar from '@/components/AppTitleBar.vue';
 import NavRail from '@/components/NavRail.vue';
 
 const route = useRoute();
-// OOBE runs full-bleed without navigation chrome.
+// 根据路由元数据切换首次引导的沉浸式布局。
 const bare = computed(() => route.meta.bare === true);
 </script>
 
 <template>
   <div class="shell">
+    <!-- 应用窗体栏与主导航框架 -->
     <AppTitleBar />
     <div class="shell__body">
       <NavRail v-if="!bare" />
@@ -39,7 +40,7 @@ const bare = computed(() => route.meta.bare === true);
   min-height: 0;
 }
 
-/* Content pane sits on `surface` like an MD3 canvas inside the rail chrome. */
+/* 主内容画布与首次引导的无圆角变体 */
 .shell__content {
   flex: 1;
   min-width: 0;
@@ -54,7 +55,7 @@ const bare = computed(() => route.meta.bare === true);
   border-top-left-radius: 0;
 }
 
-/* MD3 emphasized page transition: fade through + slight upward settle. */
+/* 路由页面的淡入上移动画 */
 .page-enter-active {
   transition:
     opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized-decelerate),

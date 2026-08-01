@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { runOneShot } from '../../../src/main/utils/process-service';
 
 describe('runOneShot', () => {
+  // 分别验证子进程输出边界、启动失败结算和超时后的终止路径。
   it('captures stdout, stderr and the exit code separately', async () => {
     const result = await runOneShot(process.execPath, [
       '-e',

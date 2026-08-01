@@ -6,6 +6,7 @@ import treeKill from 'tree-kill';
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
 import { runOneShot, spawnProcess, type ExecOptions, type ExecResult } from './process-service';
 
+// 归集跨平台的系统识别、命令行构造及归档/进程边界操作，供主进程服务复用。
 export function isWindows(): boolean {
   return platform() === 'win32';
 }
@@ -41,6 +42,7 @@ export async function detectSystemEnv(): Promise<SystemEnvInfo> {
 export function parseOsRelease(
   source: string,
 ): Pick<SystemEnvInfo, 'distroFamily' | 'packageManager'> {
+  // /etc/os-release 的 ID 与 ID_LIKE 均可标识发行版谱系，优先映射为可执行的包管理器。
   const values = Object.fromEntries(
     source
       .split(/\r?\n/)
@@ -89,6 +91,7 @@ export function killProcessTree(pid: number, signal: NodeJS.Signals = 'SIGTERM')
         resolve();
         return;
       }
+      // tree-kill 失败时调用系统原生命令，处理平台工具无法覆盖的进程树。
       const fallback = nativeKillCommand(pid, signal);
       const result = await runOneShot(fallback.command, fallback.args);
       if (result.exitCode === 0) resolve();
@@ -102,6 +105,7 @@ export async function unzip(zipPath: string, destinationDirectory: string): Prom
 }
 
 export function quoteShellArg(value: string): string {
+  // Windows cmd 与 POSIX shell 的转义规则不同，必须在交由 shell 解析前分支处理。
   if (isWindows()) return `"${value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/g, '$1$1')}"`;
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
@@ -118,6 +122,7 @@ export function buildSpawnEnv(extraEnvironment: NodeJS.ProcessEnv = {}): NodeJS.
     ...extraEnvironment,
   };
   if (!isWindows()) {
+    // GUI 启动的进程常缺少交互 shell 注入的 PATH，补齐常见用户级可执行目录。
     const additions = ['.cargo/bin', '.local/bin', 'bin'].map((directory) => join(homedir(), directory));
     environment.PATH = [...additions, environment.PATH ?? ''].filter(Boolean).join(delimiter);
   }
@@ -125,6 +130,7 @@ export function buildSpawnEnv(extraEnvironment: NodeJS.ProcessEnv = {}): NodeJS.
 }
 
 export function nativeRemovalCommand(path: string): { command: string; args: string[] } {
+  // 将路径作为参数传给原生命令，并针对 cmd 的变量与引号解析规则做转义。
   if (isWindows()) {
     const escaped = path.replace(/%/g, '%%').replace(/"/g, '""');
     return {

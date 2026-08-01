@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InstanceRepository } from '../../../src/main/services/instance-repository';
 
+/** 验证仓库首次加载、历史格式归一化、坏记录隔离及原子增删后的状态。 */
 const tempDirectories: string[] = [];
 
 async function createTempDirectory(): Promise<string> {

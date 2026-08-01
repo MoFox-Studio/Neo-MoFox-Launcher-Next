@@ -2,6 +2,7 @@ import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 import type { InstanceProcessSource, InstanceStats } from '../../shared/domain/instance';
 
+/** 实例控制 IPC 边界：渲染端只能操作明确的实例 ID、进程源和 PTY 参数，运行时细节留在服务层。 */
 interface InstanceActions {
   start(instanceId: string): Promise<void>;
   stop(instanceId: string): Promise<void>;
@@ -47,6 +48,7 @@ function requireId(value: unknown): string {
 }
 
 function requireSource(value: unknown): InstanceProcessSource {
+  // 进程源是日志、终端和状态同步的分区键，禁止任意字符串穿透到运行时 Map。
   if (value !== 'mofox' && value !== 'platform') {
     throw new MofoxError('INVALID_ARGUMENT', 'Process source must be "mofox" or "platform"');
   }
@@ -74,6 +76,7 @@ function register(
     try {
       return await handler(...args);
     } catch (error) {
+      // 将参数校验、文件操作和进程生命周期错误统一为跨进程可识别的错误格式。
       throw serializeIpcError(error);
     }
   });

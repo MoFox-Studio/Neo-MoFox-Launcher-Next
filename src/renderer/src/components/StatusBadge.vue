@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { InstanceStatus } from '@shared/domain/instance';
 
+// 实例状态的统一文字与视觉标识。
 interface Props {
   status: InstanceStatus;
 }
@@ -16,6 +17,7 @@ const STATUS_LABEL: Record<InstanceStatus, string> = {
   error: '异常',
 };
 
+// 状态变化时同步更新标签，并为启停中状态启用提示动画。
 const label = computed(() => STATUS_LABEL[props.status]);
 const isTransitioning = computed(() => props.status === 'starting' || props.status === 'stopping');
 </script>
@@ -28,12 +30,14 @@ const isTransitioning = computed(() => props.status === 'starting' || props.stat
       { 'status-badge--pulsing': isTransitioning },
     ]"
   >
+    <!-- 状态色圆点与可读标签 -->
     <span class="status-badge__dot"></span>
     <span class="status-badge__label">{{ label }}</span>
   </span>
 </template>
 
 <style scoped>
+/* 徽标基础结构与状态色 */
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -78,6 +82,7 @@ const isTransitioning = computed(() => props.status === 'starting' || props.stat
   color: var(--md-sys-color-error);
 }
 
+/* 过渡状态的呼吸提示 */
 @keyframes status-badge-pulse {
   0%,
   100% {

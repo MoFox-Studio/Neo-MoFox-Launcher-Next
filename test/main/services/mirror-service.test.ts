@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MirrorService } from '../../../src/main/services/mirror-service';
 
+/** 验证延迟选择、部分/全部网络失败的降级语义，以及缓存周期内不重复探测。 */
 describe('MirrorService', () => {
   it('measures every source and selects the lowest successful latency', async () => {
     const probe = vi.fn(async (host: string) => (host.includes('github.com') ? 80 : 20));

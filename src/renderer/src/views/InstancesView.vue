@@ -7,6 +7,7 @@ import { mofoxApi } from '@/services/mofox-api';
 import PageHeader from '@/components/PageHeader.vue';
 import InstanceCard from '@/components/InstanceCard.vue';
 
+// 实例管理页提供搜索、状态筛选、操作分发及删除确认。
 type FilterKey = 'all' | 'running' | 'stopped' | 'error';
 
 interface FilterOption {
@@ -25,10 +26,12 @@ const router = useRouter();
 const route = useRoute();
 const instancesStore = useInstancesStore();
 
+// 筛选条件和待确认删除项只属于当前视图的临时响应式状态。
 const keyword = ref('');
 const activeFilter = ref<FilterKey>('all');
 const pendingRemoveInstance = ref<Instance | null>(null);
 
+// 初始化列表，并兼容来自旧入口的日志查询参数跳转。
 onMounted(() => {
   instancesStore.refresh();
   const logsQuery = route.query.logs;
@@ -44,6 +47,7 @@ function matchesFilter(status: InstanceStatus, filter: FilterKey): boolean {
   return status === 'error';
 }
 
+// 搜索关键字和状态筛选共同派生当前可见实例。
 const filteredInstances = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
   return instancesStore.instances.filter((instance) => {
@@ -100,6 +104,7 @@ async function confirmRemove(): Promise<void> {
 
 <template>
   <div class="instances-view">
+    <!-- 标题操作、搜索与筛选工具栏 -->
     <PageHeader title="实例">
       <button class="icon-btn state-layer" type="button" title="刷新" aria-label="刷新" @click="onRefresh">
         <span class="msr" aria-hidden="true">refresh</span>
@@ -167,6 +172,7 @@ async function confirmRemove(): Promise<void> {
       </div>
     </div>
 
+    <!-- 删除操作必须经确认对话框后才提交到实例仓库 -->
     <div v-if="pendingRemoveInstance" class="dialog-scrim" @click.self="cancelRemove">
       <div class="dialog" role="alertdialog" aria-modal="true">
         <h2 class="dialog__title">删除实例</h2>
@@ -187,6 +193,7 @@ async function confirmRemove(): Promise<void> {
 </template>
 
 <style scoped>
+/* 页面容器、筛选工具栏与实例网格 */
 .instances-view {
   height: 100%;
   overflow-y: auto;
@@ -272,6 +279,7 @@ async function confirmRemove(): Promise<void> {
   gap: 16px;
 }
 
+/* 空列表和无搜索结果提示 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -330,6 +338,7 @@ async function confirmRemove(): Promise<void> {
   cursor: pointer;
 }
 
+/* 删除确认对话框及遮罩层 */
 .dialog-scrim {
   position: fixed;
   inset: 0;

@@ -32,6 +32,7 @@ describe('settings store', () => {
     updateSettings.mockReset().mockResolvedValue(settings);
   });
 
+  // 验证首次加载会采用持久化配置并结束加载态。
   it('loads real API values and marks itself loaded', async () => {
     const store = useSettingsStore();
 
@@ -41,6 +42,7 @@ describe('settings store', () => {
     expect(store.loaded).toBe(true);
   });
 
+  // 验证局部更新透传给 API，且仓库使用其规范化响应。
   it('sends partial updates and adopts the canonical response', async () => {
     const store = useSettingsStore();
 

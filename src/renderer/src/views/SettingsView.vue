@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia';
 import { useSettingsStore } from '@/stores/settings';
 import type { LauncherSettings } from '@shared/domain/instance';
 
+// 设置页直接绑定持久化仓库，所有控件通过局部补丁提交更新。
 const settingsStore = useSettingsStore();
 const { settings } = storeToRefs(settingsStore);
 
@@ -14,6 +15,7 @@ const presetColors = ['#7C5CDB', '#B3261E', '#006A6A', '#9C4400', '#386A20', '#3
 
 const isPresetColor = (color: string) => presetColors.includes(color.toUpperCase());
 
+// 数值设置在提交前限制到字段允许范围，避免无效配置写入。
 const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: number, max: number) => {
   const input = event.target as HTMLInputElement;
   let val = parseInt(input.value);
@@ -31,6 +33,7 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
     </header>
 
     <div class="settings-view__content">
+      <!-- 外观、通用、网络、日志与版本信息分组 -->
       <!-- 外观 -->
       <section class="settings-group">
         <h2 class="settings-group__title">外观</h2>
@@ -284,6 +287,7 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
 </template>
 
 <style scoped>
+/* 设置页滚动布局与分组卡片 */
 .settings-view {
   height: 100%;
   overflow-y: auto;
@@ -357,7 +361,7 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
   margin: 0 16px;
 }
 
-/* Segmented Button */
+/* 分段主题选择与颜色选择器 */
 .segmented-button {
   display: flex;
   border: 1px solid var(--md-sys-color-outline);
@@ -393,7 +397,7 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
   font-size: 18px;
 }
 
-/* Color Palette */
+/* 颜色调色板 */
 .color-palette {
   display: flex;
   gap: 12px;
@@ -426,7 +430,7 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
   cursor: pointer;
 }
 
-/* Select */
+/* 原生下拉框与文本操作按钮 */
 .select-wrapper {
   position: relative;
   display: flex;
@@ -457,7 +461,7 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
   color: var(--md-sys-color-on-surface-variant);
 }
 
-/* Text Button */
+/* 文本按钮 */
 .text-button {
   background: transparent;
   border: none;
@@ -469,7 +473,7 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
   position: relative;
 }
 
-/* MD3 Switch */
+/* 开关控件与数值输入框 */
 .md-switch {
   width: 52px;
   height: 32px;
@@ -505,7 +509,7 @@ const handleNumberInput = (key: keyof LauncherSettings, event: Event, min: numbe
   background: var(--md-sys-color-on-primary);
 }
 
-/* Input Field */
+/* 数值输入框 */
 .input-field {
   display: flex;
   align-items: center;

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, SettingsService } from '../../../src/main/services/settings-service';
 
+/** 覆盖设置生命周期：空存储初始化、旧格式迁移、损坏文件降级及原子更新校验。 */
 const tempDirectories: string[] = [];
 
 async function createTempDirectory(): Promise<string> {

@@ -3,7 +3,9 @@ import { computed, onScopeDispose, ref } from 'vue';
 import type { Instance } from '@shared/domain/instance';
 import { mofoxApi } from '@/services/mofox-api';
 
+// 实例仓库集中管理列表、进程状态事件和截断后的实时日志缓存。
 export const useInstancesStore = defineStore('instances', () => {
+  // 列表加载态与按“实例:来源”索引的日志响应式状态。
   const instances = ref<Instance[]>([]);
   const loading = ref(false);
   const logs = ref<Record<string, string>>({});
@@ -11,6 +13,7 @@ export const useInstancesStore = defineStore('instances', () => {
   const running = computed(() => instances.value.filter((i) => i.status === 'running'));
   const byId = (id: string) => instances.value.find((i) => i.id === id);
 
+  // IPC 事件直接合并到当前列表，避免每条日志都触发全量刷新。
   const unsubscribeStatus = mofoxApi.on('instance-status-changed', ({ instanceId, status }) => {
     const ins = byId(instanceId);
     if (ins) ins.status = status;
@@ -26,6 +29,7 @@ export const useInstancesStore = defineStore('instances', () => {
   });
 
   async function refresh(): Promise<void> {
+    // 无论请求成功与否都恢复加载态，避免界面永久阻塞。
     loading.value = true;
     try {
       instances.value = await mofoxApi.listInstances();
@@ -35,6 +39,7 @@ export const useInstancesStore = defineStore('instances', () => {
   }
 
   async function start(id: string): Promise<void> {
+    // 进程操作完成后刷新持久化列表以获得最终状态。
     await mofoxApi.startInstance(id);
     await refresh();
   }
@@ -65,6 +70,6 @@ export const useInstancesStore = defineStore('instances', () => {
 
 function stripAnsi(value: string): string {
   const escape = String.fromCharCode(27);
-  // CSI sequence first so the single-char alternative cannot eat the leading '['.
+  // 优先匹配 CSI 序列，避免单字符分支吞掉开头的 '['。
   return value.replace(new RegExp(`${escape}(?:\\[[0-?]*[ -/]*[@-~]|[@-_])`, 'g'), '');
 }

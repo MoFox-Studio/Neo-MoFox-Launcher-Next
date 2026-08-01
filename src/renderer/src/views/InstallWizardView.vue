@@ -8,6 +8,7 @@ import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
 import type { MirrorSource } from '@shared/domain/mirror';
 import type { InstallRequest, InstallStepId } from '@shared/domain/instance';
 
+// 六步安装向导：收集请求参数，并持续呈现安装仓库中的后台进度。
 const STEP_TITLES = ['选择平台', '实例信息', '安装位置', '镜像源', '确认摘要', '执行安装'];
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -29,6 +30,7 @@ const router = useRouter();
 const settingsStore = useSettingsStore();
 const installStore = useInstallStore();
 
+// 当前步骤与各步骤的局部输入共同控制校验和页面跳转。
 const currentStep = ref(1);
 
 // ---- Step 1: platform ----
@@ -94,6 +96,7 @@ function onTargetDirInput(): void {
 }
 
 // ---- Step 4: mirrors ----
+// 镜像列表、选择结果和测速态构成第四步的响应式状态。
 const mirrors = ref<MirrorSource[]>([]);
 const selectedMirrorId = ref<string | null>(null);
 const remeasuring = ref(false);
@@ -110,6 +113,7 @@ async function loadMirrors(): Promise<void> {
 }
 
 async function remeasure(): Promise<void> {
+  // 测速完成后重新拉取列表，并选中 API 给出的最佳镜像。
   remeasuring.value = true;
   try {
     const best = await mofoxApi.selectBestMirror();
@@ -126,6 +130,7 @@ function latencyClass(ms?: number): string {
 }
 
 // ---- Step validation & navigation ----
+// 每一步独立校验，导航只能前进到已满足条件的下一步。
 const stepValid = computed<Record<number, boolean>>(() => ({
   1: selectedPlatformId.value !== null,
   2: nameError.value === '' && resolvedVersion.value !== '',
@@ -172,6 +177,7 @@ watch(
 );
 
 async function startInstall(): Promise<void> {
+  // 从已确认字段构造不可变安装请求，再切换到后台执行步骤。
   const request: InstallRequest = {
     instanceName: instanceName.value.trim(),
     platformId: selectedPlatformId.value ?? '',
@@ -196,6 +202,7 @@ function goToInstances(): void {
 }
 
 onMounted(async () => {
+  // 恢复后台安装时直接回到执行页，并异步加载平台和镜像数据。
   if (installStore.isInstalling) {
     currentStep.value = 6;
   }
@@ -211,6 +218,7 @@ onMounted(async () => {
 
 <template>
   <div class="wizard">
+    <!-- 左侧步骤导航与右侧动态内容面板 -->
     <aside class="wizard__rail">
       <ol class="stepper">
         <li
@@ -240,6 +248,7 @@ onMounted(async () => {
     <div class="wizard__panel">
       <transition name="wizard-slide" mode="out-in">
         <div :key="currentStep" class="wizard__content">
+          <!-- 平台、实例信息、目录和镜像配置步骤 -->
           <section v-if="currentStep === 1" class="step">
             <h2 class="step__title">选择平台</h2>
             <p class="step__desc">选择要安装的机器人平台</p>
@@ -405,6 +414,7 @@ onMounted(async () => {
             </template>
           </section>
 
+          <!-- 安装请求确认摘要 -->
           <section v-else-if="currentStep === 5" class="step">
             <h2 class="step__title">确认摘要</h2>
 
@@ -443,6 +453,7 @@ onMounted(async () => {
             </button>
           </section>
 
+          <!-- 后台安装进度、日志和结果操作 -->
           <section v-else class="step step--execute">
             <h2 class="step__title">正在安装{{ instanceName ? ` ${instanceName}` : '' }}</h2>
             <p class="step__step-label">
@@ -503,6 +514,7 @@ onMounted(async () => {
         </div>
       </transition>
 
+      <!-- 非执行步骤的前进与回退控制 -->
       <div v-if="currentStep < 6" class="wizard__nav">
         <button v-if="currentStep > 1" type="button" class="btn btn--text state-layer" @click="goPrev">
           上一步
@@ -529,7 +541,7 @@ onMounted(async () => {
   min-height: 0;
 }
 
-/* ---- Left vertical stepper ---- */
+/* 左侧纵向步骤导航 */
 .wizard__rail {
   width: 260px;
   flex: 0 0 260px;
@@ -614,7 +626,7 @@ onMounted(async () => {
   background: var(--md-sys-color-primary);
 }
 
-/* ---- Right content panel ---- */
+/* 右侧内容面板与通用步骤文本 */
 .wizard__panel {
   flex: 1;
   min-width: 0;
@@ -650,7 +662,7 @@ onMounted(async () => {
   font: var(--md-sys-typescale-body-medium);
 }
 
-/* ---- Platform cards ---- */
+/* 平台选择卡片 */
 .platform-grid {
   display: grid;
   gap: 16px;
@@ -713,7 +725,7 @@ onMounted(async () => {
   color: var(--md-sys-color-on-surface-variant);
 }
 
-/* ---- Outlined text field (self-drawn) ---- */
+/* 浮动标签输入框与校验提示 */
 .field {
   position: relative;
   display: block;
@@ -801,7 +813,7 @@ onMounted(async () => {
   color: var(--md-sys-color-error);
 }
 
-/* ---- Install location ---- */
+/* 安装目录与说明横幅 */
 .dir-row {
   display: flex;
   align-items: flex-start;
@@ -824,7 +836,7 @@ onMounted(async () => {
   font-size: 20px;
 }
 
-/* ---- Switch ---- */
+/* 自动镜像选择开关 */
 .switch-row {
   display: flex;
   align-items: center;
@@ -878,7 +890,7 @@ onMounted(async () => {
   transform: translate(20px, -50%);
 }
 
-/* ---- Mirrors ---- */
+/* 镜像测速、选择与延迟标签 */
 .mirror-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -971,7 +983,7 @@ onMounted(async () => {
   background: color-mix(in srgb, var(--md-sys-color-tertiary) 16%, transparent);
 }
 
-/* ---- Summary ---- */
+/* 安装请求确认摘要 */
 .summary {
   margin: 0 0 32px;
 }
@@ -995,7 +1007,7 @@ onMounted(async () => {
   text-align: right;
 }
 
-/* ---- Execution step ---- */
+/* 执行进度、实时日志和结果操作 */
 .step--execute .step__title {
   margin-bottom: 4px;
 }
@@ -1083,7 +1095,7 @@ onMounted(async () => {
   font-size: 28px;
 }
 
-/* ---- Buttons (MD3 self-drawn) ---- */
+/* 向导操作按钮与加载指示器 */
 .btn {
   position: relative;
   display: inline-flex;
@@ -1127,7 +1139,6 @@ onMounted(async () => {
   font: var(--md-sys-typescale-title-medium);
 }
 
-/* ---- Indeterminate circular spinner ---- */
 .spinner {
   width: 20px;
   height: 20px;
@@ -1149,7 +1160,7 @@ onMounted(async () => {
   }
 }
 
-/* ---- Wizard footer navigation ---- */
+/* 向导底部导航与步骤切换动画 */
 .wizard__nav {
   display: flex;
   align-items: center;
@@ -1161,7 +1172,6 @@ onMounted(async () => {
   flex: 1;
 }
 
-/* ---- Step slide transition ---- */
 .wizard-slide-enter-active,
 .wizard-slide-leave-active {
   transition:

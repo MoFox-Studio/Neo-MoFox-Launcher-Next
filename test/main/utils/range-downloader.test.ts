@@ -7,12 +7,14 @@ import { downloadRange } from '../../../src/main/utils/range-downloader';
 const directories: string[] = [];
 const servers: Server[] = [];
 
+// 每个用例启动独立本地服务并创建临时目录，结束后统一释放网络和文件系统资源。
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
 describe('downloadRange', () => {
+  // 覆盖分段并发、服务端不支持 Range 时的降级，以及参数在创建目标文件前的校验。
   it('downloads concurrent ranges and reports throttled progress', async () => {
     const content = Buffer.from('0123456789abcdefghijklmnopqrstuvwxyz');
     const url = await serve(content, true);
@@ -47,6 +49,7 @@ describe('downloadRange', () => {
 });
 
 async function serve(content: Buffer, ranges: boolean): Promise<string> {
+  // 用可切换 Range 能力的本地 HTTP 服务模拟下载端点，避免依赖外部网络。
   const server = createServer((request, response) => {
     if (request.method === 'HEAD') {
       response.writeHead(200, {

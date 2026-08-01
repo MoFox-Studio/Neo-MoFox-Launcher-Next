@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { IPC_INVOKE_CHANNELS } from '../../../src/shared/ipc';
 import { registerInstanceIpc } from '../../../src/main/ipc/instances';
 
+/** 验证实例控制通道完整映射，以及非法 ID、PTY 载荷和进程源在服务调用前被拒绝。 */
 function createService() {
   return {
     start: vi.fn(),

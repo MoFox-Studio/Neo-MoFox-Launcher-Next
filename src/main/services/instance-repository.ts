@@ -4,6 +4,7 @@ import type { Instance } from '../../shared/domain/instance';
 import { MofoxError } from '../../shared/domain/error';
 import { writeJsonAtomic } from '../utils/atomic-json';
 
+/** 实例仓库负责把磁盘 JSON 规范化为领域记录，并通过串行原子写维持内存与持久化状态一致。 */
 type DiagnosticReporter = (message: string, error: Error) => void;
 
 export class InstanceRepository {
@@ -42,6 +43,7 @@ export class InstanceRepository {
   }
 
   private async mutate(change: (instances: Instance[]) => void): Promise<void> {
+    // 所有变更复用同一队列，避免安装、运行时状态更新等并发写丢失记录。
     const operation = this.writeQueue.then(async () => {
       const instances = await this.list();
       change(instances);
@@ -65,11 +67,13 @@ export class InstanceRepository {
         try {
           instances.push(normalizeInstance(record));
         } catch (error) {
+          // 单条历史记录异常不阻断其余实例恢复，诊断留给调用方日志系统。
           this.report('Skipped invalid instance record', toError(error));
         }
       }
       return instances;
     } catch (error) {
+      // 文件不存在和损坏文件都以空集合恢复，且不在读取阶段覆盖用户原文件。
       if (!isRecord(error) || error.code !== 'ENOENT') {
         this.report(`Unable to read instance repository ${this.path}`, toError(error));
       }

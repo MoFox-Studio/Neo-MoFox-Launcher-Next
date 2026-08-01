@@ -7,11 +7,13 @@ import { SnowLumaPlatform } from '../../../src/main/platforms/snowluma/runtime';
 
 const temporaryDirectories: string[] = [];
 
+// 构造隔离的旧版目录布局，并在每个用例后递归清理临时根目录。
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('legacy runtime paths', () => {
+  // 保护安装目录仍指向 neo-mofox 时，两个运行时都能回退发现同级历史目录的兼容场景。
   it('finds NapCat in a sibling directory when installPath points to neo-mofox', async () => {
     const root = await createRoot();
     const neoMofox = join(root, 'neo-mofox');

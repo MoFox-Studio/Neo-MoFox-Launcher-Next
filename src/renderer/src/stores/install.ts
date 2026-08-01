@@ -4,11 +4,10 @@ import type { InstallProgressEvent, InstallRequest } from '@shared/domain/instan
 import { mofoxApi } from '@/services/mofox-api';
 
 /**
- * Install tasks live in this store (not in the wizard view), so leaving
- * the install screen keeps the task running in the background and the
- * user can come back to live progress. (Quality gate 03)
+ * 安装任务驻留在仓库而非向导视图，离开页面后仍可保留后台进度与日志。
  */
 export const useInstallStore = defineStore('install', () => {
+  // 活动任务、最新进度与有限长度的安装日志构成向导的响应式数据源。
   const activeTaskId = ref<string | null>(null);
   const progress = ref<InstallProgressEvent | null>(null);
   const logLines = ref<string[]>([]);
@@ -19,6 +18,7 @@ export const useInstallStore = defineStore('install', () => {
   const isFailed = computed(() => progress.value?.status === 'failed');
   const isDone = computed(() => progress.value?.status === 'done');
 
+  // 只接收当前任务事件，并限制日志缓存以控制长期内存占用。
   const unsubscribe = mofoxApi.on('install-progress', (event) => {
     if (activeTaskId.value !== null && event.taskId !== activeTaskId.value) return;
     progress.value = event;
@@ -28,6 +28,7 @@ export const useInstallStore = defineStore('install', () => {
   onScopeDispose(unsubscribe);
 
   async function begin(request: InstallRequest): Promise<void> {
+    // 新任务启动前清空上次运行残留，任务 ID 由异步 API 返回。
     logLines.value = [];
     progress.value = null;
     activeTaskId.value = await mofoxApi.startInstall(request);

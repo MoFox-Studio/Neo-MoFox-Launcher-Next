@@ -19,9 +19,11 @@ import { createLogger, type Logger } from './utils/logger';
 import { removePathSafe } from './utils/native-file-remover';
 import { MofoxError } from '../shared/domain/error';
 
+/** 主进程组合根：管理单实例锁、窗口生命周期、服务依赖与主进程到渲染进程的事件同步。 */
 let mainWindow: BrowserWindow | null = null;
 
 function emitMaximizeState(window: BrowserWindow): void {
+  // 最大化变化由窗口事件驱动，避免渲染端以本地推测替代 BrowserWindow 的真实状态。
   if (!window.isDestroyed()) {
     window.webContents.send(
       IPC_EVENT_CHANNELS['window-maximize-changed'],
@@ -47,12 +49,14 @@ function createMainWindow(): BrowserWindow {
     },
   });
 
+  // 窗口在首帧就绪后才显示，并在关闭时清空全局引用以支持 activate 重建。
   window.once('ready-to-show', () => window.show());
   window.on('maximize', () => emitMaximizeState(window));
   window.on('unmaximize', () => emitMaximizeState(window));
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = null;
   });
+  // IPC 是受控的渲染边界；阻止新窗口和跨页面导航扩大渲染进程权限面。
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => {
     if (url !== window.webContents.getURL()) event.preventDefault();
@@ -70,6 +74,7 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
+  // 窗口控制先注册，其余依赖存储和平台注册表的 IPC 在 Electron ready 后构造。
   registerWindowIpc(ipcMain, () => mainWindow);
 
   app.on('second-instance', () => {
@@ -81,6 +86,7 @@ if (!hasSingleInstanceLock) {
   void app.whenReady().then(() => {
     const dataDirectory = app.getPath('userData');
     let logger: Logger | undefined;
+    // 初始化早期仍可能发生存储错误，日志器就绪前保留控制台诊断兜底。
     const report = (message: string, error: Error) => {
       if (logger) void logger.log('launcher', 'error', `${message}: ${error.message}`);
       else console.error(message, error);
@@ -106,6 +112,7 @@ if (!hasSingleInstanceLock) {
       platforms: new PlatformMetadataService(platforms),
       settings,
     });
+    // 服务事件仅在有效窗口存在时转发，窗口重建期间丢弃过期 UI 通知。
     const send = (channel: string, payload: unknown) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
     };
@@ -151,6 +158,7 @@ if (!hasSingleInstanceLock) {
     registerInstallIpc(ipcMain, installTasks);
     mainWindow = createMainWindow();
 
+    // 活跃安装任务必须先收到取消与清理机会，防止关闭窗口留下临时安装状态。
     mainWindow.on('close', (event) => {
       if (!installTasks.hasActiveTasks()) return;
       event.preventDefault();

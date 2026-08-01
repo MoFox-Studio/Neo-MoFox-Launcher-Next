@@ -7,6 +7,7 @@ import type {
 } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 
+// 所有机器人平台的基础契约：集中提供宿主兼容性判断和未实现能力的统一错误语义。
 export abstract class BaseBotPlatform implements BotPlatform {
   abstract readonly id: string;
   abstract readonly name: string;
@@ -23,6 +24,7 @@ export abstract class BaseBotPlatform implements BotPlatform {
   async isAvailable(): Promise<PlatformAvailability> {
     const platform = process.platform as 'win32' | 'linux' | 'darwin';
     const arch = process.arch === 'x64' || process.arch === 'arm64' ? process.arch : process.arch;
+    // 平台实现声明支持矩阵，基础层据当前宿主生成可直接展示给用户的检测结果。
     const available = this.supportedPlatforms.includes(platform) && this.supportedArch.includes(arch as 'x64' | 'arm64');
     return {
       available,
@@ -32,6 +34,7 @@ export abstract class BaseBotPlatform implements BotPlatform {
   }
 
   async install(_context: InstallContext): Promise<InstallResult> {
+    // 子类须显式提供下载实现，避免默认行为在未配置来源时产生误导性结果。
     throw new MofoxError('UNAVAILABLE', `${this.name} 安装器尚未配置下载源`);
   }
 

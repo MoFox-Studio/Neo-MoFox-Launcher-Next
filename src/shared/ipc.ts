@@ -1,7 +1,4 @@
-/**
- * Single source of truth for the IPC contract shared between
- * main, preload and renderer. (Quality gate 01)
- */
+/** 主进程、预加载脚本与渲染进程共用的 IPC 契约唯一来源。 */
 import type { SystemEnvInfo } from './domain/system-env';
 import type { MirrorSelection, MirrorSource } from './domain/mirror';
 import type { BotPlatformMetadata } from './domain/bot-platform';
@@ -17,8 +14,13 @@ import type {
   LauncherSettings,
 } from './domain/instance';
 
+/** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
 
+/**
+ * 仅允许预加载层调用这些请求通道。
+ * `satisfies` 将对象键与公开 API 保持同步，同时保留字面量通道类型。
+ */
 export const IPC_INVOKE_CHANNELS = {
   windowMinimize: 'window:minimize',
   windowToggleMaximize: 'window:toggle-maximize',
@@ -56,6 +58,7 @@ export const IPC_EVENT_CHANNELS = {
   'download-progress': 'event:download-progress',
 } as const satisfies Record<keyof MofoxEventMap, string>;
 
+/** 从主进程推送至渲染进程的事件载荷映射。 */
 export interface MofoxEventMap {
   'log-output': LogEntry;
   'install-progress': InstallProgressEvent;
@@ -66,13 +69,13 @@ export interface MofoxEventMap {
 }
 
 export interface MofoxApi {
-  // Window controls
+  /** 窗口控制。 */
   windowMinimize(): Promise<void>;
   windowToggleMaximize(): Promise<void>;
   windowClose(): Promise<void>;
   windowIsMaximized(): Promise<boolean>;
 
-  // Instances
+  /** 实例生命周期、终端与日志操作。 */
   listInstances(): Promise<Instance[]>;
   startInstance(instanceId: string): Promise<void>;
   stopInstance(instanceId: string): Promise<void>;
@@ -82,27 +85,35 @@ export interface MofoxApi {
   getInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<string>;
   clearInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<void>;
   writeInstancePty(instanceId: string, source: InstanceProcessSource, data: string): Promise<void>;
-  resizeInstancePty(instanceId: string, source: InstanceProcessSource, cols: number, rows: number): Promise<void>;
+  resizeInstancePty(
+    instanceId: string,
+    source: InstanceProcessSource,
+    cols: number,
+    rows: number,
+  ): Promise<void>;
   getInstanceStats(instanceId: string): Promise<InstanceStats>;
-  /** Returns the exported file path */
+  /** 导出完成后返回生成文件的绝对路径。 */
   exportInstanceLogs(instanceId: string, source: InstanceProcessSource): Promise<string>;
 
-  // Install
+  /** 安装任务控制。 */
   startInstall(request: InstallRequest): Promise<string>;
   retryInstall(taskId: string): Promise<void>;
   cancelInstall(taskId: string): Promise<void>;
 
-  // Environment / mirrors / platforms
+  /** 系统探测、镜像与平台元数据查询。 */
   detectSystemEnv(): Promise<SystemEnvInfo>;
   listMirrors(): Promise<MirrorSource[]>;
   selectBestMirror(): Promise<MirrorSelection>;
   listBotPlatforms(): Promise<BotPlatformMetadata[]>;
 
-  // Settings
+  /** 启动器设置读取与局部更新。 */
   getSettings(): Promise<LauncherSettings>;
   updateSettings(patch: Partial<LauncherSettings>): Promise<LauncherSettings>;
 
-  // Events
+  /**
+   * 按事件名关联载荷类型的订阅入口。
+   * 返回的释放函数必须移除预加载层包装后的同一监听器，而非原始回调。
+   */
   on<K extends keyof MofoxEventMap>(
     event: K,
     listener: (payload: MofoxEventMap[K]) => void,
