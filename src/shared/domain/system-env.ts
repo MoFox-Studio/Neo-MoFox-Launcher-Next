@@ -1,3 +1,4 @@
+/** 系统环境探测结果；带问号字段表示对应工具或平台特征未被检测到。 */
 export interface SystemEnvInfo {
   arch: string;
   osType: string;

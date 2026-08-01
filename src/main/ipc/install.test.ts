@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 import { registerInstallIpc } from './install';
 
+/** 覆盖安装请求与任务控制的转发路径，并确认畸形跨进程输入不会触发任务操作。 */
 describe('registerInstallIpc', () => {
   it('validates and forwards install actions', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>();

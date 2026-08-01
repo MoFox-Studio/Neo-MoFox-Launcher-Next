@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 import { registerCoreIpc } from './core';
 
+/** 验证核心 IPC 的通道注册、参数转发，以及服务/边界校验错误的协议化返回。 */
 describe('registerCoreIpc', () => {
   it('registers every stage-two service channel', () => {
     const channels: string[] = [];

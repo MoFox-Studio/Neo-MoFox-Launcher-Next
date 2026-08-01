@@ -14,6 +14,10 @@ import type { PlatformRegistry } from '../platforms/registry';
 import { spawnProcess } from '../utils/process-service';
 import { findVenvPython } from '../utils/platform-helper';
 
+/**
+ * 协调实例进程的启动、停止、日志和状态持久化；运行态只保留在内存，状态变化通过 events 同步给渲染进程。
+ * 进程、文件和导出操作通过可注入依赖隔离，便于在异常路径中回收资源并进行测试。
+ */
 export interface PtyProcess {
   pid?: number;
   onData(listener: (data: string) => void): { dispose(): void };
@@ -49,7 +53,7 @@ const STOP_SIGTERM_DELAY_MS = 4000;
 const STOP_SIGKILL_DELAY_MS = 3000;
 
 export class InstanceRuntimeService {
-  /** instanceId → source → process */
+  /** 实例到进程源的运行态索引，进程退出后必须与仓库状态一并收敛。 */
   private readonly active = new Map<string, Map<InstanceProcessSource, ActiveProcess>>();
   private readonly logBuffers = new Map<string, string>();
   private readonly ptySizes = new Map<string, { cols: number; rows: number }>();
@@ -89,6 +93,7 @@ export class InstanceRuntimeService {
       }
       await this.saveStatus(instance, 'running');
     } catch (error) {
+      // 部分启动失败时终止已创建的进程，持久化 error 后再将原错误交给 IPC 层处理。
       this.killAll(instanceId);
       this.emitLauncherMessage(instanceId, 'mofox', 'error', `启动失败: ${error instanceof Error ? error.message : String(error)}`);
       await this.saveStatus(instance, 'error');
@@ -119,6 +124,7 @@ export class InstanceRuntimeService {
   }
 
   async remove(instanceId: string): Promise<void> {
+    // 先停止进程，再删除目录和记录，避免运行进程继续持有已删除路径。
     const instance = await this.find(instanceId);
     await this.stop(instanceId);
     await this.removePath(instance.installPath);
@@ -304,7 +310,7 @@ export class InstanceRuntimeService {
       if (exitCode === 0) this.emitLauncherMessage(instanceId, source, 'info', '进程已退出');
       else this.emitLauncherMessage(instanceId, source, 'error', `进程异常退出，退出码 ${exitCode}`);
     }
-    // Only transition the instance status once every process is gone.
+    // 仅当全部进程源退出才同步最终实例状态，避免双进程场景提前显示已停止。
     if (processes && processes.size === 0) {
       this.active.delete(instanceId);
       const instance = await this.find(instanceId);
@@ -342,6 +348,7 @@ export class InstanceRuntimeService {
   }
 
   private appendLog(instanceId: string, source: InstanceProcessSource, data: string): void {
+    // 内存日志有上限，实时片段仍通过事件通道发送，供终端视图增量渲染。
     const key = bufferKey(instanceId, source);
     const output = `${this.logBuffers.get(key) ?? ''}${data}`;
     this.logBuffers.set(key, output.length > LOG_BUFFER_MAX ? output.slice(-LOG_BUFFER_MAX) : output);
@@ -367,6 +374,7 @@ export class InstanceRuntimeService {
   }
 
   private async saveStatus(instance: Instance, status: InstanceStatus): Promise<void> {
+    // 先落库再发事件，确保渲染进程收到状态后重新读取也能得到一致结果。
     const updated = { ...instance, status, ...(status === 'running' ? { lastStartedAt: Date.now() } : {}) };
     await this.repository.upsert(updated);
     this.events.statusChanged(instance.id, status);

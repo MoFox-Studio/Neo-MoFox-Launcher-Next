@@ -1,5 +1,6 @@
 import type { MofoxApi } from '@shared/ipc';
 
+// 统一选择预加载桥接或显式开启的演示 API，避免生产环境静默降级。
 export function resolveMofoxApi(
   bridge: MofoxApi | undefined,
   demoEnabled: boolean,

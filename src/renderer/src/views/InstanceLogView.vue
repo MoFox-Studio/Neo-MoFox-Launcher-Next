@@ -11,10 +11,12 @@ import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
 import StatusBadge from '@/components/StatusBadge.vue';
 
+// 实例日志页维护双终端、实时输出、进程控制和日志工具操作。
 const route = useRoute();
 const router = useRouter();
 const instancesStore = useInstancesStore();
 
+// 路由实例、运行状态和当前日志来源决定界面的主要响应式状态。
 const instanceId = computed(() => String(route.params.id ?? ''));
 const instance = computed(() => instancesStore.byId(instanceId.value));
 const status = computed<InstanceStatus>(() => instance.value?.status ?? 'stopped');
@@ -34,6 +36,7 @@ const terminalRefs = {
   platform: ref<HTMLElement | null>(null),
 };
 
+// 搜索、自动滚动、提示信息和进程统计仅服务于当前日志会话。
 const searchVisible = ref(false);
 const searchQuery = ref('');
 const searchInputRef = ref<HTMLInputElement | null>(null);
@@ -81,6 +84,7 @@ function activeBundle(): TerminalBundle | undefined {
 }
 
 function createBundle(source: InstanceProcessSource): TerminalBundle | undefined {
+  // 每个来源拥有独立 xterm 实例，并将输入、尺寸和滚动状态同步到桥接层。
   const container = terminalRefs[source].value;
   if (!container) return undefined;
   const terminal = new Terminal({
@@ -130,6 +134,7 @@ function createBundle(source: InstanceProcessSource): TerminalBundle | undefined
 }
 
 onMounted(async () => {
+  // 异步恢复实例、历史缓冲和实时订阅，再启动尺寸观察与统计轮询。
   await instancesStore.refresh();
   if (!instance.value) {
     void router.replace({ name: 'instances' });
@@ -142,7 +147,7 @@ onMounted(async () => {
     try {
       const history = await mofoxApi.getInstanceLogBuffer(instanceId.value, source);
       if (history) bundle.terminal.write(history);
-    } catch { /* buffer unavailable */ }
+    } catch { /* 日志缓冲不可用时保持终端可用 */ }
   }
 
   unsubscribePty = mofoxApi.on('instance-pty-data', ({ instanceId: id, source, data }) => {
@@ -164,6 +169,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  // 释放 IPC 订阅、浏览器观察器、定时器和终端资源。
   unsubscribePty?.();
   resizeObserver?.disconnect();
   if (statsTimer) clearInterval(statsTimer);
@@ -174,7 +180,7 @@ onBeforeUnmount(() => {
 });
 
 watch(activeTab, () => {
-  // Refit the newly visible terminal and re-run the active search.
+  // 重新适配新显示的终端，并恢复当前搜索结果。
   requestAnimationFrame(() => {
     const bundle = activeBundle();
     bundle?.fit.fit();
@@ -184,6 +190,7 @@ watch(activeTab, () => {
 });
 
 async function refreshStats(): Promise<void> {
+  // 周期性查询两个子进程的运行时长，失败时回退占位显示。
   try {
     const stats = await mofoxApi.getInstanceStats(instanceId.value);
     for (const source of SOURCES) {
@@ -273,6 +280,7 @@ function onSearchKeydown(event: KeyboardEvent): void {
 }
 
 async function copyLogs(): Promise<void> {
+  // 优先复制用户选区；无选区时复制当前终端的完整内容。
   const bundle = activeBundle();
   if (!bundle) return;
   const selection = bundle.terminal.getSelection();
@@ -296,13 +304,14 @@ function toggleAutoScroll(): void {
 }
 
 async function clearLogs(): Promise<void> {
+  // 同时清除终端视图、仓库缓存及可用的后端日志缓冲。
   const source = activeTab.value;
   bundles.get(source)?.terminal.reset();
   lineCounts[source] = 0;
   instancesStore.clearLog(instanceId.value, source);
   try {
     await mofoxApi.clearInstanceLogBuffer(instanceId.value, source);
-  } catch { /* buffer unavailable */ }
+  } catch { /* 日志缓冲不可用时仅完成本地清理 */ }
 }
 
 async function exportLogs(): Promise<void> {
@@ -325,6 +334,7 @@ function goBack(): void {
 
 <template>
   <div class="log-view">
+    <!-- 实例标题、运行状态与进程控制 -->
     <header class="log-view__header">
       <button class="icon-btn state-layer" type="button" title="返回" aria-label="返回" @click="goBack">
         <span class="msr" aria-hidden="true">arrow_back</span>
@@ -375,6 +385,7 @@ function goBack(): void {
       </div>
     </header>
 
+    <!-- 日志来源标签与搜索、复制、导出等工具栏 -->
     <div class="log-view__tabs" role="tablist" aria-label="日志来源">
       <button
         v-for="source in SOURCES"
@@ -429,6 +440,7 @@ function goBack(): void {
       </button>
     </div>
 
+    <!-- 当前终端的增量搜索框 -->
     <div v-if="searchVisible" class="log-view__search">
       <span class="msr log-view__search-icon" aria-hidden="true">search</span>
       <input
@@ -450,6 +462,7 @@ function goBack(): void {
       </button>
     </div>
 
+    <!-- 双终端容器保持挂载，以保留非活动来源的滚动缓冲 -->
     <div class="log-view__terminals">
       <div
         :ref="terminalRefs.mofox"
@@ -470,6 +483,7 @@ function goBack(): void {
 </template>
 
 <style scoped>
+/* 日志页框架、标题和进程控制 */
 .log-view {
   height: 100%;
   display: flex;
@@ -527,6 +541,7 @@ function goBack(): void {
   flex-shrink: 0;
 }
 
+/* 来源标签与日志工具栏 */
 .log-view__tabs {
   display: flex;
   align-items: center;
@@ -576,6 +591,7 @@ function goBack(): void {
   flex: 1;
 }
 
+/* 搜索输入区与终端显示层 */
 .log-view__search {
   display: flex;
   align-items: center;
@@ -630,6 +646,7 @@ function goBack(): void {
   height: 100%;
 }
 
+/* 操作反馈提示与过渡动画 */
 .log-view__toast {
   position: absolute;
   left: 50%;
@@ -661,6 +678,7 @@ function goBack(): void {
   transform: translateX(-50%) translateY(8px);
 }
 
+/* 进程操作按钮与图标按钮 */
 .btn {
   display: inline-flex;
   align-items: center;

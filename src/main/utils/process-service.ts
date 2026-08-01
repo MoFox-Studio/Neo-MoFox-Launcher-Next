@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 
+// 主进程对外部命令的最小封装，统一隐藏窗口、采集输出和处理进程生命周期。
 export interface ExecOptions extends SpawnOptions {
   timeoutMs?: number;
 }
@@ -33,6 +34,7 @@ export function runOneShot(
     let child: ChildProcess;
 
     const finish = (exitCode: number | null, signal?: NodeJS.Signals) => {
+      // spawn error、close 和超时终止可能交错发生，只允许第一个终态结算结果。
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -62,6 +64,7 @@ export function runOneShot(
 
     const timer = setTimeout(() => {
       timedOut = true;
+      // 先请求正常终止，再在宽限期后强制杀死，覆盖不响应 SIGTERM 的子进程。
       child.kill('SIGTERM');
       const forceTimer = setTimeout(() => child.kill('SIGKILL'), 1_000);
       forceTimer.unref();

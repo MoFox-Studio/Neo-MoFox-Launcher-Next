@@ -9,8 +9,9 @@ import { applyTheme, watchSystemScheme } from '@/services/theme';
 import { mofoxApi } from '@/services/mofox-api';
 import { DEFAULT_SEED, useSettingsStore } from '@/stores/settings';
 
+// 渲染进程入口：先恢复可用主题，再挂载应用并同步持久化设置。
 async function bootstrap(): Promise<void> {
-  // Theme must be applied before mount to avoid a flash of unthemed UI.
+  // 挂载前应用主题，避免界面出现无主题闪烁。
   let seed = DEFAULT_SEED;
   let mode: 'system' | 'light' | 'dark' = 'system';
   try {
@@ -18,7 +19,7 @@ async function bootstrap(): Promise<void> {
     seed = settings.seedColor;
     mode = settings.themeMode;
   } catch {
-    /* fall back to defaults */
+    /* 读取失败时保留默认主题 */
   }
   applyTheme(seed, mode);
 
@@ -27,6 +28,7 @@ async function bootstrap(): Promise<void> {
   app.use(router);
   app.mount('#app');
 
+  // 挂载后由设置仓库接管后续主题更新与系统主题监听。
   const settingsStore = useSettingsStore();
   await settingsStore.load();
   watchSystemScheme(() => ({

@@ -9,6 +9,7 @@ interface Props {
 
 const props = defineProps<Props>();
 
+// 将卡片操作上抛给实例列表，由上层统一处理进程和文件系统行为。
 const emit = defineEmits<{
   start: [id: string];
   stop: [id: string];
@@ -18,11 +19,13 @@ const emit = defineEmits<{
   'open-folder': [id: string];
 }>();
 
+// 运行状态决定主按钮语义；过渡状态用于锁定可能冲突的进程操作。
 const isRunning = computed(() => props.instance.status === 'running');
 const isBusy = computed(
   () => props.instance.status === 'starting' || props.instance.status === 'stopping',
 );
 
+// 启动和停止共用同一入口，保证状态切换期间不会重复派发操作。
 function onPrimaryAction(): void {
   if (isBusy.value) return;
   if (isRunning.value) emit('stop', props.instance.id);
@@ -32,11 +35,13 @@ function onPrimaryAction(): void {
 
 <template>
   <article class="instance-card">
+    <!-- 实例名称与当前运行状态 -->
     <header class="instance-card__head">
       <h3 class="instance-card__name">{{ instance.name }}</h3>
       <StatusBadge :status="instance.status" />
     </header>
 
+    <!-- 平台、版本及安装位置等实例元数据 -->
     <div class="instance-card__meta">
       <span class="instance-card__chip">{{ instance.platformId }}</span>
       <span class="instance-card__version">v{{ instance.version }}</span>
@@ -44,10 +49,12 @@ function onPrimaryAction(): void {
 
     <p class="instance-card__path" :title="instance.installPath">{{ instance.installPath }}</p>
 
+    <!-- 启动或停止期间展示不定进度，实际结果由上层状态更新驱动 -->
     <div v-if="isBusy" class="instance-card__progress" role="progressbar" aria-label="处理中">
       <div class="instance-card__progress-bar"></div>
     </div>
 
+    <!-- 左侧为进程控制，右侧为实例辅助操作 -->
     <div class="instance-card__actions">
       <button
         v-if="isRunning"
@@ -114,6 +121,7 @@ function onPrimaryAction(): void {
 </template>
 
 <style scoped>
+/* 卡片容器与悬停反馈 */
 .instance-card {
   display: flex;
   flex-direction: column;
@@ -131,6 +139,7 @@ function onPrimaryAction(): void {
   box-shadow: var(--md-sys-elevation-level1);
 }
 
+/* 标题与状态区 */
 .instance-card__head {
   display: flex;
   align-items: center;
@@ -147,6 +156,7 @@ function onPrimaryAction(): void {
   white-space: nowrap;
 }
 
+/* 平台、版本和安装路径 */
 .instance-card__meta {
   display: flex;
   align-items: center;
@@ -179,6 +189,7 @@ function onPrimaryAction(): void {
   white-space: nowrap;
 }
 
+/* 状态切换时的不定进度动画 */
 .instance-card__progress {
   height: 3px;
   border-radius: var(--md-sys-shape-corner-full);
@@ -203,6 +214,7 @@ function onPrimaryAction(): void {
   }
 }
 
+/* 进程控制与辅助操作按钮 */
 .instance-card__actions {
   display: flex;
   align-items: center;

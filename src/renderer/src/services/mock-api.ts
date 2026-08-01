@@ -1,13 +1,13 @@
 /**
- * In-browser mock of the MofoxApi bridge.
- * Used only when the preload bridge is absent (pure-renderer development),
- * so the UI can be built and reviewed without the Electron main process.
+ * 浏览器内 MofoxApi 模拟桥接，仅供显式演示构建使用。
+ * 以可控延迟、事件和内存状态复现渲染进程依赖的主进程交互。
  */
 import type { MofoxApi, MofoxEventMap, Unsubscribe } from '@shared/ipc';
 import type { Instance, LauncherSettings } from '@shared/domain/instance';
 
 type Listener<K extends keyof MofoxEventMap> = (payload: MofoxEventMap[K]) => void;
 
+// 进程、安装与窗口状态均通过同一事件总线向渲染层推送。
 const listeners = new Map<keyof MofoxEventMap, Set<Listener<never>>>();
 
 function emit<K extends keyof MofoxEventMap>(event: K, payload: MofoxEventMap[K]): void {
@@ -16,6 +16,7 @@ function emit<K extends keyof MofoxEventMap>(event: K, payload: MofoxEventMap[K]
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+// 演示数据保持在内存中，API 对外返回副本以模拟 IPC 序列化边界。
 const instances: Instance[] = [
   {
     id: 'ins-aurora',
@@ -69,6 +70,7 @@ let maximized = false;
 type MockSource = 'mofox' | 'platform';
 const MOCK_SOURCES: MockSource[] = ['mofox', 'platform'];
 
+// 实时日志缓存、定时器及启动时间共同支撑日志与进程统计演示。
 const logBuffers = new Map<string, string>();
 const logTimers = new Map<string, ReturnType<typeof setInterval>>();
 const startTimes = new Map<string, number>();
@@ -97,6 +99,7 @@ const MOCK_MESSAGES: Record<MockSource, string[]> = {
 };
 
 function startMockLogStream(id: string): void {
+  // 每个来源独立追加历史日志并按固定节奏推送终端输出。
   stopMockLogStream(id);
   startTimes.set(id, Date.now());
   for (const source of MOCK_SOURCES) {
@@ -138,6 +141,7 @@ export const mockApi: MofoxApi = {
     return instances.map((i) => ({ ...i }));
   },
   async startInstance(id) {
+    // 模拟启动态到运行态的异步事件序列，并在完成后开始日志流。
     const ins = instances.find((i) => i.id === id);
     if (!ins) throw new Error(`unknown instance ${id}`);
     ins.status = 'starting';
@@ -149,6 +153,7 @@ export const mockApi: MofoxApi = {
     startMockLogStream(id);
   },
   async stopInstance(id) {
+    // 先广播停止中，再终止日志流并提交最终停止状态。
     const ins = instances.find((i) => i.id === id);
     if (!ins) throw new Error(`unknown instance ${id}`);
     ins.status = 'stopping';
@@ -177,7 +182,7 @@ export const mockApi: MofoxApi = {
     logBuffers.delete(`${id}:${source}`);
   },
   async writeInstancePty(id, source, data) {
-    // Echo the input back like a terminal would.
+    // 按终端回显规则写回输入内容。
     appendMockLog(id, source, data.replace(/\r/g, '\r\n'));
   },
   async resizeInstancePty() {},
@@ -195,6 +200,7 @@ export const mockApi: MofoxApi = {
   },
 
   async startInstall(request) {
+    // 后台异步逐步派发进度；调用方立即获得任务 ID 以保持非阻塞。
     const taskId = `task-${Date.now()}`;
     void (async () => {
       const steps = ['prepare', 'download', 'extract', 'dependencies', 'configure', 'finalize'] as const;
@@ -301,6 +307,7 @@ export const mockApi: MofoxApi = {
   },
 
   on(event, listener) {
+    // 返回取消函数，使仓库和组件可在作用域销毁时解除订阅。
     let set = listeners.get(event);
     if (!set) {
       set = new Set();

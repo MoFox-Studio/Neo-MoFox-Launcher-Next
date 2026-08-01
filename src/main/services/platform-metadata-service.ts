@@ -1,6 +1,7 @@
 import type { BotPlatformMetadata } from '../../shared/domain/bot-platform';
 import type { PlatformRegistry } from '../platforms/registry';
 
+/** 为 IPC 提供可安全复制的平台元数据；注册表尚不可用时保留静态回退列表。 */
 const FALLBACK_PLATFORMS: readonly BotPlatformMetadata[] = [
   {
     id: 'napcat',

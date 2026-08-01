@@ -39,6 +39,7 @@ describe('instances store', () => {
     ]);
   });
 
+  // 覆盖列表加载、实时状态/日志同步、清空日志和订阅释放。
   it('refreshes persisted instances and reacts to status events', async () => {
     const scope = effectScope();
     const store = scope.run(() => useInstancesStore());

@@ -6,6 +6,7 @@ import type { InstallContext, InstallResult } from '../../../shared/domain/bot-p
 import { MofoxError } from '../../../shared/domain/error';
 import { hasFiles, installGithubRelease } from '../github-installer';
 
+// NapCat 平台适配器：固定 Windows Release 资产，并解析当前及旧版目录中的启动入口。
 export class NapCatPlatform extends BaseBotPlatform {
   readonly id = 'napcat';
   readonly name = 'NapCat';
@@ -18,6 +19,7 @@ export class NapCatPlatform extends BaseBotPlatform {
   }
 
   override async install(context: InstallContext): Promise<InstallResult> {
+    // 官方 Windows Shell 包的固定文件名同时充当资产选择与安装内容约束。
     return installGithubRelease(
       context,
       'NapNeko/NapCatQQ',
@@ -30,6 +32,7 @@ export class NapCatPlatform extends BaseBotPlatform {
 
   async getStartCommand(installPath: string, instanceId = ''): Promise<StartCommand> {
     const platformRoots = uniquePaths([installPath, join(dirname(installPath), 'napcat')]);
+    // 同时探测根目录和 Release 可能生成的 Shell 子目录，兼容不同版本的解压结构。
     const roots = (
       await Promise.all(
         platformRoots.map(async (root) => [
@@ -41,6 +44,7 @@ export class NapCatPlatform extends BaseBotPlatform {
       )
     ).flat();
     for (const root of roots) {
+      // 实例专用批处理优先；缺失时退回内置 Node 和入口文件直接启动。
       const batch = join(root, `start_napcat_${instanceId}.bat`);
       if (await exists(batch)) return { command: batch, args: [], cwd: root };
       const node = join(root, 'node.exe');

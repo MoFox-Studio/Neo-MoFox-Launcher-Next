@@ -4,6 +4,7 @@ import type { LauncherSettings } from '../../shared/domain/instance';
 import { MofoxError } from '../../shared/domain/error';
 import { writeJsonAtomic } from '../utils/atomic-json';
 
+/** 管理启动器设置的加载、旧字段兼容与原子持久化；内存快照仅在成功写入后同步。 */
 export const DEFAULT_SETTINGS: LauncherSettings = {
   themeMode: 'system',
   seedColor: '#7C5CDB',
@@ -44,6 +45,7 @@ export class SettingsService {
   async update(patch: unknown): Promise<LauncherSettings> {
     const validatedPatch = validateSettingsPatch(patch);
     let result = DEFAULT_SETTINGS;
+    // 串行化读改写，避免并发 IPC 更新基于同一旧快照而相互覆盖。
     const operation = this.updateQueue.then(async () => {
       const current = await this.get();
       result = { ...current, ...validatedPatch };
@@ -56,6 +58,7 @@ export class SettingsService {
   }
 
   private async load(): Promise<LauncherSettings> {
+    // 优先使用规范文件；首次迁移时仅读取旧文件，不在加载失败时破坏原始数据。
     const canonical = await this.read(this.settingsPath);
     if (canonical.found) return canonical.value ?? { ...DEFAULT_SETTINGS };
     const legacy = await this.read(this.legacyPath);
@@ -69,6 +72,7 @@ export class SettingsService {
     } catch (error) {
       if (isFileNotFound(error)) return { found: false };
       const parsedError = error instanceof Error ? error : new Error(String(error));
+      // 损坏或不可读配置降级为默认值，并将诊断交给应用日志而非中断启动。
       this.report(`Unable to read settings file ${path}`, parsedError);
       return { found: true };
     }
@@ -76,6 +80,7 @@ export class SettingsService {
 }
 
 export function validateSettingsPatch(patch: unknown): Partial<LauncherSettings> {
+  /** IPC 边界仅接受已知字段与领域允许的值，防止任意 JSON 进入持久化文件。 */
   if (!isRecord(patch)) throw new MofoxError('INVALID_ARGUMENT', 'Settings patch must be an object');
   for (const key of Object.keys(patch)) {
     if (!SETTING_KEYS.has(key)) throw new MofoxError('INVALID_ARGUMENT', `Unknown settings field: ${key}`);

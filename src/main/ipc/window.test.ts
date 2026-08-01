@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 import { registerWindowIpc } from './window';
 
+/** 验证窗口控制与状态查询通道，并覆盖最大化分支和窗口尚未创建/已销毁时的安全降级。 */
 type Handler = () => unknown;
 
 function createIpcMain() {

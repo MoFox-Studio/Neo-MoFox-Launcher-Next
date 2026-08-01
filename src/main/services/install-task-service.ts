@@ -7,6 +7,10 @@ import type { Instance, InstallProgressEvent, InstallRequest, InstallStepId } fr
 import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';
 
+/**
+ * 将平台安装拆为可观察、可重试的步骤状态机；进度事件是主进程到渲染进程的状态同步边界。
+ * 工作目录始终位于临时区，成功后再以暂存目录提交目标路径，失败和取消均回收临时资源。
+ */
 const STEPS: readonly InstallStepId[] = ['prepare', 'download', 'extract', 'dependencies', 'configure', 'finalize'];
 
 interface TaskRecord {
@@ -50,6 +54,7 @@ export class InstallTaskService {
   }
 
   async retry(taskId: string): Promise<void> {
+    // 从失败步骤继续，保留已完成下载结果，避免无意义地重做前序步骤。
     const task = this.requireTask(taskId);
     if (task.status !== 'failed' || !task.failedStep) throw new MofoxError('CONFLICT', '只有失败任务可以重试');
     task.controller = new AbortController();
@@ -115,6 +120,7 @@ export class InstallTaskService {
       this.emit(task, 'finalize', 1, 'done', '安装完成');
       await rm(task.workDir, { recursive: true, force: true });
     } catch (error) {
+      // 取消不是失败：平台可通过 AbortSignal 尽快停止，任务对外发布取消状态而非错误。
       if (task.controller.signal.aborted) {
         task.status = 'cancelled';
         await rm(task.workDir, { recursive: true, force: true });
@@ -153,6 +159,7 @@ export class InstallTaskService {
     const staging = `${target}.neo-mofox-staging-${task.id}`;
     await rm(staging, { recursive: true, force: true });
     await mkdir(resolve(target, '..'), { recursive: true });
+    // 暂存路径使目标目录只在安装完整后可见；跨设备时回退为复制再提交。
     try {
       await rename(result.installPath, staging);
       await rename(staging, target);
@@ -176,6 +183,7 @@ export class InstallTaskService {
   }
 
   private emit(task: TaskRecord, step: InstallStepId, progress: number, status: InstallProgressEvent['status'], message: string): void {
+    // 事件载荷保持完整步骤上下文，渲染端无需推断任务当前状态。
     this.events.progress({ taskId: task.id, instanceName: task.request.instanceName, step, stepIndex: STEPS.indexOf(step), stepCount: STEPS.length, status, progress, message });
   }
 

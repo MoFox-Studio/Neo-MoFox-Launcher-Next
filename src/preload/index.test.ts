@@ -8,7 +8,9 @@ vi.mock('electron', () => ({
 import { IPC_EVENT_CHANNELS, IPC_INVOKE_CHANNELS } from '../shared/ipc';
 import { createMofoxApi } from './index';
 
+/** 预加载门面应严格受共享 IPC 白名单约束。 */
 describe('createMofoxApi', () => {
+  /** 覆盖所有请求方法与通道表的一一映射，防止新增 API 绕过白名单。 */
   it('forwards every invoke method to its allowlisted channel', async () => {
     const ipcRenderer = {
       invoke: vi.fn(async () => undefined),
@@ -53,6 +55,7 @@ describe('createMofoxApi', () => {
     );
   });
 
+  /** 验证事件载荷转发，并确保退订时使用注册时的包装监听器。 */
   it('forwards event payloads and removes the exact listener on unsubscribe', () => {
     const ipcRenderer = {
       invoke: vi.fn(),
@@ -78,6 +81,7 @@ describe('createMofoxApi', () => {
     );
   });
 
+  /** 边界场景：运行时伪造的事件名不得注册到底层 IPC。 */
   it('rejects event names outside the shared allowlist', () => {
     const ipcRenderer = {
       invoke: vi.fn(),

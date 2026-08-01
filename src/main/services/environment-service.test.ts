@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EnvironmentService } from './environment-service';
 
+/** 验证并行探测成功时的版本合并，以及缺失或中断工具时的部分结果降级。 */
 describe('EnvironmentService', () => {
   it('adds detected tool versions to system information', async () => {
     const run = vi

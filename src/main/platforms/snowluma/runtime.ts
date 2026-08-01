@@ -6,6 +6,7 @@ import type { InstallContext, InstallResult } from '../../../shared/domain/bot-p
 import { MofoxError } from '../../../shared/domain/error';
 import { hasFiles, installGithubRelease } from '../github-installer';
 
+// SnowLuma 平台适配器：定义 Release 资产筛选、安装根校验与多级启动入口探测。
 export class SnowLumaPlatform extends BaseBotPlatform {
   readonly id = 'snowluma';
   readonly name = 'SnowLuma';
@@ -19,6 +20,7 @@ export class SnowLumaPlatform extends BaseBotPlatform {
 
   override async install(context: InstallContext): Promise<InstallResult> {
     const platformPart = resolveAssetPlatformPart();
+    // 过滤 lite 包，并同时接受 Windows ZIP 与 Linux tar.gz 的完整发行包。
     return installGithubRelease(
       context,
       'SnowLuma/SnowLuma',
@@ -35,7 +37,9 @@ export class SnowLumaPlatform extends BaseBotPlatform {
 
   async getStartCommand(installPath: string, instanceId = ''): Promise<StartCommand> {
     const env = { SNOWLUMA_WEBUI_PORT: '5099', SNOWLUMA_HOOK_AUTOLOAD: '1' };
+    // 兼容旧安装布局：当前路径优先，其次查找 neo-mofox 的同级 snowluma 目录。
     for (const root of uniquePaths([installPath, join(dirname(installPath), 'snowluma')])) {
+      // 自定义实例脚本优先于官方启动器和 Node 直接执行，以保留用户级配置。
       const custom = join(root, process.platform === 'win32' ? `start_snowluma_${instanceId}.bat` : `start_snowluma_${instanceId}.sh`);
       if (await exists(custom)) return { command: custom, args: [], cwd: root, env };
       const launcher = join(root, process.platform === 'win32' ? 'launcher.bat' : 'launcher.sh');
@@ -58,6 +62,7 @@ async function exists(path: string): Promise<boolean> {
 }
 
 function resolveAssetPlatformPart(): string {
+  // 资产命名与可运行组合并不完全等同于基础兼容性矩阵，因此在下载前单独收敛。
   if (process.platform === 'win32' && process.arch === 'x64') return 'win-x64';
   if (process.platform === 'linux' && process.arch === 'x64') return 'linux-x64';
   if (process.platform === 'linux' && process.arch === 'arm64') return 'linux-arm64';

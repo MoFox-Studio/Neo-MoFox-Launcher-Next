@@ -2,6 +2,7 @@ import type { InstallRequest } from '../../shared/domain/instance';
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
+/** 安装任务 IPC 边界：只接受结构正确的请求和任务标识，服务层负责后续路径与生命周期校验。 */
 interface InstallActions {
   start(request: InstallRequest): Promise<string>;
   retry(taskId: string): Promise<void>;
@@ -19,6 +20,7 @@ export function registerInstallIpc(ipcMain: IpcMainRegistrar, actions: InstallAc
 }
 
 function requireRequest(value: unknown): InstallRequest {
+  // 不可信 invoke 载荷先校验对象形状，避免将 null、数组等值传入安装状态机。
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new MofoxError('INVALID_ARGUMENT', 'Install request must be an object');
   }
@@ -36,6 +38,7 @@ function requireId(value: unknown): string {
 
 function register(ipcMain: IpcMainRegistrar, channel: string, handler: (...args: unknown[]) => unknown): void {
   ipcMain.handle(channel, async (_event, ...args) => {
+    // 对取消、冲突和安装失败使用统一错误协议，避免泄露主进程异常对象。
     try { return await handler(...args); } catch (error) { throw serializeIpcError(error); }
   });
 }

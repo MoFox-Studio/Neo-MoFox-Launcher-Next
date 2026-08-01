@@ -6,9 +6,11 @@ import { mofoxApi } from '@/services/mofox-api';
 import PageHeader from '@/components/PageHeader.vue';
 import InstanceCard from '@/components/InstanceCard.vue';
 
+// 概览页聚合实例运行数据，并将卡片交互委派给实例仓库或路由。
 const router = useRouter();
 const instancesStore = useInstancesStore();
 
+// 随当前时段生成问候语，统计值始终从响应式实例列表派生。
 const greeting = computed(() => {
   const hour = new Date().getHours();
   if (hour < 6) return '夜深了，注意休息';
@@ -23,6 +25,7 @@ const platformCount = computed(
   () => new Set(instancesStore.instances.map((i) => i.platformId)).size,
 );
 
+// 页面进入时发起列表同步，卡片状态后续由仓库事件更新。
 onMounted(() => {
   instancesStore.refresh();
 });
@@ -58,6 +61,7 @@ function goInstall(): void {
 
 <template>
   <div class="dashboard">
+    <!-- 页面标题、实例汇总与快捷统计 -->
     <PageHeader title="概览" :subtitle="greeting" />
 
     <div class="dashboard__body">
@@ -94,6 +98,7 @@ function goInstall(): void {
         </div>
       </section>
 
+      <!-- 实例空态、卡片列表与新建入口 -->
       <section class="instances-section">
         <h2 class="instances-section__title">实例</h2>
 
@@ -129,6 +134,7 @@ function goInstall(): void {
 </template>
 
 <style scoped>
+/* 页面滚动容器与主体间距 */
 .dashboard {
   height: 100%;
   overflow-y: auto;
@@ -141,6 +147,7 @@ function goInstall(): void {
   padding: 0 32px 32px;
 }
 
+/* 运行实例汇总与统计项 */
 .hero {
   display: flex;
   align-items: center;
@@ -213,6 +220,7 @@ function goInstall(): void {
   opacity: 0.85;
 }
 
+/* 实例网格、空态和新建卡片 */
 .instances-section {
   display: flex;
   flex-direction: column;

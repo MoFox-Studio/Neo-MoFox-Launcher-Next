@@ -2,6 +2,7 @@ import type { MirrorSelection, MirrorSource } from '../../shared/domain/mirror';
 import { MofoxError } from '../../shared/domain/error';
 import { probeTcpLatency } from '../utils/mirror';
 
+/** 镜像探测服务缓存最近一次成功/失败混合结果，并以可达源中的最低延迟作选择。 */
 type Probe = (host: string, port?: number, timeoutMs?: number) => Promise<number>;
 
 const MIRRORS: readonly MirrorSource[] = [
@@ -25,6 +26,7 @@ export class MirrorService {
   }
 
   async measure(): Promise<MirrorSource[]> {
+    // 单个探测失败不污染其余结果；无延迟字段明确表示该源本轮不可达。
     if (this.measured && Date.now() - this.measuredAt < this.cacheDurationMs) return this.list();
     this.measured = await Promise.all(
       MIRRORS.map(async (mirror) => {
@@ -45,6 +47,7 @@ export class MirrorService {
     const available = mirrors.filter(
       (mirror): mirror is MirrorSource & { latencyMs: number } => mirror.latencyMs !== undefined,
     );
+    // 不虚构延迟值，全部失败时向调用方暴露可序列化的领域错误。
     if (available.length === 0) throw new MofoxError('UNAVAILABLE', 'No mirror source is reachable');
     const mirror = available.reduce((best, candidate) =>
       candidate.latencyMs < best.latencyMs ? candidate : best,

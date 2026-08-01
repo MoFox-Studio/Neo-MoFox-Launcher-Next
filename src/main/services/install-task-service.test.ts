@@ -6,6 +6,7 @@ import type { BotPlatform } from '../../shared/domain/bot-platform';
 import { PlatformRegistry } from '../platforms/registry';
 import { InstallTaskService } from './install-task-service';
 
+/** 覆盖安装提交的原子边界、失败步骤续试，以及 AbortSignal 取消后的临时目录清理。 */
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {

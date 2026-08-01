@@ -1,9 +1,9 @@
 /*
- * Material Design 3 system tokens (non-color).
- * Color tokens (--md-sys-color-*) are injected at runtime by services/theme.ts.
+ * Material Design 3 非色彩系统令牌。
+ * 色彩令牌由 services/theme.ts 在运行时按用户主题写入。
  */
 :root {
-  /* ---- Typography scale (md.sys.typescale) ---- */
+  /* 字体与字阶 */
   --md-ref-typeface-brand: 'Inter', 'Noto Sans SC', 'Microsoft YaHei UI', system-ui, sans-serif;
   --md-ref-typeface-plain: 'Inter', 'Noto Sans SC', 'Microsoft YaHei UI', system-ui, sans-serif;
   --md-ref-typeface-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
@@ -24,7 +24,7 @@
   --md-sys-typescale-label-medium: 500 0.75rem/1rem var(--md-ref-typeface-plain);
   --md-sys-typescale-label-small: 500 0.6875rem/1rem var(--md-ref-typeface-plain);
 
-  /* ---- Shape scale (md.sys.shape.corner) ---- */
+  /* 圆角与层级阴影 */
   --md-sys-shape-corner-none: 0;
   --md-sys-shape-corner-extra-small: 4px;
   --md-sys-shape-corner-small: 8px;
@@ -33,7 +33,6 @@
   --md-sys-shape-corner-extra-large: 28px;
   --md-sys-shape-corner-full: 9999px;
 
-  /* ---- Elevation (md.sys.elevation, tinted shadows) ---- */
   --md-sys-elevation-level0: none;
   --md-sys-elevation-level1: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
   --md-sys-elevation-level2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
@@ -41,13 +40,12 @@
   --md-sys-elevation-level4: 0 2px 3px rgb(0 0 0 / 0.3), 0 6px 10px 4px rgb(0 0 0 / 0.15);
   --md-sys-elevation-level5: 0 4px 4px rgb(0 0 0 / 0.3), 0 8px 12px 6px rgb(0 0 0 / 0.15);
 
-  /* ---- State layer opacities (md.sys.state) ---- */
+  /* 交互状态透明度与动效时序 */
   --md-sys-state-hover-opacity: 0.08;
   --md-sys-state-focus-opacity: 0.1;
   --md-sys-state-pressed-opacity: 0.1;
   --md-sys-state-dragged-opacity: 0.16;
 
-  /* ---- Motion (md.sys.motion) ---- */
   --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --md-sys-motion-easing-standard-decelerate: cubic-bezier(0, 0, 0, 1);
   --md-sys-motion-easing-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
@@ -60,7 +58,7 @@
   --md-sys-motion-duration-medium4: 400ms;
   --md-sys-motion-duration-long2: 500ms;
 
-  /* ---- App layout metrics ---- */
+  /* 应用固定布局尺寸 */
   --app-titlebar-height: 40px;
   --app-navrail-width: 88px;
 }

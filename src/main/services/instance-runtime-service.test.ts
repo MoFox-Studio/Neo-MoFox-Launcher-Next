@@ -6,6 +6,7 @@ import type { Instance } from '../../shared/domain/instance';
 import { PlatformRegistry } from '../platforms/registry';
 import { InstanceRuntimeService, type PtyProcess } from './instance-runtime-service';
 
+/** 覆盖进程生命周期、双进程状态收敛、PTY 状态同步、日志导出和删除前停机。 */
 const FAST_TIMINGS = { sigterm: 10, sigkill: 10 };
 const temporaryDirectories: string[] = [];
 

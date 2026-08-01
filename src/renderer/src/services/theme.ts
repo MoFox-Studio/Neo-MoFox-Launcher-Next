@@ -1,10 +1,6 @@
 /**
- * Material Design 3 dynamic color theme.
- *
- * Generates the full MD3 scheme from a seed color with
- * @material/material-color-utilities and applies it as
- * `--md-sys-color-*` custom properties before Vue mounts,
- * so there is no flash of unthemed content.
+ * Material Design 3 动态主题服务。
+ * 根据种子色生成完整色板并写入 CSS 变量，以便挂载前消除无主题闪烁。
  */
 import {
   argbFromHex,
@@ -15,6 +11,7 @@ import {
 } from '@material/material-color-utilities';
 import type { ThemeMode } from '@shared/domain/instance';
 
+// 动态色工具支持且需要暴露给组件样式的系统色键。
 const COLOR_KEYS = [
   'primary',
   'onPrimary',
@@ -78,6 +75,7 @@ export function resolveDark(mode: ThemeMode): boolean {
 }
 
 export function applyTheme(seedHex: string, mode: ThemeMode): void {
+  // 每次设置变化都重新计算并覆盖根元素的 MD3 色彩变量。
   const dark = resolveDark(mode);
   const scheme = buildScheme(seedHex, dark);
   const root = document.documentElement;
@@ -88,7 +86,7 @@ export function applyTheme(seedHex: string, mode: ThemeMode): void {
   root.style.colorScheme = dark ? 'dark' : 'light';
 }
 
-/** Re-apply theme when OS scheme changes while in `system` mode. */
+/** 仅在跟随系统模式下响应操作系统主题切换。 */
 export function watchSystemScheme(getState: () => { seed: string; mode: ThemeMode }): () => void {
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
   const handler = () => {
