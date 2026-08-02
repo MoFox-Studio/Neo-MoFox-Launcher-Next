@@ -1,4 +1,4 @@
-zzzz'zname: Manual Build
+name: Manual Build
 
 on:
   workflow_dispatch:
