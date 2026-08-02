@@ -1,4 +1,4 @@
-name: Manual Build
+zzzz'zname: Manual Build
 
 on:
   workflow_dispatch:
@@ -37,17 +37,13 @@ jobs:
         run: npm ci
 
       - name: Package Windows application
-        run: npm run pack:dir
-
-      - name: Create distributable archive
-        shell: pwsh
-        run: Compress-Archive -Path release/win-unpacked -DestinationPath release/Neo-MoFox-Launcher-Windows-x64.zip
+        run: npm run package:win
 
       - name: Upload build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: neo-mofox-launcher-windows-x64-${{ github.run_number }}
-          path: release/Neo-MoFox-Launcher-Windows-x64.zip
+          path: release/*.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -84,7 +80,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           TARGET_SHA: ${{ github.sha }}
         run: |
-          gh release create "$RELEASE_TAG" artifacts/Neo-MoFox-Launcher-Windows-x64.zip \
+          gh release create "$RELEASE_TAG" artifacts/*.exe \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET_SHA" \
             --generate-notes

@@ -14,8 +14,15 @@ extraResources:
     to: icon.ico
 win:
   target:
-    - dir
+    - nsis
+    - portable
   icon: assets/icon.ico
+nsis:
+  artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+portable:
+  artifactName: '${productName}-Portable-${version}-${arch}.${ext}'
 linux:
   target:
     - AppImage

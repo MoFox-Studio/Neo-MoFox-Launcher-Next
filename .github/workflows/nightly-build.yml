@@ -32,16 +32,12 @@ jobs:
         run: npm ci
 
       - name: Package Windows application
-        run: npm run pack:dir
-
-      - name: Create distributable archive
-        shell: pwsh
-        run: Compress-Archive -Path release/win-unpacked -DestinationPath release/Neo-MoFox-Launcher-Windows-x64.zip
+        run: npm run package:win
 
       - name: Upload nightly artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: neo-mofox-launcher-nightly-windows-x64-${{ github.run_number }}
-          path: release/Neo-MoFox-Launcher-Windows-x64.zip
+          path: release/*.exe
           if-no-files-found: error
           retention-days: 7
