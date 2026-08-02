@@ -474,7 +474,7 @@ onMounted(() => {
 
 .settings-view__content {
   max-width: 760px;
-  margin: 0 auto 0 0;
+  margin: 0 auto;
   padding: 0 32px 64px;
 }
 
