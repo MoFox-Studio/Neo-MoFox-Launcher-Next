@@ -83,4 +83,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           TARGET_SHA: ${{ github.sha }}
-        run: gh release create "$RELEASE_TAG" artifacts/Neo-MoFox-Launcher-Windows-x64.zip --target "$TARGET_SHA" --generate-notes
+        run: |
+          gh release create "$RELEASE_TAG" artifacts/Neo-MoFox-Launcher-Windows-x64.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET_SHA" \
+            --generate-notes
