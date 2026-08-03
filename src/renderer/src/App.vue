@@ -76,4 +76,16 @@ const bare = computed(() => route.meta.bare === true);
 .page-leave-to {
   opacity: 0;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active {
+    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  }
+
+  .page-enter-from,
+  .page-leave-to {
+    transform: none;
+  }
+}
 </style>

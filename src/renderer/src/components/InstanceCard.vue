@@ -262,4 +262,11 @@ function onPrimaryAction(): void {
   place-items: center;
   cursor: pointer;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .instance-card__progress-bar {
+    animation: none;
+    opacity: 0.65;
+  }
+}
 </style>

@@ -573,4 +573,20 @@ onMounted(async () => {
   opacity: 0;
   transform: translateX(-24px);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .oobe-slide-enter-active,
+  .oobe-slide-leave-active {
+    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  }
+
+  .oobe-slide-enter-from,
+  .oobe-slide-leave-to {
+    transform: none;
+  }
+
+  .spinner {
+    animation: none;
+  }
+}
 </style>
