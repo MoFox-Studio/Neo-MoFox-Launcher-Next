@@ -35,11 +35,24 @@ export class SettingsService {
     this.legacyPath = join(dataDirectory, 'settings.json');
   }
 
+  /**
+   * 获取当前设置；首次调用从磁盘加载并缓存。
+   *
+   * @returns 设置对象的浅拷贝。
+   */
   async get(): Promise<LauncherSettings> {
     if (!this.settings) this.settings = await this.load();
     return { ...this.settings };
   }
 
+  /**
+   * 应用部分字段更新并原子持久化。
+   *
+   * 串行化读改写以避免并发 IPC 更新基于同一旧快照相互覆盖。
+   *
+   * @param patch - 待合并的字段对象。
+   * @returns 合并后的完整设置对象（拷贝）。
+   */
   async update(patch: unknown): Promise<LauncherSettings> {
     const validatedPatch = validateSettingsPatch(patch);
     let result = DEFAULT_SETTINGS;
@@ -77,6 +90,15 @@ export class SettingsService {
   }
 }
 
+/**
+ * 校验并归一化设置补丁。
+ *
+ * IPC 边界仅接受已知字段与领域允许的值，防止任意 JSON 进入持久化文件。
+ *
+ * @param patch - 待校验的设置补丁对象。
+ * @returns 已归一化的部分字段对象。
+ * @throws {MofoxError} 补丁非对象、含未知字段或字段值非法时抛出 `INVALID_ARGUMENT`。
+ */
 export function validateSettingsPatch(patch: unknown): Partial<LauncherSettings> {
   /** IPC 边界仅接受已知字段与领域允许的值，防止任意 JSON 进入持久化文件。 */
   if (!isRecord(patch))
@@ -96,6 +118,14 @@ export function validateSettingsPatch(patch: unknown): Partial<LauncherSettings>
   );
 }
 
+/**
+ * 将任意来源数据归一化为完整的 LauncherSettings。
+ *
+ * 兼容旧字段（theme、accentColor、logging.*）并合并默认值；非法字段被静默丢弃。
+ *
+ * @param source - 待归一化的原始数据。
+ * @returns 字段完整的设置对象。
+ */
 function normalizeSettings(source: unknown): LauncherSettings {
   if (!isRecord(source)) return { ...DEFAULT_SETTINGS };
   const logging = isRecord(source.logging) ? source.logging : {};
@@ -118,6 +148,13 @@ function normalizeSettings(source: unknown): LauncherSettings {
   return result;
 }
 
+/**
+ * 校验单个设置字段是否为合法值。
+ *
+ * @param key - 设置字段名。
+ * @param value - 待校验的值。
+ * @returns 字段值合法时返回 `true`。
+ */
 function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boolean {
   switch (key) {
     case 'themeMode':
@@ -137,10 +174,22 @@ function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boole
   }
 }
 
+/**
+ * 判断值是否为普通对象（非数组、非 null）。
+ *
+ * @param value - 待判断的值。
+ * @returns 值为 Record 时返回 `true`。
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * 判断错误是否为文件不存在（ENOENT）错误。
+ *
+ * @param error - 待判断的异常对象。
+ * @returns 错误码为 `ENOENT` 时返回 `true`。
+ */
 function isFileNotFound(error: unknown): boolean {
   return isRecord(error) && error.code === 'ENOENT';
 }

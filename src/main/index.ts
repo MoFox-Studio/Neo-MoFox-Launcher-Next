@@ -27,6 +27,13 @@ import { MofoxError } from '../shared/domain/error';
 /** 主进程组合根：管理单实例锁、窗口生命周期、服务依赖与主进程到渲染进程的事件同步。 */
 let mainWindow: BrowserWindow | null = null;
 
+/**
+ * 通知渲染进程当前窗口的最大化状态。
+ *
+ * 仅在窗口未销毁时发送，避免在关闭流程中触发已失效的 webContents 调用。
+ *
+ * @param window - 需要查询最大化状态的 BrowserWindow。
+ */
 function emitMaximizeState(window: BrowserWindow): void {
   // 最大化变化由窗口事件驱动，避免渲染端以本地推测替代 BrowserWindow 的真实状态。
   if (!window.isDestroyed()) {
@@ -34,6 +41,14 @@ function emitMaximizeState(window: BrowserWindow): void {
   }
 }
 
+/**
+ * 创建主窗口并绑定首帧显示、最大化同步、关闭回收与导航安全策略。
+ *
+ * 在开发模式下加载 Vite dev server，生产模式下加载打包后的本地 HTML；
+ * 阻止新窗口弹出与跨页面导航以收敛渲染进程的能力边界。
+ *
+ * @returns 初始化完成的 BrowserWindow。
+ */
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1180,

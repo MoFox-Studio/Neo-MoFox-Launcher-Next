@@ -18,6 +18,15 @@ export class SnowLumaPlatform extends BaseBotPlatform {
     super('1.9.2');
   }
 
+  /**
+   * 通过 GitHub Release 安装 SnowLuma 完整发行包。
+   *
+   * 自动过滤 lite 包，并根据当前系统选择 Windows ZIP 或 Linux tar.gz 资产。
+   *
+   * @param context - 安装上下文。
+   * @returns 包含版本号与安装路径的安装结果。
+   * @throws {MofoxError} 当前系统无对应发行资产时由资产选择器抛出。
+   */
   override async install(context: InstallContext): Promise<InstallResult> {
     const platformPart = resolveAssetPlatformPart();
     // 过滤 lite 包，并同时接受 Windows ZIP 与 Linux tar.gz 的完整发行包。
@@ -36,6 +45,17 @@ export class SnowLumaPlatform extends BaseBotPlatform {
 
   override async configure(): Promise<void> {}
 
+  /**
+   * 在安装目录中探测 SnowLuma 启动命令。
+   *
+   * 兼容旧安装布局：当前路径优先，其次查找 `neo-mofox` 同级的 `snowluma` 目录。
+   * 启动顺序：自定义实例脚本 > 官方 launcher 脚本 > 内置 node + index.mjs > 系统 node + index.mjs。
+   *
+   * @param installPath - 平台安装根目录。
+   * @param instanceId - 当前实例 ID，用于定位实例专属脚本。
+   * @returns 包含命令、参数、工作目录与环境变量的启动命令对象。
+   * @throws {MofoxError} 未找到任何可用启动入口时抛出 `NOT_FOUND`。
+   */
   async getStartCommand(installPath: string, instanceId = ''): Promise<StartCommand> {
     const env = { SNOWLUMA_WEBUI_PORT: '5099', SNOWLUMA_HOOK_AUTOLOAD: '1' };
     // 兼容旧安装布局：当前路径优先，其次查找 neo-mofox 的同级 snowluma 目录。
@@ -54,14 +74,34 @@ export class SnowLumaPlatform extends BaseBotPlatform {
   }
 }
 
+/**
+ * 对路径数组去重，保留首次出现的顺序。
+ *
+ * @param paths - 可能包含重复项的路径数组。
+ * @returns 去重后的路径数组。
+ */
 function uniquePaths(paths: string[]): string[] {
   return [...new Set(paths)];
 }
 
+/**
+ * 检查路径是否可访问。
+ *
+ * @param path - 待检查的路径。
+ * @returns 路径存在返回 `true`，否则返回 `false`。
+ */
 async function exists(path: string): Promise<boolean> {
   try { await access(path); return true; } catch { return false; }
 }
 
+/**
+ * 解析当前系统对应的发行资产命名片段。
+ *
+ * 资产命名与可运行组合并不完全等同于基础兼容性矩阵，因此在下载前单独收敛。
+ *
+ * @returns 资产文件名中的平台标识片段（如 `win-x64`、`linux-arm64`）。
+ * @throws {MofoxError} 当前系统无对应发行资产时抛出 `UNAVAILABLE`。
+ */
 function resolveAssetPlatformPart(): string {
   // 资产命名与可运行组合并不完全等同于基础兼容性矩阵，因此在下载前单独收敛。
   if (process.platform === 'win32' && process.arch === 'x64') return 'win-x64';

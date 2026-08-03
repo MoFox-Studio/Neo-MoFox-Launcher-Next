@@ -78,6 +78,14 @@ export class InstanceRuntimeService {
     },
   ) {}
 
+  /**
+   * 启动指定实例的全部进程源（MoFox 与平台）。
+   *
+   * 已在运行或正在启动的实例直接返回；启动失败时回收已创建进程并持久化 error 状态。
+   *
+   * @param instanceId - 待启动的实例 ID。
+   * @throws {MofoxError} 实例不存在、无可用启动入口或进程启动失败时抛出。
+   */
   async start(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
     if (this.hasActive(instanceId) || instance.status === 'running' || instance.status === 'starting') return;
@@ -101,6 +109,14 @@ export class InstanceRuntimeService {
     }
   }
 
+  /**
+   * 停止指定实例的全部进程源。
+   *
+   * 通过 Ctrl+C → SIGTERM → SIGKILL 三级升级策略关闭进程；
+   * 无活动进程时仅同步持久化状态为 stopped。
+   *
+   * @param instanceId - 待停止的实例 ID。
+   */
   async stop(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
     const processes = this.active.get(instanceId);
@@ -118,11 +134,21 @@ export class InstanceRuntimeService {
     }
   }
 
+  /**
+   * 重启实例：先停止再启动。
+   *
+   * @param instanceId - 待重启的实例 ID。
+   */
   async restart(instanceId: string): Promise<void> {
     await this.stop(instanceId);
     await this.start(instanceId);
   }
 
+  /**
+   * 删除实例：先停止进程，再删除安装目录与持久化记录，并清理运行时缓存。
+   *
+   * @param instanceId - 待删除的实例 ID。
+   */
   async remove(instanceId: string): Promise<void> {
     // 先停止进程，再删除目录和记录，避免运行进程继续持有已删除路径。
     const instance = await this.find(instanceId);
@@ -135,25 +161,62 @@ export class InstanceRuntimeService {
     }
   }
 
+  /**
+   * 在系统文件管理器中打开实例安装目录。
+   *
+   * @param instanceId - 实例 ID。
+   */
   async openFolder(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
     await this.openPath(instance.installPath);
   }
 
+  /**
+   * 获取指定进程源的内存日志缓冲。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 进程源（`mofox` 或 `platform`）。
+   * @returns 当前缓冲的日志字符串；不存在时为空串。
+   */
   getLogBuffer(instanceId: string, source: InstanceProcessSource): string {
     return this.logBuffers.get(bufferKey(instanceId, source)) ?? '';
   }
 
+  /**
+   * 清空指定进程源的内存日志缓冲。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 进程源。
+   */
   clearLogBuffer(instanceId: string, source: InstanceProcessSource): void {
     this.logBuffers.delete(bufferKey(instanceId, source));
   }
 
+  /**
+   * 向指定进程源的 PTY 写入数据。
+   *
+   * 非活动或非 PTY 进程的写入将被静默丢弃。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 进程源。
+   * @param data - 待写入 PTY 的字符串数据。
+   */
   writePty(instanceId: string, source: InstanceProcessSource, data: string): void {
     const entry = this.active.get(instanceId)?.get(source);
     if (!entry || entry.kind !== 'pty') return;
     (entry.process as PtyProcess).write?.(data);
   }
 
+  /**
+   * 调整指定进程源 PTY 的列高。
+   *
+   * 非正整数参数或非活动 PTY 时的调用将被静默忽略。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 进程源。
+   * @param cols - 新的列数。
+   * @param rows - 新的行数。
+   */
   resizePty(instanceId: string, source: InstanceProcessSource, cols: number, rows: number): void {
     if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols <= 0 || rows <= 0) return;
     this.ptySizes.set(bufferKey(instanceId, source), { cols, rows });
@@ -164,12 +227,28 @@ export class InstanceRuntimeService {
     } catch { /* process may have just exited */ }
   }
 
+  /**
+   * 获取实例所有进程源的运行统计信息。
+   *
+   * @param instanceId - 实例 ID。
+   * @returns 各进程源的 ProcessStats 组合对象。
+   */
   getStats(instanceId: string): InstanceStats {
     const stats = {} as InstanceStats;
     for (const source of SOURCES) stats[source] = this.processStats(instanceId, source);
     return stats;
   }
 
+  /**
+   * 导出指定进程源的日志到文件。
+   *
+   * 导出时会移除 ANSI 转义序列并以 `<name>_<source>_<timestamp>.log` 命名。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 进程源。
+   * @returns 导出文件的绝对路径。
+   * @throws {MofoxError} 日志为空时抛出 `NOT_FOUND`。
+   */
   async exportLogs(instanceId: string, source: InstanceProcessSource): Promise<string> {
     const instance = await this.find(instanceId);
     const content = stripAnsi(this.getLogBuffer(instanceId, source));
@@ -381,14 +460,33 @@ export class InstanceRuntimeService {
   }
 }
 
+/**
+ * 构造日志缓冲的复合键，区分不同实例的不同进程源。
+ *
+ * @param instanceId - 实例 ID。
+ * @param source - 进程源。
+ * @returns `${instanceId}:${source}` 形式的字符串键。
+ */
 function bufferKey(instanceId: string, source: InstanceProcessSource): string {
   return `${instanceId}:${source}`;
 }
 
+/**
+ * 检查路径是否可访问。
+ *
+ * @param path - 待检查的路径。
+ * @returns 路径存在返回 `true`，否则返回 `false`。
+ */
 async function exists(path: string): Promise<boolean> {
   try { await access(path); return true; } catch { return false; }
 }
 
+/**
+ * 移除字符串中的 ANSI 转义序列（CSI 与单字符转义）。
+ *
+ * @param value - 可能包含 ANSI 转义的字符串。
+ * @returns 已剥离转义序列的纯文本。
+ */
 function stripAnsi(value: string): string {
   const escape = String.fromCharCode(27);
   // CSI sequence first so the single-char alternative cannot eat the leading '['.

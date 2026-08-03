@@ -123,6 +123,14 @@ export class LegacyMigrationService {
   }
 }
 
+/**
+ * 检测旧实例与已有实例之间的 ID/路径冲突类型。
+ *
+ * @param instance - 待导入的旧实例。
+ * @param existingIds - 已存在实例的 ID 集合。
+ * @param existingPaths - 已存在实例的安装路径集合。
+ * @returns `duplicate-id`、`duplicate-path` 或 `null`（无冲突）。
+ */
 function detectConflict(
   instance: Instance,
   existingIds: Set<string>,
@@ -149,10 +157,22 @@ function resolveNameSource(record: unknown): LegacyInstancePreview['nameSource']
   return 'id';
 }
 
+/**
+ * 判断值是否为普通对象（非数组、非 null）。
+ *
+ * @param value - 待判断的值。
+ * @returns 值为 Record 时返回 `true`。
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * 将任意值转换为 Error 实例，便于诊断报告统一处理。
+ *
+ * @param value - 待转换的值。
+ * @returns Error 实例。
+ */
 function toError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
 }

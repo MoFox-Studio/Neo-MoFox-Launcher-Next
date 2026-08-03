@@ -12,6 +12,13 @@ export class EnvironmentService {
     private readonly run: CommandRunner = runOneShot,
   ) {}
 
+  /**
+   * 并行采集系统信息与外部工具版本。
+   *
+   * 任一可选命令失败只省略该字段，不影响整体环境检测。
+   *
+   * @returns 合并系统信息与可用工具版本后的 SystemEnvInfo。
+   */
   async detect(): Promise<SystemEnvInfo> {
     const [system, pythonVersion, uvVersion, gitVersion] = await Promise.all([
       this.detectSystem(),
@@ -27,6 +34,15 @@ export class EnvironmentService {
     };
   }
 
+  /**
+   * 执行单条命令并解析其版本号。
+   *
+   * 工具未安装、无法执行或超时均视为预期环境差异，返回 `undefined` 而非抛出。
+   *
+   * @param command - 待执行的命令名。
+   * @param args - 命令参数列表。
+   * @returns 命令输出中匹配到的版本号字符串；未匹配或失败时为 `undefined`。
+   */
   private async detectVersion(command: string, args: readonly string[]): Promise<string | undefined> {
     try {
       const result = await this.run(command, args);

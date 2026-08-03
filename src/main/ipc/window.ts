@@ -13,6 +13,14 @@ export interface IpcMainRegistrar {
   handle(channel: string, listener: () => unknown): void;
 }
 
+/**
+ * 注册无框窗口控制 IPC 通道。
+ *
+ * 每次调用都通过 `getWindow` 延迟取窗体，以适配启动期、销毁期等空窗口状态。
+ *
+ * @param ipcMain - Electron ipcMain 句柄或其测试替身。
+ * @param getWindow - 返回当前主窗口的回调；窗口不存在时返回 `null`。
+ */
 export function registerWindowIpc(
   ipcMain: IpcMainRegistrar,
   getWindow: () => WindowController | null,

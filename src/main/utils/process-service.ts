@@ -13,6 +13,14 @@ export interface ExecResult {
   timedOut: boolean;
 }
 
+/**
+ * 启动子进程，默认隐藏 Windows 控制台窗口。
+ *
+ * @param command - 待执行的命令名。
+ * @param args - 命令参数列表。
+ * @param options - 透传给 `spawn` 的选项。
+ * @returns ChildProcess 实例。
+ */
 export function spawnProcess(command: string, args: readonly string[], options: SpawnOptions = {}): ChildProcess {
   return spawn(command, [...args], {
     windowsHide: true,
@@ -20,6 +28,16 @@ export function spawnProcess(command: string, args: readonly string[], options: 
   });
 }
 
+/**
+ * 执行一次性命令并捕获其完整输出。
+ *
+ * 统一处理 spawn error、close 与超时三种终态，超时先 SIGTERM 再 SIGKILL 强制终止。
+ *
+ * @param command - 待执行的命令名。
+ * @param args - 命令参数列表。
+ * @param options - 执行选项，`timeoutMs` 默认 30 秒。
+ * @returns 包含 stdout/stderr/exitCode/signal/timedOut 的执行结果。
+ */
 export function runOneShot(
   command: string,
   args: readonly string[],
@@ -73,6 +91,12 @@ export function runOneShot(
   });
 }
 
+/**
+ * 将任意值转换为 Error 实例，便于诊断报告统一处理。
+ *
+ * @param value - 待转换的值。
+ * @returns Error 实例。
+ */
 function toError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
 }

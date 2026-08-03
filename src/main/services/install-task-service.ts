@@ -59,6 +59,14 @@ export class InstallTaskService {
     private readonly events: InstallTaskEvents,
   ) {}
 
+  /**
+   * 启动新的安装任务并立即返回任务 ID。
+   *
+   * 任务在后台异步执行，进度通过 `InstallTaskEvents.progress` 事件同步给渲染端。
+   *
+   * @param request - 安装请求载荷（实例名、平台、版本、目标目录等）。
+   * @returns 新建任务的唯一 ID。
+   */
   async start(request: InstallRequest): Promise<string> {
     validateRequest(request);
     const task = this.createTask(request);
@@ -67,6 +75,14 @@ export class InstallTaskService {
     return task.id;
   }
 
+  /**
+   * 从失败步骤继续执行安装任务。
+   *
+   * 保留已完成下载结果，避免无意义地重做前序步骤。
+   *
+   * @param taskId - 待重试的任务 ID。
+   * @throws {MofoxError} 任务不存在或非失败状态时抛出 `CONFLICT`/`NOT_FOUND`。
+   */
   async retry(taskId: string): Promise<void> {
     // 从失败步骤继续，保留已完成下载结果，避免无意义地重做前序步骤。
     const task = this.requireTask(taskId);
@@ -79,6 +95,13 @@ export class InstallTaskService {
     await task.running;
   }
 
+  /**
+   * 取消指定任务并清理临时工作目录。
+   *
+   * 已完成或已取消的任务直接返回；其余任务通过 AbortSignal 中止，并发布取消状态事件。
+   *
+   * @param taskId - 待取消的任务 ID。
+   */
   async cancel(taskId: string): Promise<void> {
     const task = this.requireTask(taskId);
     if (task.status === 'done' || task.status === 'cancelled') return;
@@ -89,16 +112,31 @@ export class InstallTaskService {
     await rm(task.workDir, { recursive: true, force: true });
   }
 
+  /**
+   * 取消所有未完成任务，常用于窗口关闭前的资源回收。
+   *
+   * @returns 所有任务取消完成后的 Promise。
+   */
   async cancelAll(): Promise<void> {
     await Promise.all([...this.tasks.keys()].map((taskId) => this.cancel(taskId)));
   }
 
+  /**
+   * 判断是否存在仍可取消或正在执行的任务。
+   *
+   * @returns 存在 pending/running 状态任务时返回 `true`。
+   */
   hasActiveTasks(): boolean {
     return [...this.tasks.values()].some(
       (task) => task.status === 'pending' || task.status === 'running',
     );
   }
 
+  /**
+   * 等待指定任务运行态完成（done/failed/cancelled 均会 resolve）。
+   *
+   * @param taskId - 待等待的任务 ID。
+   */
   async wait(taskId: string): Promise<void> {
     await this.requireTask(taskId).running;
   }
@@ -231,6 +269,12 @@ export class InstallTaskService {
   }
 }
 
+/**
+ * 校验安装请求的字段合法性与目标路径安全性。
+ *
+ * @param request - 待校验的安装请求。
+ * @throws {MofoxError} 字段为空、目标路径非绝对路径或为文件系统根目录时抛出 `INVALID_ARGUMENT`。
+ */
 function validateRequest(request: InstallRequest): void {
   if (!request.instanceName.trim() || !request.platformId.trim() || !request.version.trim())
     throw new MofoxError('INVALID_ARGUMENT', '安装实例名、平台和版本不能为空');
@@ -240,6 +284,12 @@ function validateRequest(request: InstallRequest): void {
     throw new MofoxError('INVALID_ARGUMENT', '安装目标路径不能是文件系统根目录');
 }
 
+/**
+ * 判断错误是否为跨设备重命名（EXDEV）错误。
+ *
+ * @param error - 待判断的异常对象。
+ * @returns 错误码为 `EXDEV` 时返回 `true`。
+ */
 function isCrossDevice(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EXDEV';
 }

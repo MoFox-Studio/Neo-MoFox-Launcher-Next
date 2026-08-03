@@ -21,6 +21,11 @@ export abstract class BaseBotPlatform implements BotPlatform {
     this.latestVersion = latestVersion;
   }
 
+  /**
+   * 根据当前宿主操作系统与架构生成平台可用性检测结果。
+   *
+   * @returns 包含是否可用、失败原因与可展示需求项的 PlatformAvailability 对象。
+   */
   async isAvailable(): Promise<PlatformAvailability> {
     const platform = process.platform as 'win32' | 'linux' | 'darwin';
     const arch = process.arch === 'x64' || process.arch === 'arm64' ? process.arch : process.arch;
@@ -33,22 +38,55 @@ export abstract class BaseBotPlatform implements BotPlatform {
     };
   }
 
+  /**
+   * 默认安装入口；子类必须覆写以提供具体的下载与解压逻辑。
+   *
+   * @param _context - 安装上下文（工作目录、目标目录、镜像源、取消信号等）。
+   * @returns 子类实现返回的安装结果（版本与安装路径）。
+   * @throws {MofoxError} 始终抛出 `UNAVAILABLE`，提示未配置下载源。
+   */
   async install(_context: InstallContext): Promise<InstallResult> {
     // 子类须显式提供下载实现，避免默认行为在未配置来源时产生误导性结果。
     throw new MofoxError('UNAVAILABLE', `${this.name} 安装器尚未配置下载源`);
   }
 
+  /**
+   * 默认配置入口；子类可覆写以在安装完成后注入平台特定配置。
+   *
+   * @param _instanceId - 当前实例 ID。
+   * @param _installPath - 平台解压后的根目录。
+   * @throws {MofoxError} 始终抛出 `UNAVAILABLE`，提示未配置配置器。
+   */
   async configure(_instanceId: string, _installPath: string): Promise<void> {
     throw new MofoxError('UNAVAILABLE', `${this.name} 配置器尚未配置`);
   }
 
+  /**
+   * 返回构造时注入的 latestVersion 字段，作为未接入远程版本接口时的回退值。
+   *
+   * @returns 当前平台的最新版本号字符串。
+   */
   async getLatestVersion(): Promise<string> {
     return this.latestVersion;
   }
 
+  /**
+   * 默认更新入口；子类可覆写以提供与安装等价的下载-替换流程。
+   *
+   * @param _context - 安装上下文。
+   * @returns 子类实现返回的安装结果。
+   * @throws {MofoxError} 始终抛出 `UNAVAILABLE`，提示未配置下载源。
+   */
   async update(_context: InstallContext): Promise<InstallResult> {
     throw new MofoxError('UNAVAILABLE', `${this.name} 更新器尚未配置下载源`);
   }
 
+  /**
+   * 返回实例的启动命令；具体平台需根据安装目录结构探测入口文件。
+   *
+   * @param installPath - 平台安装根目录。
+   * @param instanceId - 当前实例 ID，部分平台用于生成实例专属脚本。
+   * @returns 包含可执行命令、参数、工作目录与环境变量的 StartCommand。
+   */
   abstract getStartCommand(installPath: string, instanceId?: string): Promise<StartCommand>;
 }

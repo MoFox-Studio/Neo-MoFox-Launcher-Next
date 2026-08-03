@@ -20,6 +20,19 @@ interface Release {
   assets: ReleaseAsset[];
 }
 
+/**
+ * 通过 GitHub Release 资产完成平台安装。
+ *
+ * 流水线依次执行：发行版查询、资产选择、分镜下载、可选 SHA-256 校验、
+ * ZIP/tar.gz 解压与根目录确认；每一步均按 `github` 类镜像顺序轮询。
+ *
+ * @param context - 安装上下文（工作目录、目标目录、镜像源、取消信号等）。
+ * @param mirrors - 全部镜像源，函数内部只使用 `github` 类型。
+ * @param repository - GitHub 仓库的 `owner/repo` 字符串。
+ * @param selectAsset - 在发行版资产列表中选择当前系统适用资产的回调。
+ * @param isRoot - 判断候选目录是否符合平台安装根定义的回调。
+ * @returns 包含版本号与最终安装路径的安装结果。
+ */
 export async function installGithubRelease(
   context: InstallContext,
   mirrors: readonly MirrorSource[],
@@ -67,7 +80,15 @@ export async function installGithubRelease(
   throw new MofoxError('IO_ERROR', `${asset.name} 解压后的目录结构无效`);
 }
 
-// 顺序尝试每个镜像获取发行版元数据，首个成功即采用；全部失败时抛出最后一个错误。
+/**
+ * 顺序尝试每个镜像获取 GitHub 发行版元数据，首个成功即采用。
+ *
+ * @param mirrors - 仅消费 `github` 类型的镜像列表。
+ * @param repository - GitHub 仓库的 `owner/repo` 字符串。
+ * @param signal - 可选的取消信号；触发后立即抛出当前错误。
+ * @returns 解析后的 GitHub Release 元数据。
+ * @throws {MofoxError} 镜像列表为空或所有镜像均失败时抛出最后一个错误。
+ */
 async function fetchRelease(
   mirrors: readonly MirrorSource[],
   repository: string,
@@ -98,7 +119,15 @@ async function fetchRelease(
     : new MofoxError('UNAVAILABLE', `所有镜像均无法获取 ${repository} 发行版信息`);
 }
 
-// 顺序尝试每个镜像下载资产，首个成功即采用；下载器自身在失败时清理半成品文件。
+/**
+ * 顺序尝试每个镜像下载指定资产，首个成功即采用。
+ *
+ * @param mirrors - 仅消费 `github` 类型的镜像列表。
+ * @param asset - 待下载的发行版资产。
+ * @param destination - 本地目标文件路径。
+ * @param signal - 可选的取消信号；触发后立即抛出当前错误。
+ * @throws {MofoxError} 镜像列表为空或所有镜像均失败时抛出最后一个错误。
+ */
 async function downloadAsset(
   mirrors: readonly MirrorSource[],
   asset: ReleaseAsset,
@@ -122,12 +151,27 @@ async function downloadAsset(
     : new MofoxError('IO_ERROR', `所有镜像均无法下载 ${asset.name}`);
 }
 
-// 直连镜像使用原始地址；其余镜像以前缀代理方式包装原始 GitHub 地址。
+/**
+ * 根据镜像类型解析实际下载地址。
+ *
+ * 直连镜像使用原始地址；代理镜像以 `${baseUrl}/${originalUrl}` 形式包装。
+ *
+ * @param mirror - 当前镜像源。
+ * @param originalUrl - GitHub 原始地址。
+ * @returns 用于发起请求的最终 URL。
+ */
 function resolveProxiedUrl(mirror: MirrorSource, originalUrl: string): string {
   if (mirror.baseUrl === 'https://github.com') return originalUrl;
   return `${mirror.baseUrl}/${originalUrl}`;
 }
 
+/**
+ * 并发检查目录下是否全部存在指定文件。
+ *
+ * @param root - 待检查的目录路径。
+ * @param names - 必须存在的文件名列表。
+ * @returns 所有文件均可访问时返回 `true`，任一缺失则返回 `false`。
+ */
 export async function hasFiles(root: string, names: string[]): Promise<boolean> {
   // 必需文件的访问检查可并发进行，任一缺失即视为该目录不符合安装根定义。
   return (
@@ -142,6 +186,12 @@ export async function hasFiles(root: string, names: string[]): Promise<boolean> 
   ).every(Boolean);
 }
 
+/**
+ * 列出指定目录下的子项名称；读取失败时返回空数组而非抛出。
+ *
+ * @param path - 待枚举的目录路径。
+ * @returns 子项名称数组；目录不存在或不可读时为 `[]`。
+ */
 async function childDirectories(path: string): Promise<string[]> {
   try {
     return await readdir(path);
@@ -150,6 +200,14 @@ async function childDirectories(path: string): Promise<string[]> {
   }
 }
 
+/**
+ * 流式计算文件的 SHA-256 摘要。
+ *
+ * 通过 `createReadStream` 分块读取，避免大体积 Release 完整载入主进程内存。
+ *
+ * @param path - 待校验的文件路径。
+ * @returns 文件内容的十六进制 SHA-256 字符串。
+ */
 async function sha256(path: string): Promise<string> {
   // 流式读取归档，避免大体积 Release 完整载入主进程内存。
   const hash = createHash('sha256');

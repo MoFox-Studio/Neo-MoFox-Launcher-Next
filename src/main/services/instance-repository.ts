@@ -24,11 +24,25 @@ export class InstanceRepository {
     this.path = join(dataDirectory, 'instances.json');
   }
 
+  /**
+   * 列出全部实例，返回内存快照的浅拷贝。
+   *
+   * 首次调用会从磁盘加载并缓存；后续调用直接返回缓存。
+   *
+   * @returns 实例对象数组的浅拷贝。
+   */
   async list(): Promise<Instance[]> {
     if (!this.instances) this.instances = await this.load();
     return this.instances.map((instance) => ({ ...instance }));
   }
 
+  /**
+   * 新增或更新实例记录。
+   *
+   * 同 ID 存在则替换，否则追加。变更通过串行队列与原子写入持久化。
+   *
+   * @param instance - 待写入的实例对象。
+   */
   async upsert(instance: Instance): Promise<void> {
     validateInstance(instance);
     await this.mutate((instances) => {
@@ -38,6 +52,12 @@ export class InstanceRepository {
     });
   }
 
+  /**
+   * 按 ID 移除实例记录；ID 不存在时静默返回。
+   *
+   * @param instanceId - 待移除的实例 ID。
+   * @throws {MofoxError} instanceId 为空时抛出 `INVALID_ARGUMENT`。
+   */
   async remove(instanceId: string): Promise<void> {
     if (!instanceId.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Instance ID is required');
     await this.mutate((instances) => {
@@ -146,6 +166,12 @@ function upgradeRepositoryFile(file: InstanceRepositoryFile): InstanceRepository
   return { version: INSTANCES_VERSION, instances: file.instances.map((instance) => ({ ...instance })) };
 }
 
+/**
+ * 从磁盘 JSON 中提取版本号；非法值回退为 1。
+ *
+ * @param value - 待提取的版本字段。
+ * @returns 有限数字版本号，或 1。
+ */
 function extractVersion(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 1;
 }
@@ -181,16 +207,36 @@ export function normalizeInstance(value: unknown): Instance {
   };
 }
 
+/**
+ * 校验实例记录的关键字段是否非空。
+ *
+ * @param instance - 待校验的实例对象。
+ * @throws {MofoxError} ID、名称或安装路径为空时抛出 `INVALID_ARGUMENT`。
+ */
 function validateInstance(instance: Instance): void {
   if (!instance.id.trim() || !instance.name.trim() || !instance.installPath.trim()) {
     throw new MofoxError('INVALID_ARGUMENT', 'Instance ID, name and install path are required');
   }
 }
 
+/**
+ * 从候选值列表中返回首个非空字符串，全部缺失时返回空串。
+ *
+ * @param values - 候选值数组。
+ * @returns 首个非空白字符串，或空字符串。
+ */
 function firstString(...values: unknown[]): string {
   return (values.find((value) => typeof value === 'string' && value.trim()) as string | undefined) ?? '';
 }
 
+/**
+ * 将任意输入归一化为有限时间戳。
+ *
+ * 接受数字（毫秒）或可解析的日期字符串；非法值回退为当前时间。
+ *
+ * @param value - 待归一化的时间戳。
+ * @returns 毫秒级 Unix 时间戳。
+ */
 function normalizeTimestamp(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -200,10 +246,22 @@ function normalizeTimestamp(value: unknown): number {
   return Date.now();
 }
 
+/**
+ * 判断值是否为普通对象（非数组、非 null）。
+ *
+ * @param value - 待判断的值。
+ * @returns 值为 Record 时返回 `true`。
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * 将任意值转换为 Error 实例，便于诊断报告统一处理。
+ *
+ * @param value - 待转换的值。
+ * @returns Error 实例。
+ */
 function toError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
 }

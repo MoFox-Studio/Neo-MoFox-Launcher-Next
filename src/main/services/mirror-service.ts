@@ -19,6 +19,11 @@ const MIRRORS: readonly MirrorSource[] = [
 ];
 
 export class MirrorService {
+  /**
+   * 返回内置镜像源的浅拷贝列表。
+   *
+   * @returns 镜像源对象数组；调用方可安全修改而不影响内置列表。
+   */
   list(): MirrorSource[] {
     return MIRRORS.map((mirror) => ({ ...mirror }));
   }

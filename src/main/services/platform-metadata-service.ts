@@ -22,8 +22,18 @@ const FALLBACK_PLATFORMS: readonly BotPlatformMetadata[] = [
 ];
 
 export class PlatformMetadataService {
+  /**
+   * @param registry - 可选的平台注册表；未提供时使用静态回退列表。
+   */
   constructor(private readonly registry?: PlatformRegistry) {}
 
+  /**
+   * 列出可安全复制到渲染端的平台元数据。
+   *
+   * 注册表不可用时回退到 `FALLBACK_PLATFORMS`，确保 IPC 调用方总能拿到非空结果。
+   *
+   * @returns 平台元数据对象数组的深拷贝。
+   */
   list(): BotPlatformMetadata[] {
     const platforms = this.registry?.list() ?? FALLBACK_PLATFORMS;
     return platforms.map((platform) => ({

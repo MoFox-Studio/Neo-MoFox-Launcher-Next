@@ -28,6 +28,14 @@ const DEFAULT_LOGGER_SETTINGS: LoggerSettings = {
   compressLogArchive: true,
 };
 
+/**
+ * 创建基于按作用域 JSON Lines 文件的主进程日志器。
+ *
+ * 同一实例的写入及后续读取共用串行队列，避免轮转、追加和读取在文件系统层面交错。
+ *
+ * @param options - 日志目录与可选的运行时设置回调。
+ * @returns 暴露 `log` 与 `read` 方法的 Logger 对象。
+ */
 export function createLogger(options: LoggerOptions): Logger {
   // 同一实例的写入及后续读取共用队列，避免轮转、追加和读取在文件系统层面交错。
   let writeQueue: Promise<void> = Promise.resolve();
@@ -68,6 +76,14 @@ export function createLogger(options: LoggerOptions): Logger {
   };
 }
 
+/**
+ * 在追加日志前检查文件大小并按需轮转。
+ *
+ * 先原子改名再压缩，写入方随后会创建新的活动日志文件。
+ *
+ * @param path - 当前活动日志路径。
+ * @param settings - 包含轮转阈值与压缩开关的设置。
+ */
 async function rotateIfNeeded(path: string, settings: LoggerSettings): Promise<void> {
   try {
     const metadata = await stat(path);
@@ -84,6 +100,14 @@ async function rotateIfNeeded(path: string, settings: LoggerSettings): Promise<v
   }
 }
 
+/**
+ * 删除超过保留期限的归档日志。
+ *
+ * 归档文件彼此独立，可并行读取元数据并删除；活动日志不匹配该命名规则。
+ *
+ * @param directory - 日志目录。
+ * @param maxArchiveDays - 归档保留天数。
+ */
 async function removeExpiredArchives(directory: string, maxArchiveDays: number): Promise<void> {
   const cutoff = Date.now() - maxArchiveDays * 86_400_000;
   const files = await readdir(directory, { withFileTypes: true });
@@ -98,15 +122,34 @@ async function removeExpiredArchives(directory: string, maxArchiveDays: number):
   );
 }
 
+/**
+ * 拼接日志目录与作用域文件名。
+ *
+ * @param directory - 日志目录。
+ * @param scope - 已经过滤的日志作用域。
+ * @returns `<directory>/<scope>.log` 形式的路径。
+ */
 function logPath(directory: string, scope: string): string {
   return join(directory, `${sanitizeScope(scope)}.log`);
 }
 
+/**
+ * 规范化日志作用域，仅保留文件名安全字符以阻断目录穿越。
+ *
+ * @param scope - 原始作用域字符串。
+ * @returns 安全的作用域字符串；空值回退为 `launcher`。
+ */
 function sanitizeScope(scope: string): string {
   // scope 最终参与路径拼接，仅保留文件名安全字符以阻断目录穿越。
   return scope.replace(/[^a-z0-9._-]+/gi, '_').replace(/^\.+/, '') || 'launcher';
 }
 
+/**
+ * 判断值是否为合法的 LogEntry。
+ *
+ * @param value - 待判断的值。
+ * @returns 字段完整时返回 `true`。
+ */
 function isLogEntry(value: unknown): value is LogEntry {
   return (
     typeof value === 'object' &&
@@ -116,6 +159,12 @@ function isLogEntry(value: unknown): value is LogEntry {
   );
 }
 
+/**
+ * 判断错误是否为文件不存在（ENOENT）错误。
+ *
+ * @param error - 待判断的异常对象。
+ * @returns 错误码为 `ENOENT` 时返回 `true`。
+ */
 function isFileNotFound(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
 }
