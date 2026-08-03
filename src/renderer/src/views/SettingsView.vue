@@ -474,7 +474,7 @@ onMounted(() => {
 
 .settings-view__content {
   max-width: 760px;
-  margin: 0 auto 0 0;
+  margin: 0 auto;
   padding: 0 32px 64px;
 }
 
@@ -659,19 +659,24 @@ onMounted(() => {
   border: 2px solid var(--md-sys-color-outline);
   position: relative;
   cursor: pointer;
-  transition: all var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  transition:
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
 .md-switch__thumb {
   position: absolute;
   top: 50%;
-  left: 4px;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
+  left: 0;
+  width: 24px;
+  height: 24px;
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-on-surface-variant);
-  transition: all var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  transform: translate(0, -50%) scale(0.6667);
+  transform-origin: center;
+  transition:
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
 .md-switch--checked {
@@ -680,10 +685,8 @@ onMounted(() => {
 }
 
 .md-switch--checked .md-switch__thumb {
-  left: 20px;
-  width: 24px;
-  height: 24px;
   background: var(--md-sys-color-on-primary);
+  transform: translate(20px, -50%) scale(1);
 }
 
 /* 数值输入框 */

@@ -10,12 +10,19 @@ asarUnpack:
   - node_modules/node-pty/**
   - node_modules/@lydell/node-pty/**
 extraResources:
-  - from: ../Neo-MoFox-Launcher/Neo-MoFox-Launcher/assets/images/icon/icon.ico
+  - from: assets/icon.ico
     to: icon.ico
 win:
   target:
-    - dir
-  icon: ../Neo-MoFox-Launcher/Neo-MoFox-Launcher/assets/images/icon/icon.ico
+    - nsis
+    - portable
+  icon: assets/icon.ico
+nsis:
+  artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+portable:
+  artifactName: '${productName}-Portable-${version}-${arch}.${ext}'
 linux:
   target:
     - AppImage

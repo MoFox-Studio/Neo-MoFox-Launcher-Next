@@ -31,6 +31,7 @@ const installStore = useInstallStore();
 
 // 当前步骤与各步骤的局部输入共同控制校验和页面跳转。
 const currentStep = ref(1);
+const stepDirection = ref<'forward' | 'backward'>('forward');
 
 // ---- Step 1: platform ----
 const platforms = ref<BotPlatformMetadata[]>([]);
@@ -108,15 +109,20 @@ const canGoNext = computed(() => stepValid.value[currentStep.value] ?? false);
 
 function goNext(): void {
   if (!canGoNext.value || currentStep.value >= 4) return;
+  stepDirection.value = 'forward';
   currentStep.value += 1;
 }
 
 function goPrev(): void {
-  if (currentStep.value > 1) currentStep.value -= 1;
+  if (currentStep.value <= 1) return;
+  stepDirection.value = 'backward';
+  currentStep.value -= 1;
 }
 
 function goToStep(step: number): void {
-  if (step < currentStep.value && currentStep.value < 5) currentStep.value = step;
+  if (step >= currentStep.value || currentStep.value >= 5) return;
+  stepDirection.value = 'backward';
+  currentStep.value = step;
 }
 
 // ---- Step 4/5: confirm & execute ----
@@ -148,6 +154,7 @@ async function startInstall(): Promise<void> {
     version: resolvedVersion.value,
     targetDir: targetDir.value.trim(),
   };
+  stepDirection.value = 'forward';
   currentStep.value = 5;
   await installStore.begin(request);
 }
@@ -208,7 +215,7 @@ onMounted(async () => {
     </aside>
 
     <div class="wizard__panel">
-      <transition name="wizard-slide" mode="out-in">
+      <transition :name="`wizard-slide-${stepDirection}`" mode="out-in">
         <div :key="currentStep" class="wizard__content">
           <!-- 平台、实例信息、目录和镜像配置步骤 -->
           <section v-if="currentStep === 1" class="step">
@@ -358,7 +365,7 @@ onMounted(async () => {
               <div
                 class="progress-track__bar"
                 :class="{ 'progress-track__bar--indeterminate': isIndeterminate }"
-                :style="isIndeterminate ? undefined : { width: `${progressPercent}%` }"
+                :style="isIndeterminate ? undefined : { transform: `scaleX(${progressPercent / 100})` }"
               ></div>
             </div>
 
@@ -779,24 +786,31 @@ onMounted(async () => {
 }
 
 .progress-track__bar {
+  width: 100%;
   height: 100%;
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-primary);
-  transition: width var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-standard);
 }
 
 .progress-track__bar--indeterminate {
-  width: 40% !important;
+  width: 40%;
   position: absolute;
-  animation: progress-indeterminate 1.4s var(--md-sys-motion-easing-standard) infinite;
+  transform: translateX(-100%);
+  transform-origin: center;
+  animation: progress-indeterminate 1.4s linear infinite;
+  transition: none;
 }
 
 @keyframes progress-indeterminate {
-  0% {
-    left: -40%;
+  from {
+    transform: translateX(-100%);
   }
-  100% {
-    left: 100%;
+  to {
+    transform: translateX(250%);
   }
 }
 
@@ -923,20 +937,53 @@ onMounted(async () => {
   flex: 1;
 }
 
-.wizard-slide-enter-active,
-.wizard-slide-leave-active {
+.wizard-slide-forward-enter-active,
+.wizard-slide-forward-leave-active,
+.wizard-slide-backward-enter-active,
+.wizard-slide-backward-leave-active {
   transition:
-    opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized),
-    transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized);
+    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized),
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
 }
 
-.wizard-slide-enter-from {
+.wizard-slide-forward-enter-from,
+.wizard-slide-backward-leave-to {
   opacity: 0;
   transform: translateX(24px);
 }
 
-.wizard-slide-leave-to {
+.wizard-slide-forward-leave-to,
+.wizard-slide-backward-enter-from {
   opacity: 0;
   transform: translateX(-24px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard-slide-enter-active,
+  .wizard-slide-leave-active,
+  .wizard-slide-forward-enter-active,
+  .wizard-slide-forward-leave-active,
+  .wizard-slide-backward-enter-active,
+  .wizard-slide-backward-leave-active {
+    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  }
+
+  .wizard-slide-enter-from,
+  .wizard-slide-leave-to,
+  .wizard-slide-forward-enter-from,
+  .wizard-slide-forward-leave-to,
+  .wizard-slide-backward-enter-from,
+  .wizard-slide-backward-leave-to {
+    transform: none;
+  }
+
+  .spinner,
+  .progress-track__bar--indeterminate {
+    animation: none;
+  }
+
+  .progress-track__bar--indeterminate {
+    transform: none;
+  }
 }
 </style>

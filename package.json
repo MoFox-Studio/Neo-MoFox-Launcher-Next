@@ -26,7 +26,8 @@
     "format:check": "prettier --check .",
     "rebuild:native": "electron-rebuild -f",
     "pack:dir": "npm run build && npm run rebuild:native && electron-builder --dir --config electron-builder.yml",
-    "package": "npm run pack:dir",
+    "package:win": "npm run build && npm run rebuild:native && electron-builder --win --x64 --publish never --config electron-builder.yml",
+    "package": "npm run package:win",
     "preview": "vite preview"
   },
   "dependencies": {
