@@ -139,9 +139,10 @@ if (!hasSingleInstanceLock) {
         };
       },
     });
+    const environment = new EnvironmentService();
     registerCoreIpc(ipcMain, {
       instances,
-      environment: new EnvironmentService(),
+      environment,
       platforms: new PlatformMetadataService(platforms),
       settings,
     });
@@ -194,7 +195,7 @@ if (!hasSingleInstanceLock) {
     const legacyMigration = new LegacyMigrationService(legacyDataDir, instances, report);
     registerMigrationIpc(ipcMain, legacyMigration);
     const oobeService = new OobeService(
-      { settings, legacy: legacyMigration, mirrors },
+      { settings, legacy: legacyMigration, mirrors, environment },
       {
         progress: (event) => send(IPC_EVENT_CHANNELS['oobe-progress'], event),
       },

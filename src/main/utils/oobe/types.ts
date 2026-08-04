@@ -5,18 +5,14 @@ import type { MirrorSource } from '../../../shared/domain/mirror';
  *
  * 每个外部依赖（git / python / uv）以独立模块实现该契约；
  * 平台差异由各模块自行根据 `process.platform` 选择分支或加载子模块。
+ *
+ * 依赖是否已安装的探测统一由 `EnvironmentService.detect()` 完成，安装器只负责安装。
  */
 export interface DependencyInstaller {
-  /** 安装器 ID，例如 `git`、`python`、`uv`；OOBE 服务据此生成进度事件。 */
+  /** 安装器 ID，例如 `git`、`python`、`uv`；OOBE 服务据此匹配环境检测结果与进度事件。 */
   readonly id: string;
   /** 人类可读的展示名，供 OOBE 进度消息使用。 */
   readonly displayName: string;
-  /**
-   * 探测当前是否已经安装且可执行。
-   *
-   * @returns 已安装时返回版本字符串；未安装或检测失败时返回 `null`。
-   */
-  detect(): Promise<string | null>;
   /**
    * 执行安装。
    *

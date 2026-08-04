@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import { MofoxError } from '../../../shared/domain/error';
 import { isWindows } from '../platform-helper';
-import { runOneShot } from '../process-service';
 import type { DependencyInstaller, DependencyInstallContext } from './types';
 
 /**
@@ -11,20 +10,11 @@ import type { DependencyInstaller, DependencyInstallContext } from './types';
  * - 其他平台: `curl -LsSf ... | sh`。
  *
  * uv 不分系统，所有平台共用此实现；不依赖 sudo 密码。
+ * 是否已安装的探测由 `EnvironmentService.detect()` 统一完成。
  */
 export const uvInstaller: DependencyInstaller = {
   id: 'uv',
   displayName: 'uv',
-  async detect() {
-    try {
-      const result = await runOneShot('uv', ['--version']);
-      if (result.exitCode !== 0 || result.timedOut) return null;
-      const match = `${result.stdout}\n${result.stderr}`.match(/\d+\.\d+(?:\.\d+)?/);
-      return match?.[0] ?? null;
-    } catch {
-      return null;
-    }
-  },
   async install(context: DependencyInstallContext) {
     context.onProgress?.('正在通过 astral.sh 安装 uv...', 0.1);
     if (isWindows()) {

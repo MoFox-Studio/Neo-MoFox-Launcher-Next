@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { platform } from 'node:os';
 import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from '../../shared/domain/oobe';
 import type { LegacyLauncherInfo } from '../../shared/domain/instance';
+import type { SystemEnvInfo } from '../../shared/domain/system-env';
 import {
   DEPENDENCY_INSTALLERS,
   type DependencyInstaller,
@@ -17,7 +18,9 @@ import type { LegacyMigrationService } from './legacy-migration-service';
 /**
  * OOBE（Out-of-Box Experience）服务：协调首次启动时的依赖安装、旧版检测与完成标记。
  *
- * sudo 密码仅在内存中保留，依赖安装完成后立即清零，不写入持久化存储。
+ * 依赖是否已安装统一由 `EnvironmentService.detect()` 探测（`SystemEnvInfo` 中的
+ * `gitVersion` / `pythonVersion` / `uvVersion`），安装器只负责安装；sudo 密码仅在内存中
+ * 保留，依赖安装完成后立即清零，不写入持久化存储。
  */
 export interface OobeEvents {
   progress(event: OobeProgress): void;
@@ -27,6 +30,8 @@ export interface OobeDependencies {
   settings: SettingsService;
   legacy: LegacyMigrationService;
   mirrors: { list(): { id: string; type: 'github' | 'python-ftp'; name: string; baseUrl: string }[] };
+  /** 环境检测服务，用于在安装前后判断各依赖是否已可用。 */
+  environment: { detect(): Promise<SystemEnvInfo> };
   now?: () => number;
   tempRoot?: string;
 }
@@ -81,6 +86,7 @@ export class OobeService {
    * 探测并安装全部依赖；已安装的依赖跳过，未安装的逐个执行。
    *
    * 每个依赖的进度通过 `OobeProgress` 事件实时推送；任一依赖失败时立即停止后续安装。
+   * 依赖是否已安装由 `EnvironmentService.detect()` 统一探测，安装器只负责安装。
    *
    * @returns 安装完成后的全部依赖状态汇总。
    */
@@ -95,11 +101,13 @@ export class OobeService {
     }));
 
     try {
+      // 安装前统一探测一次环境，决定每个依赖是跳过还是安装；探测本身失败则全部进入安装。
+      const env = await this.detectEnvironmentSafely();
       for (let index = 0; index < DEPENDENCY_INSTALLERS.length; index += 1) {
         if (this.abortController.signal.aborted) break;
         const installer = DEPENDENCY_INSTALLERS[index];
         const status = statuses[index];
-        await this.processInstaller(installer, status, statuses, mirrors);
+        await this.processInstaller(installer, status, statuses, mirrors, env);
       }
     } finally {
       await this.disposeWorkspace();
@@ -139,6 +147,7 @@ export class OobeService {
   /**
    * 执行单个依赖的探测与安装，并更新其状态字段。
    *
+   * 是否已安装由传入的 `env`（来自 `EnvironmentService.detect()`）决定，安装器不再各自探测；
    * 快照传入完整 `statuses` 数组而非单个 `status`，确保进度事件能保留此前已解析的依赖状态，
    * 避免后续依赖在安装时把前序依赖回退为 `pending` 显示。
    */
@@ -147,19 +156,15 @@ export class OobeService {
     status: OobeDependencyStatus,
     statuses: OobeDependencyStatus[],
     mirrors: DependencyInstallContext['mirrors'],
+    env: SystemEnvInfo | undefined,
   ): Promise<void> {
-    this.emit({ phase: 'detecting', message: `正在检测 ${installer.displayName}...`, progress: -1, dependencies: this.snapshot(statuses) });
-    try {
-      const detected = await installer.detect();
-      if (detected) {
-        status.status = 'skipped';
-        status.version = detected;
-        status.message = `已安装 ${detected}`;
-        this.emit({ phase: 'installing', message: `${installer.displayName} 已存在，跳过`, progress: 1, dependencies: this.snapshot(statuses) });
-        return;
-      }
-    } catch {
-      // 检测失败视为未安装，继续尝试安装。
+    const detected = env ? dependencyVersion(installer.id, env) : undefined;
+    if (detected) {
+      status.status = 'skipped';
+      status.version = detected;
+      status.message = `已安装 ${detected}`;
+      this.emit({ phase: 'installing', message: `${installer.displayName} 已存在，跳过`, progress: 1, dependencies: this.snapshot(statuses) });
+      return;
     }
 
     status.status = 'installing';
@@ -196,30 +201,34 @@ export class OobeService {
   }
 
   /**
-   * 重新探测每个依赖的当前状态，生成完成摘要。
+   * 重新探测环境并据此生成完成摘要。
    *
-   * 完成 OOBE 前重新探测而非复用安装阶段状态，可捕获安装阶段后续被外部修改的情形。
+   * 完成 OOBE 前重新探测而非复用安装阶段结果，可捕获安装阶段后续被外部修改的情形；
+   * 探测失败时该依赖标记为 `failed`。
    */
   private async collectDependencyStatuses(): Promise<OobeDependencyStatus[]> {
-    const statuses: OobeDependencyStatus[] = [];
-    for (const installer of DEPENDENCY_INSTALLERS) {
-      const detected = await this.detectInstaller(installer);
-      statuses.push({
+    const env = await this.detectEnvironmentSafely();
+    return DEPENDENCY_INSTALLERS.map((installer) => {
+      const detected = env ? dependencyVersion(installer.id, env) : undefined;
+      return {
         id: installer.id,
         displayName: installer.displayName,
         status: detected ? 'installed' : 'failed',
         ...(detected ? { version: detected } : {}),
-      });
-    }
-    return statuses;
+      };
+    });
   }
 
-  /** 包裹 installer.detect() 调用，将异常统一降级为 `null`。 */
-  private async detectInstaller(installer: DependencyInstaller): Promise<string | null> {
+  /**
+   * 调用 `EnvironmentService.detect()` 并将异常统一降级为 `undefined`。
+   *
+   * 环境探测失败不应阻断 OOBE 流程；返回 `undefined` 时所有依赖将进入安装分支。
+   */
+  private async detectEnvironmentSafely(): Promise<SystemEnvInfo | undefined> {
     try {
-      return await installer.detect();
+      return await this.dependencies.environment.detect();
     } catch {
-      return null;
+      return undefined;
     }
   }
 
@@ -251,4 +260,18 @@ export class OobeService {
 /** Windows 上 OOBE 不需要 sudo；UI 据此跳过密码询问步骤。 */
 export function oobeNeedsSudoPassword(): boolean {
   return isLinux() || isMac() || platform() === 'darwin';
+}
+
+/** 依赖 ID 到 `SystemEnvInfo` 版本字段的映射；未识别的 ID 返回 `undefined`。 */
+function dependencyVersion(id: string, env: SystemEnvInfo): string | undefined {
+  switch (id) {
+    case 'git':
+      return env.gitVersion;
+    case 'python':
+      return env.pythonVersion;
+    case 'uv':
+      return env.uvVersion;
+    default:
+      return undefined;
+  }
 }
