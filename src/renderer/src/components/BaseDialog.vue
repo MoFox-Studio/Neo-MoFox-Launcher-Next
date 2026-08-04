@@ -9,20 +9,37 @@ interface Props {
   dismissible?: boolean;
   // 弹窗宽度，数字按 px 处理，默认 320。
   width?: string | number;
+  // 是否展示默认的同意/关闭操作按钮，默认 true。
+  showActions?: boolean;
+  // 同意按钮文案，默认“同意”。
+  confirmText?: string;
+  // 关闭按钮文案，默认“关闭”。
+  cancelText?: string;
+  // 同意按钮是否可用，默认 true。
+  confirmDisabled?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   title: undefined,
   dismissible: true,
   width: 320,
+  showActions: true,
+  confirmText: '同意',
+  cancelText: '关闭',
+  confirmDisabled: false,
 });
 
 const emit = defineEmits<{
   close: [];
+  confirm: [];
 }>();
 
 function requestClose(): void {
   if (props.dismissible) emit('close');
+}
+
+function onConfirm(): void {
+  emit('confirm');
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -60,6 +77,23 @@ onBeforeUnmount(() => {
           </div>
           <div v-if="$slots.actions" class="dialog__actions">
             <slot name="actions" />
+          </div>
+          <div v-else-if="showActions" class="dialog__actions">
+            <button
+              class="btn btn--text state-layer"
+              type="button"
+              @click="requestClose"
+            >
+              {{ cancelText }}
+            </button>
+            <button
+              class="btn btn--filled state-layer"
+              type="button"
+              :disabled="confirmDisabled"
+              @click="onConfirm"
+            >
+              {{ confirmText }}
+            </button>
           </div>
         </div>
       </div>
@@ -105,6 +139,39 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* 与其他视图保持一致的按钮样式 */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  font: var(--md-sys-typescale-label-large);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn--filled {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.btn--text {
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  padding: 0 12px;
 }
 
 /* 弹窗进出：遮罩淡入淡出，内容缩放强调进出感 */

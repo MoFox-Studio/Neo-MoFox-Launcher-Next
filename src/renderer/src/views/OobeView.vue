@@ -55,8 +55,10 @@ function goNextVisible(): void {
 }
 
 function skipLegacyStep(): void {
+  // 先解除对 legacy 的停留再隐藏，否则 currentStepId 仍指向 legacy，
+  // goNextVisible 会因 findIndex 返回 -1 而中止，导致用户卡在已隐藏的步骤上。
   showLegacyStep.value = false;
-  goNextVisible();
+  goToStep('preferences');
 }
 
 onMounted(async () => {

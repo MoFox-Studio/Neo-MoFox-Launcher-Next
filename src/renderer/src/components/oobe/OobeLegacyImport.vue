@@ -67,7 +67,7 @@ onMounted(async () => {
 <template>
   <section class="oobe-step">
     <h2 class="oobe__step-title">导入旧版实例</h2>
-    <p class="oobe__step-desc">检测到旧版 Neo-MoFox Launcher 数据目录，可以选择导入其中的实例记录</p>
+    <p class="oobe__step-desc">如检测到旧版 Neo-MoFox Launcher 数据目录，可以选择导入其中的实例记录</p>
 
     <div v-if="legacyInfo" class="legacy-info">
       <span class="msr legacy-info__icon" aria-hidden="true">folder</span>
