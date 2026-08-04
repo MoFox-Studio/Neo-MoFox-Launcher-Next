@@ -19,6 +19,10 @@ const update = (patch: Partial<LauncherSettings>) => {
   settingsStore.update(patch);
 };
 
+function onLanguageChange(event: Event): void {
+  update({ language: (event.target as HTMLSelectElement).value as LauncherSettings['language'] });
+}
+
 const presetColors = ['#7C5CDB', '#B3261E', '#006A6A', '#9C4400', '#386A20', '#345CA8'];
 
 const isPresetColor = (color: string) => presetColors.includes(color.toUpperCase());
@@ -217,17 +221,19 @@ onMounted(() => {
             <div class="settings-item__body">
               <span class="settings-item__label">语言</span>
             </div>
-            <div class="select-wrapper">
-              <select
-                class="native-select"
-                :value="settings.language"
-                @change="(e) => update({ language: (e.target as HTMLSelectElement).value as any })"
-              >
-                <option value="zh-CN">简体中文</option>
-                <option value="en-US">English</option>
-              </select>
-              <span class="msr select-wrapper__arrow">arrow_drop_down</span>
-            </div>
+            <md-outlined-select
+              class="language-select"
+              label="语言"
+              :value="settings.language"
+              @change="onLanguageChange"
+            >
+              <md-select-option value="zh-CN">
+                <div slot="headline">简体中文</div>
+              </md-select-option>
+              <md-select-option value="en-US">
+                <div slot="headline">English</div>
+              </md-select-option>
+            </md-outlined-select>
           </div>
         </div>
       </section>
@@ -632,35 +638,9 @@ onMounted(() => {
   cursor: pointer;
 }
 
-/* 原生下拉框与文本操作按钮 */
-.select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  background: var(--md-sys-color-surface-container-high);
-  border-radius: var(--md-sys-shape-corner-small);
-  padding: 0 12px;
-  min-width: 120px;
-}
-
-.native-select {
-  appearance: none;
-  background: transparent;
-  border: none;
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-medium);
-  width: 100%;
-  height: 40px;
-  padding-right: 24px;
-  outline: none;
-  cursor: pointer;
-}
-
-.select-wrapper__arrow {
-  position: absolute;
-  right: 8px;
-  pointer-events: none;
-  color: var(--md-sys-color-on-surface-variant);
+/* MD3 Web 下拉框与文本操作按钮 */
+.language-select {
+  min-width: 150px;
 }
 
 /* 文本按钮 */

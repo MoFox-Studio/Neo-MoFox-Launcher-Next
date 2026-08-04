@@ -69,6 +69,10 @@ function onNameInput(): void {
   nameTouched.value = true;
 }
 
+function onVersionChoiceChange(event: Event): void {
+  versionChoice.value = (event.target as HTMLSelectElement).value as 'latest' | 'custom';
+}
+
 watch(selectedPlatformId, () => {
   versionChoice.value = 'latest';
   customVersion.value = '';
@@ -273,20 +277,25 @@ onMounted(async () => {
               {{ nameError }}
             </p>
 
-            <label class="field field--select">
-              <select v-model="versionChoice" class="field__input field__input--select">
-                <option value="latest" :disabled="!selectedPlatform?.latestVersion">
+            <md-outlined-select
+              class="version-select"
+              label="版本"
+              :value="versionChoice"
+              @change="onVersionChoiceChange"
+            >
+              <md-select-option value="latest" :disabled="!selectedPlatform?.latestVersion">
+                <div slot="headline">
                   {{
                     selectedPlatform?.latestVersion
                       ? `最新版本 ${selectedPlatform.latestVersion}`
                       : '暂无最新版本'
                   }}
-                </option>
-                <option value="custom">自定义</option>
-              </select>
-              <span class="field__label">版本</span>
-              <span class="msr field__select-icon" aria-hidden="true">arrow_drop_down</span>
-            </label>
+                </div>
+              </md-select-option>
+              <md-select-option value="custom">
+                <div slot="headline">自定义</div>
+              </md-select-option>
+            </md-outlined-select>
 
             <label v-if="versionChoice === 'custom'" class="field">
               <input v-model="customVersion" class="field__input" type="text" placeholder=" " />
@@ -661,19 +670,10 @@ onMounted(async () => {
   padding: 19px 15px 5px;
 }
 
-.field__input--select {
-  appearance: none;
-  cursor: pointer;
-  padding-right: 40px;
-}
-
-.field__select-icon {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--md-sys-color-on-surface-variant);
-  pointer-events: none;
+.version-select {
+  display: block;
+  width: 100%;
+  margin-bottom: 20px;
 }
 
 .field__label {
@@ -690,8 +690,7 @@ onMounted(async () => {
 }
 
 .field__input:focus + .field__label,
-.field__input:not(:placeholder-shown) + .field__label,
-.field--select .field__label {
+.field__input:not(:placeholder-shown) + .field__label {
   top: 0;
   transform: translateY(-50%) scale(0.85);
 }

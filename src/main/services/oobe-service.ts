@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { platform } from 'node:os';
+
 import { MofoxError } from '../../shared/domain/error';
 import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from '../../shared/domain/oobe';
 import type { LegacyLauncherInfo } from '../../shared/domain/instance';
@@ -11,7 +11,7 @@ import {
   type DependencyInstaller,
   type DependencyInstallContext,
 } from '../utils/oobe';
-import { isLinux, isMac } from '../utils/platform-helper';
+import { isLinux } from '../utils/platform-helper';
 import { runOneShot } from '../utils/process-service';
 import type { SettingsService } from './settings-service';
 import type { LegacyMigrationService } from './legacy-migration-service';
@@ -55,14 +55,14 @@ export class OobeService {
   /**
    * 验证用户输入的 sudo 密码是否可用。
    *
-   * Windows 上始终返回 `true`（不需要 sudo）；其他平台通过 `sudo -S -v` 验证。
+   * 仅 Linux 通过 `sudo -S -v` 验证；其他平台的依赖安装不需要 sudo。
    * 验证通过后密码保留在内存中供后续安装使用，直到 `installDependencies` 完成或 `clearSudoPassword` 调用。
    *
    * @param password - 用户输入的 sudo 密码。
    * @returns 密码可用时返回 `true`；不可用或验证失败时返回 `false`。
    */
   async verifySudoPassword(password: string): Promise<boolean> {
-    if (!isLinux() && !isMac()) return true;
+    if (!isLinux()) return true;
     if (!password) return false;
     try {
       // `sudo -S -k -v` 先用 -k 清除 sudo 时间戳，再用 -v 从 stdin 读取密码重新验证。
@@ -84,6 +84,33 @@ export class OobeService {
    */
   clearSudoPassword(): void {
     this.sudoPassword = undefined;
+  }
+
+  /**
+   * 仅探测依赖状态，不触发安装。
+   *
+   * 已存在的依赖标记为 `skipped`，缺失依赖保留为 `pending`，由渲染端在用户确认后
+   * 再调用 `installDependencies()`。探测失败时保守地将所有依赖标记为待安装。
+   */
+  async inspectDependencies(): Promise<OobeDependencyStatus[]> {
+    const env = await this.detectEnvironmentSafely();
+    return DEPENDENCY_INSTALLERS.map((installer) => {
+      const version = env ? dependencyVersion(installer.id, env) : undefined;
+      return version
+        ? {
+            id: installer.id,
+            displayName: installer.displayName,
+            status: 'skipped',
+            version,
+            message: `已安装 ${version}`,
+          }
+        : {
+            id: installer.id,
+            displayName: installer.displayName,
+            status: 'pending',
+            message: '未安装',
+          };
+    });
   }
 
   /**
@@ -289,9 +316,9 @@ export class OobeService {
   }
 }
 
-/** Windows 上 OOBE 不需要 sudo；UI 据此跳过密码询问步骤。 */
+/** 仅 Linux 的系统包安装需要通过 sudo 提权。 */
 export function oobeNeedsSudoPassword(): boolean {
-  return isLinux() || isMac() || platform() === 'darwin';
+  return isLinux();
 }
 
 /** 依赖 ID 到 `SystemEnvInfo` 版本字段的映射；未识别的 ID 返回 `undefined`。 */

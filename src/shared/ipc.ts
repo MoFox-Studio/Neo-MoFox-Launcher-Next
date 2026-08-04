@@ -58,6 +58,7 @@ export const IPC_INVOKE_CHANNELS = {
   previewLegacyMigration: 'migration:preview',
   importLegacyMigration: 'migration:import',
   oobeVerifySudo: 'oobe:verify-sudo',
+  oobeInspectDependencies: 'oobe:inspect-dependencies',
   oobeInstallDependencies: 'oobe:install-dependencies',
   oobeCancelInstall: 'oobe:cancel-install',
   oobeComplete: 'oobe:complete',
@@ -131,8 +132,9 @@ export interface MofoxApi {
   previewLegacyMigration(): Promise<MigrationPreview>;
   importLegacyMigration(): Promise<MigrationResult>;
 
-  /** OOBE 首次引导：验证 sudo 密码、安装依赖、标记完成。 */
+  /** OOBE 首次引导：检测依赖、按用户确认安装、验证 Linux sudo 密码并标记完成。 */
   oobeVerifySudo(password: string): Promise<boolean>;
+  oobeInspectDependencies(): Promise<OobeDependencyStatus[]>;
   oobeInstallDependencies(): Promise<OobeDependencyStatus[]>;
   oobeCancelInstall(): Promise<void>;
   oobeComplete(): Promise<OobeCompletionSummary>;

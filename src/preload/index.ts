@@ -66,6 +66,7 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     previewLegacyMigration: () => invoke(IPC_INVOKE_CHANNELS.previewLegacyMigration),
     importLegacyMigration: () => invoke(IPC_INVOKE_CHANNELS.importLegacyMigration),
     oobeVerifySudo: (password) => invoke(IPC_INVOKE_CHANNELS.oobeVerifySudo, password),
+    oobeInspectDependencies: () => invoke(IPC_INVOKE_CHANNELS.oobeInspectDependencies),
     oobeInstallDependencies: () => invoke(IPC_INVOKE_CHANNELS.oobeInstallDependencies),
     oobeCancelInstall: () => invoke(IPC_INVOKE_CHANNELS.oobeCancelInstall),
     oobeComplete: () => invoke(IPC_INVOKE_CHANNELS.oobeComplete),

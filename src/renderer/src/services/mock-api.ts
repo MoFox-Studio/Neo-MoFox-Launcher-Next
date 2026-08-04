@@ -347,6 +347,14 @@ export const mockApi: MofoxApi = {
     await delay(120);
     return password.length > 0;
   },
+  async oobeInspectDependencies(): Promise<OobeDependencyStatus[]> {
+    await delay(180);
+    return [
+      { id: 'git', displayName: 'Git', status: 'skipped', version: '2.47.1', message: '已安装 2.47.1' },
+      { id: 'python', displayName: 'Python', status: 'pending', message: '未安装' },
+      { id: 'uv', displayName: 'uv', status: 'pending', message: '未安装' },
+    ];
+  },
   async oobeInstallDependencies(): Promise<OobeDependencyStatus[]> {
     const statuses: OobeDependencyStatus[] = [
       { id: 'git', displayName: 'Git', status: 'pending' },

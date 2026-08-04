@@ -85,6 +85,19 @@ describe('OobeService', () => {
     await expect(service.verifySudoPassword('')).resolves.toBe(true);
   });
 
+  it('inspects dependencies without starting installations', async () => {
+    const [git, python, uv] = getMockedInstallers();
+    const { service } = createService({ gitVersion: '2.47.1' });
+
+    const statuses = await service.inspectDependencies();
+
+    expect(statuses.map((status) => status.status)).toEqual(['skipped', 'pending', 'pending']);
+    expect(statuses[0].version).toBe('2.47.1');
+    expect(git.install).not.toHaveBeenCalled();
+    expect(python.install).not.toHaveBeenCalled();
+    expect(uv.install).not.toHaveBeenCalled();
+  });
+
   it('skips already-installed dependencies', async () => {
     const [git, python, uv] = getMockedInstallers();
     const { service } = createService({

@@ -8,7 +8,7 @@ import OobePreferences from '@/components/oobe/OobePreferences.vue';
 import OobeSummary from '@/components/oobe/OobeSummary.vue';
 import { useSettingsStore } from '@/stores/settings';
 
-// 首次引导编排：欢迎 → 依赖安装（Linux/macOS 内嵌 sudo 密码）→ 旧版导入（仅检测到时）→ 偏好设置 → 总结
+// 首次引导编排：欢迎 → 依赖安装（仅 Linux 在确认安装后索取 sudo 密码）→ 旧版导入（仅检测到时）→ 偏好设置 → 总结
 type StepId = 'welcome' | 'dependencies' | 'legacy' | 'preferences' | 'summary';
 
 interface Step {
@@ -100,20 +100,27 @@ onMounted(async () => {
 <style scoped>
 .oobe {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   background: var(--md-sys-color-surface);
-  padding: 40px 24px;
+  padding: clamp(24px, 5vh, 56px) clamp(24px, 6vw, 96px);
   overflow-y: auto;
 }
 
 .oobe__stage {
-  width: 100%;
-  max-width: 560px;
+  width: min(100%, 720px);
   flex: 1;
   display: flex;
   align-items: center;
+}
+
+@media (max-height: 720px) {
+  .oobe__stage {
+    align-items: flex-start;
+    padding-top: 24px;
+  }
 }
 
 .oobe__stage > :deep(.oobe-step) {
@@ -149,6 +156,12 @@ onMounted(async () => {
   .oobe-slide-enter-from,
   .oobe-slide-leave-to {
     transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .oobe {
+    padding-inline: 20px;
   }
 }
 </style>

@@ -5,6 +5,7 @@ import type { OobeCompletionSummary, OobeDependencyStatus } from '../../shared/d
 /** OOBE IPC 边界：仅暴露 sudo 验证、依赖安装与完成动作，工作目录与临时文件留在服务层。 */
 interface OobeActions {
   verifySudoPassword(password: string): Promise<boolean>;
+  inspectDependencies(): Promise<OobeDependencyStatus[]>;
   installDependencies(): Promise<OobeDependencyStatus[]>;
   cancel(): Promise<void>;
   complete(): Promise<OobeCompletionSummary>;
@@ -25,6 +26,9 @@ interface IpcMainRegistrar {
 export function registerOobeIpc(ipcMain: IpcMainRegistrar, actions: OobeActions): void {
   register(ipcMain, IPC_INVOKE_CHANNELS.oobeVerifySudo, (password) =>
     actions.verifySudoPassword(requirePassword(password)),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.oobeInspectDependencies, () =>
+    actions.inspectDependencies(),
   );
   register(ipcMain, IPC_INVOKE_CHANNELS.oobeInstallDependencies, () =>
     actions.installDependencies(),

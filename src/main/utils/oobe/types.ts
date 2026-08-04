@@ -35,7 +35,7 @@ export interface DependencyInstallContext {
   /** 调用方可注入的取消信号。 */
   signal?: AbortSignal;
   /**
-   * 用户输入的 sudo 密码（仅 Linux/macOS 需要）。
+   * 用户输入的 sudo 密码（仅 Linux 需要）。
    * OOBE 服务负责先调用 `sudo -S -v` 验证后再注入，安装器据此通过 stdin 传入 `sudo -S`。
    */
   sudoPassword?: string;

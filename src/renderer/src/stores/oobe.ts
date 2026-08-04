@@ -61,6 +61,24 @@ export const useOobeStore = defineStore('oobe', () => {
     return mofoxApi.oobeVerifySudo(password);
   }
 
+  /** 检测当前依赖状态，不执行安装。 */
+  async function inspectDependencies(): Promise<OobeDependencyStatus[]> {
+    subscribe();
+    phase.value = 'detecting';
+    currentMessage.value = '正在检查依赖…';
+    try {
+      const statuses = await mofoxApi.oobeInspectDependencies();
+      dependencies.value = statuses;
+      phase.value = 'idle';
+      currentMessage.value = '';
+      return statuses;
+    } catch (error) {
+      installError.value = error instanceof MofoxError ? error : new MofoxError('INTERNAL', error instanceof Error ? error.message : '未知错误');
+      phase.value = 'error';
+      throw error;
+    }
+  }
+
   /**
    * 触发依赖安装；安装期间订阅进度事件并更新本地状态。
    *
@@ -115,6 +133,7 @@ export const useOobeStore = defineStore('oobe', () => {
     dispose,
     reset,
     verifySudo,
+    inspectDependencies,
     installDependencies,
     cancelInstall,
     complete,

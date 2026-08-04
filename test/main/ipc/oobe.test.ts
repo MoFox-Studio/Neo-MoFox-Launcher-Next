@@ -18,6 +18,7 @@ function createIpcMain(): { handlers: Map<string, (...args: unknown[]) => unknow
 function createActions() {
   return {
     verifySudoPassword: vi.fn(async () => true),
+    inspectDependencies: vi.fn(async () => []),
     installDependencies: vi.fn(async () => []),
     cancel: vi.fn(async () => undefined),
     complete: vi.fn(async () => ({ completed: true, dependencies: [], legacy: null })),
@@ -25,16 +26,27 @@ function createActions() {
 }
 
 describe('registerOobeIpc', () => {
-  it('registers the four OOBE channels', () => {
+  it('registers the five OOBE channels', () => {
     const { handlers, ipcMain } = createIpcMain();
     registerOobeIpc(ipcMain, createActions());
 
     expect([...handlers.keys()]).toEqual([
       IPC_INVOKE_CHANNELS.oobeVerifySudo,
+      IPC_INVOKE_CHANNELS.oobeInspectDependencies,
       IPC_INVOKE_CHANNELS.oobeInstallDependencies,
       IPC_INVOKE_CHANNELS.oobeCancelInstall,
       IPC_INVOKE_CHANNELS.oobeComplete,
     ]);
+  });
+
+  it('forwards the dependency inspection request to the service', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = createActions();
+    registerOobeIpc(ipcMain, actions);
+
+    await handlers.get(IPC_INVOKE_CHANNELS.oobeInspectDependencies)?.({});
+
+    expect(actions.inspectDependencies).toHaveBeenCalledOnce();
   });
 
   it('forwards sudo password to the service', async () => {
