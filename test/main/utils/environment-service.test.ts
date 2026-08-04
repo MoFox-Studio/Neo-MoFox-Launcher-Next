@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EnvironmentService } from '../../../src/main/services/environment-service';
+import { EnvironmentService } from '../../../src/main/utils/environment-service';
 
 /** 验证并行探测成功时的版本合并，以及缺失或中断工具时的部分结果降级。 */
 describe('EnvironmentService', () => {

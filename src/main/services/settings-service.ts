@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   maxLogFileSizeMb: 16,
   maxLogArchiveDays: 14,
   compressLogArchive: true,
+  oobeCompleted: false,
 };
 
 type DiagnosticReporter = (message: string, error: Error) => void;
@@ -169,6 +170,8 @@ function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boole
       return typeof value === 'number' && Number.isFinite(value) && value >= 1 && value <= 1024;
     case 'maxLogArchiveDays':
       return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 3650;
+    case 'oobeCompleted':
+      return typeof value === 'boolean';
     default:
       return typeof value === 'boolean';
   }

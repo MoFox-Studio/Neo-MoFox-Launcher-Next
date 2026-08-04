@@ -50,6 +50,10 @@ describe('createMofoxApi', () => {
     await api.detectLegacyLauncher();
     await api.previewLegacyMigration();
     await api.importLegacyMigration();
+    await api.oobeVerifySudo('password');
+    await api.oobeInstallDependencies();
+    await api.oobeCancelInstall();
+    await api.oobeComplete();
 
     expect(ipcRenderer.invoke.mock.calls.map(([channel]) => channel)).toEqual(
       Object.values(IPC_INVOKE_CHANNELS),

@@ -1,6 +1,6 @@
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
-import { detectSystemEnv, pythonExeName } from '../utils/platform-helper';
-import { runOneShot, type ExecResult } from '../utils/process-service';
+import { detectSystemEnv, pythonExeName } from './platform-helper';
+import { runOneShot, type ExecResult } from './process-service';
 
 /** 并行汇总系统和外部工具版本；任一可选命令失败只省略该字段，不影响环境检测结果。 */
 type SystemDetector = () => Promise<SystemEnvInfo>;

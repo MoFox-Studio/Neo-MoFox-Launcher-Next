@@ -19,6 +19,7 @@ export const useSettingsStore = defineStore('settings', () => {
     maxLogFileSizeMb: 16,
     maxLogArchiveDays: 14,
     compressLogArchive: true,
+    oobeCompleted: false,
   });
   const loaded = ref(false);
 

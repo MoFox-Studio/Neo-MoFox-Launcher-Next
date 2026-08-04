@@ -6,10 +6,11 @@ import { IPC_EVENT_CHANNELS } from '../shared/ipc';
 import { registerCoreIpc } from './ipc/core';
 import { registerInstallIpc } from './ipc/install';
 import { registerMigrationIpc } from './ipc/migration';
+import { registerOobeIpc } from './ipc/oobe';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerWindowIpc } from './ipc/window';
 import { PlatformRegistry } from './platforms/registry';
-import { EnvironmentService } from './services/environment-service';
+import { OobeService } from './services/oobe-service';
 import { InstallTaskService } from './services/install-task-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
@@ -20,6 +21,7 @@ import {
 import { MirrorService } from './services/mirror-service';
 import { PlatformMetadataService } from './services/platform-metadata-service';
 import { SettingsService } from './services/settings-service';
+import { EnvironmentService } from './utils/environment-service';
 import { createLogger, type Logger } from './utils/logger';
 import { removePathSafe } from './utils/native-file-remover';
 import { MofoxError } from '../shared/domain/error';
@@ -77,6 +79,13 @@ function createMainWindow(): BrowserWindow {
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => {
     if (url !== window.webContents.getURL()) event.preventDefault();
+  });
+  // F12 切换 DevTools，便于运行时调试渲染进程。
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' && input.type === 'keyDown') {
+      window.webContents.toggleDevTools();
+      event.preventDefault();
+    }
   });
 
   const developmentUrl = process.env.VITE_DEV_SERVER_URL;
@@ -177,6 +186,13 @@ if (!hasSingleInstanceLock) {
     });
     const legacyMigration = new LegacyMigrationService(legacyDataDir, instances, report);
     registerMigrationIpc(ipcMain, legacyMigration);
+    const oobeService = new OobeService(
+      { settings, legacy: legacyMigration, mirrors },
+      {
+        progress: (event) => send(IPC_EVENT_CHANNELS['oobe-progress'], event),
+      },
+    );
+    registerOobeIpc(ipcMain, oobeService);
     mainWindow = createMainWindow();
 
     // 活跃安装任务必须先收到取消与清理机会，防止关闭窗口留下临时安装状态。

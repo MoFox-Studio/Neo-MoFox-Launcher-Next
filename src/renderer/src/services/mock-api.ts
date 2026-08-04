@@ -10,6 +10,7 @@ import type {
   MigrationPreview,
   MigrationResult,
 } from '@shared/domain/instance';
+import type { OobeCompletionSummary, OobeDependencyStatus } from '@shared/domain/oobe';
 
 type Listener<K extends keyof MofoxEventMap> = (payload: MofoxEventMap[K]) => void;
 
@@ -68,6 +69,7 @@ let settings: LauncherSettings = {
   maxLogFileSizeMb: 16,
   maxLogArchiveDays: 14,
   compressLogArchive: true,
+  oobeCompleted: false,
 };
 
 let maximized = false;
@@ -338,6 +340,54 @@ export const mockApi: MofoxApi = {
   async importLegacyMigration(): Promise<MigrationResult> {
     await delay(420);
     return { imported: instances.length, skipped: 0, total: instances.length };
+  },
+
+  // OOBE 演示：模拟 sudo 验证、依赖安装与完成流程，便于在浏览器中预览界面。
+  async oobeVerifySudo(password: string): Promise<boolean> {
+    await delay(120);
+    return password.length > 0;
+  },
+  async oobeInstallDependencies(): Promise<OobeDependencyStatus[]> {
+    const statuses: OobeDependencyStatus[] = [
+      { id: 'git', displayName: 'Git', status: 'pending' },
+      { id: 'python', displayName: 'Python', status: 'pending' },
+      { id: 'uv', displayName: 'uv', status: 'pending' },
+    ];
+    for (const status of statuses) {
+      status.status = 'installing';
+      emit('oobe-progress', {
+        phase: 'installing',
+        dependencyId: status.id,
+        message: `正在安装 ${status.displayName}...`,
+        progress: -1,
+        dependencies: statuses.map((s) => ({ ...s })),
+      });
+      await delay(360);
+      status.status = 'installed';
+      status.version = '1.2.3';
+      emit('oobe-progress', {
+        phase: 'installing',
+        dependencyId: status.id,
+        message: `${status.displayName} 安装完成`,
+        progress: 1,
+        dependencies: statuses.map((s) => ({ ...s })),
+      });
+    }
+    return statuses;
+  },
+  async oobeCancelInstall(): Promise<void> {},
+  async oobeComplete(): Promise<OobeCompletionSummary> {
+    await delay(180);
+    settings = { ...settings, oobeCompleted: true };
+    return {
+      completed: true,
+      dependencies: [
+        { id: 'git', displayName: 'Git', status: 'installed', version: '2.47.1' },
+        { id: 'python', displayName: 'Python', status: 'installed', version: '3.12.8' },
+        { id: 'uv', displayName: 'uv', status: 'installed', version: '0.5.11' },
+      ],
+      legacy: null,
+    };
   },
 
   on(event, listener) {

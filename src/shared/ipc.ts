@@ -15,6 +15,7 @@ import type {
   MigrationPreview,
   MigrationResult,
 } from './domain/instance';
+import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from './domain/oobe';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
@@ -50,6 +51,10 @@ export const IPC_INVOKE_CHANNELS = {
   detectLegacyLauncher: 'migration:detect-legacy',
   previewLegacyMigration: 'migration:preview',
   importLegacyMigration: 'migration:import',
+  oobeVerifySudo: 'oobe:verify-sudo',
+  oobeInstallDependencies: 'oobe:install-dependencies',
+  oobeCancelInstall: 'oobe:cancel-install',
+  oobeComplete: 'oobe:complete',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -59,6 +64,7 @@ export const IPC_EVENT_CHANNELS = {
   'instance-status-changed': 'event:instance-status-changed',
   'window-maximize-changed': 'event:window-maximize-changed',
   'download-progress': 'event:download-progress',
+  'oobe-progress': 'event:oobe-progress',
 } as const satisfies Record<keyof MofoxEventMap, string>;
 
 /** 从主进程推送至渲染进程的事件载荷映射。 */
@@ -69,6 +75,7 @@ export interface MofoxEventMap {
   'instance-status-changed': { instanceId: string; status: InstanceStatus };
   'window-maximize-changed': boolean;
   'download-progress': DownloadProgress;
+  'oobe-progress': OobeProgress;
 }
 
 export interface MofoxApi {
@@ -115,6 +122,12 @@ export interface MofoxApi {
   detectLegacyLauncher(): Promise<LegacyLauncherInfo | null>;
   previewLegacyMigration(): Promise<MigrationPreview>;
   importLegacyMigration(): Promise<MigrationResult>;
+
+  /** OOBE 首次引导：验证 sudo 密码、安装依赖、标记完成。 */
+  oobeVerifySudo(password: string): Promise<boolean>;
+  oobeInstallDependencies(): Promise<OobeDependencyStatus[]>;
+  oobeCancelInstall(): Promise<void>;
+  oobeComplete(): Promise<OobeCompletionSummary>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

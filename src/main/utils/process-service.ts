@@ -3,6 +3,8 @@ import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
 // 主进程对外部命令的最小封装，统一隐藏窗口、采集输出和处理进程生命周期。
 export interface ExecOptions extends SpawnOptions {
   timeoutMs?: number;
+  /** 可选的 stdin 字符串；提供后通过子进程 stdin 写入并立即关闭。 */
+  input?: string;
 }
 
 export interface ExecResult {
@@ -44,7 +46,9 @@ export function runOneShot(
   options: ExecOptions = {},
 ): Promise<ExecResult> {
   return new Promise((resolve) => {
-    const { timeoutMs = 30_000, ...spawnOptions } = options;
+    const { timeoutMs = 30_000, input, ...spawnOptions } = options;
+    const stdio: SpawnOptions['stdio'] =
+      input !== undefined ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'];
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -60,10 +64,16 @@ export function runOneShot(
     };
 
     try {
-      child = spawnProcess(command, args, { ...spawnOptions, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawnProcess(command, args, { ...spawnOptions, stdio });
     } catch (error) {
       resolve({ stdout, stderr: toError(error).message, exitCode: null, timedOut: false });
       return;
+    }
+
+    if (input !== undefined && child.stdin) {
+      // sudo -S 等命令通过 stdin 读取密码；写入后立即关闭以触发子进程退出。
+      child.stdin.write(input);
+      child.stdin.end();
     }
 
     child.stdout?.setEncoding('utf8');

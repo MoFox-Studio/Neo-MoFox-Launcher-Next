@@ -1,0 +1,254 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { platform } from 'node:os';
+import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from '../../shared/domain/oobe';
+import type { LegacyLauncherInfo } from '../../shared/domain/instance';
+import {
+  DEPENDENCY_INSTALLERS,
+  type DependencyInstaller,
+  type DependencyInstallContext,
+} from '../utils/oobe';
+import { isLinux, isMac } from '../utils/platform-helper';
+import { runOneShot } from '../utils/process-service';
+import type { SettingsService } from './settings-service';
+import type { LegacyMigrationService } from './legacy-migration-service';
+
+/**
+ * OOBE（Out-of-Box Experience）服务：协调首次启动时的依赖安装、旧版检测与完成标记。
+ *
+ * sudo 密码仅在内存中保留，依赖安装完成后立即清零，不写入持久化存储。
+ */
+export interface OobeEvents {
+  progress(event: OobeProgress): void;
+}
+
+export interface OobeDependencies {
+  settings: SettingsService;
+  legacy: LegacyMigrationService;
+  mirrors: { list(): { id: string; type: 'github' | 'python-ftp'; name: string; baseUrl: string }[] };
+  now?: () => number;
+  tempRoot?: string;
+}
+
+export class OobeService {
+  /** 当前安装会话的 sudo 密码；安装完成或显式清理后置空。 */
+  private sudoPassword: string | undefined;
+  /** 当前安装会话的工作目录；安装结束后回收。 */
+  private workDir: string | undefined;
+  /** 取消信号；安装阶段触发后立即中止。 */
+  private abortController: AbortController | undefined;
+
+  constructor(
+    private readonly dependencies: OobeDependencies,
+    private readonly events: OobeEvents,
+  ) {}
+
+  /**
+   * 验证用户输入的 sudo 密码是否可用。
+   *
+   * Windows 上始终返回 `true`（不需要 sudo）；其他平台通过 `sudo -S -v` 验证。
+   * 验证通过后密码保留在内存中供后续安装使用，直到 `installDependencies` 完成或 `clearSudoPassword` 调用。
+   *
+   * @param password - 用户输入的 sudo 密码。
+   * @returns 密码可用时返回 `true`；不可用或验证失败时返回 `false`。
+   */
+  async verifySudoPassword(password: string): Promise<boolean> {
+    if (!isLinux() && !isMac()) return true;
+    if (!password) return false;
+    try {
+      // `sudo -S -v` 从 stdin 读取密码后验证；非零退出码即视为密码错误。
+      const result = await runOneShot('sudo', ['-S', '-v'], {
+        timeoutMs: 10_000,
+        input: `${password}\n`,
+      });
+      if (result.exitCode !== 0) return false;
+      this.sudoPassword = password;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 清空内存中的 sudo 密码；OOBE 流程结束或异常退出时调用。
+   */
+  clearSudoPassword(): void {
+    this.sudoPassword = undefined;
+  }
+
+  /**
+   * 探测并安装全部依赖；已安装的依赖跳过，未安装的逐个执行。
+   *
+   * 每个依赖的进度通过 `OobeProgress` 事件实时推送；任一依赖失败时立即停止后续安装。
+   *
+   * @returns 安装完成后的全部依赖状态汇总。
+   */
+  async installDependencies(): Promise<OobeDependencyStatus[]> {
+    this.abortController = new AbortController();
+    this.workDir = await mkdtemp(join(this.dependencies.tempRoot ?? tmpdir(), 'neo-mofox-oobe-'));
+    const mirrors = this.dependencies.mirrors.list();
+    const statuses: OobeDependencyStatus[] = DEPENDENCY_INSTALLERS.map((installer) => ({
+      id: installer.id,
+      displayName: installer.displayName,
+      status: 'pending',
+    }));
+
+    try {
+      for (let index = 0; index < DEPENDENCY_INSTALLERS.length; index += 1) {
+        if (this.abortController.signal.aborted) break;
+        const installer = DEPENDENCY_INSTALLERS[index];
+        const status = statuses[index];
+        await this.processInstaller(installer, status, statuses, mirrors);
+      }
+    } finally {
+      await this.disposeWorkspace();
+      // 安装完成（无论成功失败）后立即清空密码，避免长期持有。
+      this.sudoPassword = undefined;
+    }
+    return statuses;
+  }
+
+  /**
+   * 取消正在进行的安装流程。
+   */
+  async cancel(): Promise<void> {
+    this.abortController?.abort();
+  }
+
+  /**
+   * 完成 OOBE 流程：探测旧启动器并将 `settings.oobeCompleted` 置为 `true`。
+   *
+   * 旧版导入不在此处执行，仅返回检测结果，由 UI 决定后续步骤。
+   *
+   * @returns OOBE 完成摘要，含依赖最终状态与旧启动器探测结果。
+   */
+  async complete(): Promise<OobeCompletionSummary> {
+    const dependencies = await this.collectDependencyStatuses();
+    let legacy: LegacyLauncherInfo | null = null;
+    try {
+      legacy = await this.dependencies.legacy.detect();
+    } catch {
+      // 旧版探测失败不应阻断 OOBE 完成；将 legacy 保持为 null 即可。
+    }
+    await this.dependencies.settings.update({ oobeCompleted: true });
+    this.clearSudoPassword();
+    return { completed: true, dependencies, legacy };
+  }
+
+  /**
+   * 执行单个依赖的探测与安装，并更新其状态字段。
+   *
+   * 快照传入完整 `statuses` 数组而非单个 `status`，确保进度事件能保留此前已解析的依赖状态，
+   * 避免后续依赖在安装时把前序依赖回退为 `pending` 显示。
+   */
+  private async processInstaller(
+    installer: DependencyInstaller,
+    status: OobeDependencyStatus,
+    statuses: OobeDependencyStatus[],
+    mirrors: DependencyInstallContext['mirrors'],
+  ): Promise<void> {
+    this.emit({ phase: 'detecting', message: `正在检测 ${installer.displayName}...`, progress: -1, dependencies: this.snapshot(statuses) });
+    try {
+      const detected = await installer.detect();
+      if (detected) {
+        status.status = 'skipped';
+        status.version = detected;
+        status.message = `已安装 ${detected}`;
+        this.emit({ phase: 'installing', message: `${installer.displayName} 已存在，跳过`, progress: 1, dependencies: this.snapshot(statuses) });
+        return;
+      }
+    } catch {
+      // 检测失败视为未安装，继续尝试安装。
+    }
+
+    status.status = 'installing';
+    this.emit({ phase: 'installing', dependencyId: installer.id, message: `正在安装 ${installer.displayName}...`, progress: -1, dependencies: this.snapshot(statuses) });
+
+    const context: DependencyInstallContext = {
+      workDir: this.workDir ?? tmpdir(),
+      mirrors,
+      sudoPassword: this.sudoPassword,
+      signal: this.abortController?.signal,
+      onProgress: (message, progress) => {
+        this.emit({
+          phase: 'installing',
+          dependencyId: installer.id,
+          message,
+          progress: progress ?? -1,
+          dependencies: this.snapshot(statuses),
+        });
+      },
+    };
+
+    try {
+      const version = await installer.install(context);
+      status.status = 'installed';
+      status.version = version;
+      status.message = '安装完成';
+      this.emit({ phase: 'installing', dependencyId: installer.id, message: `${installer.displayName} 安装完成`, progress: 1, dependencies: this.snapshot(statuses) });
+    } catch (error) {
+      status.status = 'failed';
+      status.message = error instanceof Error ? error.message : String(error);
+      this.emit({ phase: 'error', dependencyId: installer.id, message: `${installer.displayName} 安装失败: ${status.message}`, progress: -1, dependencies: this.snapshot(statuses) });
+      throw error;
+    }
+  }
+
+  /**
+   * 重新探测每个依赖的当前状态，生成完成摘要。
+   *
+   * 完成 OOBE 前重新探测而非复用安装阶段状态，可捕获安装阶段后续被外部修改的情形。
+   */
+  private async collectDependencyStatuses(): Promise<OobeDependencyStatus[]> {
+    const statuses: OobeDependencyStatus[] = [];
+    for (const installer of DEPENDENCY_INSTALLERS) {
+      const detected = await this.detectInstaller(installer);
+      statuses.push({
+        id: installer.id,
+        displayName: installer.displayName,
+        status: detected ? 'installed' : 'failed',
+        ...(detected ? { version: detected } : {}),
+      });
+    }
+    return statuses;
+  }
+
+  /** 包裹 installer.detect() 调用，将异常统一降级为 `null`。 */
+  private async detectInstaller(installer: DependencyInstaller): Promise<string | null> {
+    try {
+      return await installer.detect();
+    } catch {
+      return null;
+    }
+  }
+
+  /** 释放当前安装会话的临时目录与取消信号。 */
+  private async disposeWorkspace(): Promise<void> {
+    this.abortController = undefined;
+    if (this.workDir) {
+      await rm(this.workDir, { recursive: true, force: true }).catch(() => undefined);
+      this.workDir = undefined;
+    }
+  }
+
+  /** 复制当前状态快照，避免事件订阅方就地修改内部状态。 */
+  private snapshot(statuses: OobeDependencyStatus[]): OobeDependencyStatus[] {
+    return statuses.map((status) => ({
+      id: status.id,
+      displayName: status.displayName,
+      status: status.status,
+      ...(status.version ? { version: status.version } : {}),
+      ...(status.message ? { message: status.message } : {}),
+    }));
+  }
+
+  private emit(event: OobeProgress): void {
+    this.events.progress(event);
+  }
+}
+
+/** Windows 上 OOBE 不需要 sudo；UI 据此跳过密码询问步骤。 */
+export function oobeNeedsSudoPassword(): boolean {
+  return isLinux() || isMac() || platform() === 'darwin';
+}

@@ -82,6 +82,8 @@ export interface LauncherSettings {
   maxLogFileSizeMb: number;
   maxLogArchiveDays: number;
   compressLogArchive: boolean;
+  /** 首次引导是否已完成；未完成时应用强制停在 OOBE 路由，直到 OOBE 服务将其置为 true。 */
+  oobeCompleted: boolean;
 }
 
 // ─── 旧启动器迁移 ────────────────────────────────────────────────────────
