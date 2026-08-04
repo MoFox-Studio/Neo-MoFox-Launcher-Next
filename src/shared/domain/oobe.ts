@@ -26,6 +26,8 @@ export interface OobeProgress {
   progress: number;
   /** 全部依赖的最新状态汇总。 */
   dependencies: OobeDependencyStatus[];
+  /** 累积日志行；供 UI 在失败时展示诊断信息。 */
+  logs?: string[];
 }
 
 /** OOBE 完成时返回给渲染端的结果摘要。 */

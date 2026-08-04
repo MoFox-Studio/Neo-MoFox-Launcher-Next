@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { platform } from 'node:os';
+import { MofoxError } from '../../shared/domain/error';
 import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from '../../shared/domain/oobe';
 import type { LegacyLauncherInfo } from '../../shared/domain/instance';
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
@@ -43,6 +44,8 @@ export class OobeService {
   private workDir: string | undefined;
   /** 取消信号；安装阶段触发后立即中止。 */
   private abortController: AbortController | undefined;
+  /** 当前安装会话累积的日志行；随进度事件推送，失败时一并塞入错误对象。 */
+  private logs: string[] = [];
 
   constructor(
     private readonly dependencies: OobeDependencies,
@@ -94,6 +97,7 @@ export class OobeService {
   async installDependencies(): Promise<OobeDependencyStatus[]> {
     this.abortController = new AbortController();
     this.workDir = await mkdtemp(join(this.dependencies.tempRoot ?? tmpdir(), 'neo-mofox-oobe-'));
+    this.logs = [];
     const mirrors = this.dependencies.mirrors.list();
     const statuses: OobeDependencyStatus[] = DEPENDENCY_INSTALLERS.map((installer) => ({
       id: installer.id,
@@ -164,11 +168,13 @@ export class OobeService {
       status.status = 'skipped';
       status.version = detected;
       status.message = `已安装 ${detected}`;
+      this.log(`${installer.displayName} 已存在 (${detected})，跳过`);
       this.emit({ phase: 'installing', message: `${installer.displayName} 已存在，跳过`, progress: 1, dependencies: this.snapshot(statuses) });
       return;
     }
 
     status.status = 'installing';
+    this.log(`开始安装 ${installer.displayName}`);
     this.emit({ phase: 'installing', dependencyId: installer.id, message: `正在安装 ${installer.displayName}...`, progress: -1, dependencies: this.snapshot(statuses) });
 
     const context: DependencyInstallContext = {
@@ -177,6 +183,7 @@ export class OobeService {
       sudoPassword: this.sudoPassword,
       signal: this.abortController?.signal,
       onProgress: (message, progress) => {
+        this.log(`[${installer.displayName}] ${message}`);
         this.emit({
           phase: 'installing',
           dependencyId: installer.id,
@@ -192,12 +199,14 @@ export class OobeService {
       status.status = 'installed';
       status.version = version;
       status.message = '安装完成';
+      this.log(`${installer.displayName} 安装完成 (${version})`);
       this.emit({ phase: 'installing', dependencyId: installer.id, message: `${installer.displayName} 安装完成`, progress: 1, dependencies: this.snapshot(statuses) });
     } catch (error) {
       status.status = 'failed';
       status.message = error instanceof Error ? error.message : String(error);
+      this.log(`${installer.displayName} 安装失败: ${status.message}`);
       this.emit({ phase: 'error', dependencyId: installer.id, message: `${installer.displayName} 安装失败: ${status.message}`, progress: -1, dependencies: this.snapshot(statuses) });
-      throw error;
+      throw this.wrapWithLogs(error);
     }
   }
 
@@ -253,8 +262,30 @@ export class OobeService {
     }));
   }
 
+  /**
+   * 追加一行日志到当前安装会话；同时随下一次进度事件推送。
+   *
+   * 日志保留时间戳前缀，便于失败时定位时序；不直接打 console，避免主进程 stdout 噪音。
+   */
+  private log(line: string): void {
+    const stamp = new Date().toISOString();
+    this.logs.push(`[${stamp}] ${line}`);
+  }
+
+  /**
+   * 把累积日志塞入异常的 `details.logs`；非 MofoxError 包装为 IO_ERROR 以承载 details。
+   *
+   * 渲染端可通过 `error.details.logs` 拿到完整日志，展示在错误弹窗的日志框中。
+   */
+  private wrapWithLogs(error: unknown): MofoxError {
+    const message = error instanceof Error ? error.message : String(error);
+    const code = error instanceof MofoxError ? error.code : 'IO_ERROR';
+    const details = { ...(error instanceof MofoxError && error.details ? error.details : {}), logs: [...this.logs] };
+    return new MofoxError(code, message, details);
+  }
+
   private emit(event: OobeProgress): void {
-    this.events.progress(event);
+    this.events.progress({ ...event, logs: [...this.logs] });
   }
 }
 

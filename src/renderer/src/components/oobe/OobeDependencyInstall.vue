@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useOobeStore } from '@/stores/oobe';
 import { MofoxError } from '@shared/domain/error';
 import type { OobeDependencyStatus } from '@shared/domain/oobe';
+import ErrorDialog from '@/components/ErrorDialog.vue';
 
 const oobe = useOobeStore();
 
@@ -61,6 +62,13 @@ const allDone = computed(
 // 仅在需要 sudo 且尚未验证时阻塞安装；Windows 直接可装。
 const installGate = computed(() => needsSudo && !sudoVerified.value);
 
+// 错误弹窗默认在出现失败时自动弹出；用户关闭后可通过「查看日志」按钮再次打开。
+const showErrorDialog = ref(false);
+
+watch(hasFailure, (failed) => {
+  if (failed) showErrorDialog.value = true;
+});
+
 function statusIcon(status: OobeDependencyStatus['status']): string {
   switch (status) {
     case 'installed':
@@ -92,7 +100,11 @@ function statusLabel(status: OobeDependencyStatus['status']): string {
 
 async function startInstall(): Promise<void> {
   if (installGate.value) return;
-  await oobe.installDependencies();
+  try {
+    await oobe.installDependencies();
+  } catch {
+    // 错误已落地到 oobe.installError 与 oobe.logs，由错误弹窗展示；这里吞掉避免 unhandled rejection。
+  }
 }
 
 async function retryInstall(): Promise<void> {
@@ -117,6 +129,9 @@ function describeError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return '未知错误';
 }
+
+// 错误弹窗展示的日志文本：每行独立成段，便于阅读与复制。
+const errorLogText = computed(() => oobe.logs.join('\n'));
 </script>
 
 <template>
@@ -227,6 +242,15 @@ function describeError(error: unknown): string {
       <button
         v-if="hasFailure"
         type="button"
+        class="btn btn--text state-layer"
+        @click="showErrorDialog = true"
+      >
+        <span class="msr" aria-hidden="true">description</span>
+        查看日志
+      </button>
+      <button
+        v-if="hasFailure"
+        type="button"
         class="btn btn--filled state-layer"
         :disabled="oobe.installing"
         @click="retryInstall"
@@ -246,9 +270,17 @@ function describeError(error: unknown): string {
     </div>
 
     <p v-if="hasFailure" class="dep-error-hint">
-      部分依赖安装失败，可点击「重试失败项」重新安装全部依赖，或稍后在设置页手动安装。
+      部分依赖安装失败，可点击「重试失败项」重新安装全部依赖，
     </p>
     <p v-else-if="describeError" class="dep-error-hint dep-error-hint--hidden">{{ describeError }}</p>
+
+    <ErrorDialog
+      :open="showErrorDialog"
+      :description="oobe.installError ? describeError(oobe.installError) : '依赖安装失败'"
+      :stack="errorLogText || undefined"
+      title="依赖安装失败"
+      @close="showErrorDialog = false"
+    />
   </section>
 </template>
 

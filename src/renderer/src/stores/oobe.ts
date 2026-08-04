@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { mofoxApi } from '@/services/mofox-api';
+import { MofoxError } from '@shared/domain/error';
 import type { OobeDependencyStatus, OobeProgress } from '@shared/domain/oobe';
 
 /**
  * OOBE 仓库：管理依赖安装进度、当前消息与最终状态。
  *
- * 进度事件由主进程通过 IPC 推送，仓库负责订阅并落地到本地状态以供组件渲染。
+ * 进度事件由主进程通过 IPC 推送，仓库负责订阅并落地到本地状态以供组件渲染；
+ * 安装失败时保存累积日志与错误对象，供错误弹窗展示。
  */
 export const useOobeStore = defineStore('oobe', () => {
   const dependencies = ref<OobeDependencyStatus[]>([]);
@@ -14,6 +16,10 @@ export const useOobeStore = defineStore('oobe', () => {
   const currentMessage = ref('');
   const currentProgress = ref(-1);
   const installing = ref(false);
+  /** 累积日志行；随进度事件同步更新，失败时供错误弹窗展示。 */
+  const logs = ref<string[]>([]);
+  /** 安装失败时的错误对象；非失败态为 null。 */
+  const installError = ref<MofoxError | null>(null);
   let unsubscribe: (() => void) | undefined;
 
   /** 订阅主进程的 OOBE 进度事件；首次调用后开始监听。 */
@@ -24,6 +30,7 @@ export const useOobeStore = defineStore('oobe', () => {
       currentMessage.value = event.message;
       currentProgress.value = event.progress;
       dependencies.value = event.dependencies;
+      if (event.logs) logs.value = event.logs;
     });
   }
 
@@ -40,6 +47,8 @@ export const useOobeStore = defineStore('oobe', () => {
     currentMessage.value = '';
     currentProgress.value = -1;
     installing.value = false;
+    logs.value = [];
+    installError.value = null;
   }
 
   /**
@@ -55,14 +64,24 @@ export const useOobeStore = defineStore('oobe', () => {
   /**
    * 触发依赖安装；安装期间订阅进度事件并更新本地状态。
    *
+   * 失败时把错误对象与累积日志保存到 `installError` 与 `logs`，供错误弹窗展示。
+   *
    * @returns 安装完成后的全部依赖状态汇总。
    */
   async function installDependencies(): Promise<OobeDependencyStatus[]> {
     subscribe();
     installing.value = true;
     phase.value = 'installing';
+    installError.value = null;
     try {
       return await mofoxApi.oobeInstallDependencies();
+    } catch (error) {
+      // 主进程已将累积日志塞入 MofoxError.details.logs；同步到本地 logs 以保证弹窗可见。
+      if (error instanceof MofoxError && error.details?.logs) {
+        logs.value = error.details.logs as string[];
+      }
+      installError.value = error instanceof MofoxError ? error : new MofoxError('INTERNAL', error instanceof Error ? error.message : '未知错误');
+      throw error;
     } finally {
       installing.value = false;
     }
@@ -90,6 +109,8 @@ export const useOobeStore = defineStore('oobe', () => {
     currentMessage,
     currentProgress,
     installing,
+    logs,
+    installError,
     subscribe,
     dispose,
     reset,
