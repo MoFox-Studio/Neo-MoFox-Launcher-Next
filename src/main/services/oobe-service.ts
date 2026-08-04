@@ -62,8 +62,9 @@ export class OobeService {
     if (!isLinux() && !isMac()) return true;
     if (!password) return false;
     try {
-      // `sudo -S -v` 从 stdin 读取密码后验证；非零退出码即视为密码错误。
-      const result = await runOneShot('sudo', ['-S', '-v'], {
+      // `sudo -S -k -v` 先用 -k 清除 sudo 时间戳，再用 -v 从 stdin 读取密码重新验证。
+      // 不加 -k 时若近期已通过 sudo，-v 会直接成功而不验证密码本身。
+      const result = await runOneShot('sudo', ['-S', '-k', '-v'], {
         timeoutMs: 10_000,
         input: `${password}\n`,
       });
