@@ -54,6 +54,8 @@ describe('createMofoxApi', () => {
     await api.oobeInstallDependencies();
     await api.oobeCancelInstall();
     await api.oobeComplete();
+    await api.pickFile();
+    await api.pickDirectory();
 
     expect(ipcRenderer.invoke.mock.calls.map(([channel]) => channel)).toEqual(
       Object.values(IPC_INVOKE_CHANNELS),

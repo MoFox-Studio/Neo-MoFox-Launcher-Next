@@ -58,6 +58,25 @@ function describeError(error: unknown): string {
   return '未知错误';
 }
 
+// 安装目录通过通用对话框 IPC 选择；用户取消时不修改设置。错误复用迁移区块的提示位展示。
+const installDirBusy = ref(false);
+
+async function chooseInstallDir(): Promise<void> {
+  if (installDirBusy.value) return;
+  installDirBusy.value = true;
+  try {
+    const picked = await mofoxApi.pickDirectory({
+      title: '选择默认安装目录',
+      defaultPath: settings.value.defaultInstallDir || undefined,
+    });
+    if (picked) update({ defaultInstallDir: picked });
+  } catch (error) {
+    migrationError.value = describeError(error);
+  } finally {
+    installDirBusy.value = false;
+  }
+}
+
 async function detectLegacy(): Promise<void> {
   migrationBusy.value = true;
   migrationError.value = null;
@@ -225,7 +244,13 @@ onMounted(() => {
                 settings.defaultInstallDir
               }}</span>
             </div>
-            <button class="text-button state-layer">更改</button>
+            <button
+              class="text-button state-layer"
+              :disabled="installDirBusy"
+              @click="chooseInstallDir"
+            >
+              更改
+            </button>
           </div>
 
           <div class="settings-divider"></div>

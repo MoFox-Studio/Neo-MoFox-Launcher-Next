@@ -16,6 +16,12 @@ import type {
   MigrationResult,
 } from './domain/instance';
 import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from './domain/oobe';
+import type {
+  DirectoryPickerOptions,
+  DirectoryPickerResult,
+  FilePickerOptions,
+  FilePickerResult,
+} from './domain/file-picker';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
@@ -55,6 +61,8 @@ export const IPC_INVOKE_CHANNELS = {
   oobeInstallDependencies: 'oobe:install-dependencies',
   oobeCancelInstall: 'oobe:cancel-install',
   oobeComplete: 'oobe:complete',
+  pickFile: 'dialog:pick-file',
+  pickDirectory: 'dialog:pick-directory',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -128,6 +136,13 @@ export interface MofoxApi {
   oobeInstallDependencies(): Promise<OobeDependencyStatus[]>;
   oobeCancelInstall(): Promise<void>;
   oobeComplete(): Promise<OobeCompletionSummary>;
+
+  /**
+   * 通用对话框：选择文件或文件夹。
+   * 用户取消时返回 null；多选文件时返回全部选中路径。
+   */
+  pickFile(options?: FilePickerOptions): Promise<FilePickerResult>;
+  pickDirectory(options?: DirectoryPickerOptions): Promise<DirectoryPickerResult>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

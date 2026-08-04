@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import * as nodePty from 'node-pty';
 import { IPC_EVENT_CHANNELS } from '../shared/ipc';
+import { registerCommonIpc } from './ipc/common';
 import { registerCoreIpc } from './ipc/core';
 import { registerInstallIpc } from './ipc/install';
 import { registerMigrationIpc } from './ipc/migration';
@@ -14,6 +15,7 @@ import { OobeService } from './services/oobe-service';
 import { InstallTaskService } from './services/install-task-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
+import { pickDirectory, pickFile } from './services/filepicker-service';
 import {
   LegacyMigrationService,
   resolveLegacyLauncherDataDir,
@@ -102,6 +104,11 @@ if (!hasSingleInstanceLock) {
 } else {
   // 窗口控制先注册，其余依赖存储和平台注册表的 IPC 在 Electron ready 后构造。
   registerWindowIpc(ipcMain, () => mainWindow);
+  // 通用对话框（选择文件/文件夹）仅依赖主窗口句柄，提前注册以供 OOBE 与设置页共同复用。
+  registerCommonIpc(ipcMain, {
+    pickFile: (options) => pickFile(() => mainWindow, options),
+    pickDirectory: (options) => pickDirectory(() => mainWindow, options),
+  });
 
   app.on('second-instance', () => {
     if (!mainWindow) return;

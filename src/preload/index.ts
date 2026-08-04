@@ -69,6 +69,8 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     oobeInstallDependencies: () => invoke(IPC_INVOKE_CHANNELS.oobeInstallDependencies),
     oobeCancelInstall: () => invoke(IPC_INVOKE_CHANNELS.oobeCancelInstall),
     oobeComplete: () => invoke(IPC_INVOKE_CHANNELS.oobeComplete),
+    pickFile: (options) => invoke(IPC_INVOKE_CHANNELS.pickFile, options),
+    pickDirectory: (options) => invoke(IPC_INVOKE_CHANNELS.pickDirectory, options),
     on: <K extends keyof MofoxEventMap>(
       event: K,
       listener: (payload: MofoxEventMap[K]) => void,

@@ -390,6 +390,16 @@ export const mockApi: MofoxApi = {
     };
   },
 
+  // 通用对话框：演示构建中无法访问原生 dialog，统一返回 null 表示用户取消。
+  async pickFile() {
+    await delay(60);
+    return null;
+  },
+  async pickDirectory() {
+    await delay(60);
+    return null;
+  },
+
   on(event, listener) {
     // 返回取消函数，使仓库和组件可在作用域销毁时解除订阅。
     let set = listeners.get(event);
