@@ -2,15 +2,14 @@
 import { computed, onMounted, ref } from 'vue';
 import OobeStepper from '@/components/oobe/OobeStepper.vue';
 import OobeWelcome from '@/components/oobe/OobeWelcome.vue';
-import OobeSudoPrompt from '@/components/oobe/OobeSudoPrompt.vue';
 import OobeDependencyInstall from '@/components/oobe/OobeDependencyInstall.vue';
 import OobeLegacyImport from '@/components/oobe/OobeLegacyImport.vue';
 import OobePreferences from '@/components/oobe/OobePreferences.vue';
 import OobeSummary from '@/components/oobe/OobeSummary.vue';
 import { useSettingsStore } from '@/stores/settings';
 
-// 首次引导编排：欢迎 → sudo 密码（仅 Linux/macOS）→ 依赖安装 → 旧版导入（仅检测到时）→ 偏好设置 → 总结
-type StepId = 'welcome' | 'sudo' | 'dependencies' | 'legacy' | 'preferences' | 'summary';
+// 首次引导编排：欢迎 → 依赖安装（Linux/macOS 内嵌 sudo 密码）→ 旧版导入（仅检测到时）→ 偏好设置 → 总结
+type StepId = 'welcome' | 'dependencies' | 'legacy' | 'preferences' | 'summary';
 
 interface Step {
   id: StepId;
@@ -20,14 +19,8 @@ interface Step {
 
 const settingsStore = useSettingsStore();
 
-// Linux/macOS 才显示 sudo 密码步骤；Windows 直接进入依赖安装。
-// 渲染进程内通过 navigator.userAgent 推断平台，避免触碰 Node global。
-const needsSudo =
-  typeof navigator !== 'undefined' && !/Windows/i.test(navigator.userAgent);
-
 const steps = computed<Step[]>(() => [
   { id: 'welcome', label: '欢迎', visible: true },
-  { id: 'sudo', label: '授权', visible: needsSudo },
   { id: 'dependencies', label: '依赖', visible: true },
   { id: 'legacy', label: '导入', visible: showLegacyStep.value },
   { id: 'preferences', label: '偏好', visible: true },
@@ -74,20 +67,14 @@ onMounted(async () => {
 
     <div class="oobe__stage">
       <transition name="oobe-slide" mode="out-in">
-        <OobeWelcome v-if="currentStepId === 'welcome'" key="welcome" @next="goToStep(needsSudo ? 'sudo' : 'dependencies')" />
-
-        <OobeSudoPrompt
-          v-else-if="currentStepId === 'sudo'"
-          key="sudo"
-          @next="goToStep('dependencies')"
-          @skip="goToStep('dependencies')"
-        />
+        <OobeWelcome v-if="currentStepId === 'welcome'" key="welcome" @next="goToStep('dependencies')" />
 
         <OobeDependencyInstall
           v-else-if="currentStepId === 'dependencies'"
           key="dependencies"
           @next="goNextVisible()"
-          @back="goToStep(needsSudo ? 'sudo' : 'welcome')"
+          @back="goToStep('welcome')"
+          @skip="goNextVisible()"
         />
 
         <OobeLegacyImport
