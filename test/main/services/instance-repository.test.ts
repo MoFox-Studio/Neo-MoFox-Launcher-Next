@@ -1,7 +1,11 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { InstanceRepository, normalizeInstance } from '../../../src/main/services/instance-repository';
+import {
+  DEFAULT_INSTANCE,
+  InstanceRepository,
+  normalizeInstance,
+} from '../../../src/main/services/instance-repository';
 import { INSTANCES_VERSION } from '../../../src/shared/domain/instance';
 
 /** 验证仓库首次加载、历史格式归一化、坏记录隔离及原子增删后的状态。 */
@@ -14,7 +18,9 @@ async function createTempDirectory(): Promise<string> {
 }
 
 afterEach(async () => {
-  await Promise.all(tempDirectories.splice(0).map((directory) => rm(directory, { recursive: true })));
+  await Promise.all(
+    tempDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
+  );
 });
 
 describe('InstanceRepository', () => {
@@ -64,7 +70,10 @@ describe('InstanceRepository', () => {
     const repository = new InstanceRepository(directory, report);
 
     await expect(repository.list()).resolves.toEqual([]);
-    expect(report).toHaveBeenCalledWith(expect.stringContaining('invalid instance'), expect.any(Error));
+    expect(report).toHaveBeenCalledWith(
+      expect.stringContaining('invalid instance'),
+      expect.any(Error),
+    );
   });
 
   it('does not overwrite damaged JSON', async () => {
@@ -146,6 +155,78 @@ describe('InstanceRepository', () => {
     expect(JSON.parse(await readFile(instancesPath, 'utf8'))).toEqual(payload);
   });
 
+  it('normalizes a current-version file by completing missing fields and removing extras', async () => {
+    const directory = await createTempDirectory();
+    const instancesPath = join(directory, 'instances.json');
+    await writeFile(
+      instancesPath,
+      JSON.stringify({
+        version: INSTANCES_VERSION,
+        deprecatedRepositoryField: true,
+        instances: [
+          {
+            id: 'bot-1',
+            name: 'Bot 1',
+            installPath: '/bots/1',
+            createdAt: 123,
+            deprecatedInstanceField: true,
+          },
+        ],
+      }),
+    );
+    const repository = new InstanceRepository(directory, vi.fn());
+
+    await expect(repository.list()).resolves.toEqual([
+      {
+        ...DEFAULT_INSTANCE,
+        id: 'bot-1',
+        name: 'Bot 1',
+        installPath: '/bots/1',
+        createdAt: 123,
+      },
+    ]);
+    expect(JSON.parse(await readFile(instancesPath, 'utf8'))).toEqual({
+      version: INSTANCES_VERSION,
+      instances: [
+        {
+          ...DEFAULT_INSTANCE,
+          id: 'bot-1',
+          name: 'Bot 1',
+          installPath: '/bots/1',
+          createdAt: 123,
+        },
+      ],
+    });
+  });
+
+  it('uses the default instance structure for an unhandled repository version', async () => {
+    const directory = await createTempDirectory();
+    const instancesPath = join(directory, 'instances.json');
+    await writeFile(
+      instancesPath,
+      JSON.stringify({
+        version: INSTANCES_VERSION + 1,
+        instances: [{ id: 'bot-1', name: 'Bot 1', installPath: '/bots/1', createdAt: 123 }],
+      }),
+    );
+    const repository = new InstanceRepository(directory, vi.fn());
+
+    await repository.list();
+
+    expect(JSON.parse(await readFile(instancesPath, 'utf8'))).toEqual({
+      version: INSTANCES_VERSION,
+      instances: [
+        {
+          ...DEFAULT_INSTANCE,
+          id: 'bot-1',
+          name: 'Bot 1',
+          installPath: '/bots/1',
+          createdAt: 123,
+        },
+      ],
+    });
+  });
+
   it('mergeExternal imports non-conflicting instances and skips duplicates', async () => {
     const directory = await createTempDirectory();
     const repository = new InstanceRepository(directory);
@@ -167,9 +248,27 @@ describe('InstanceRepository', () => {
       // 与已有 installPath 冲突
       { ...existing, id: 'ins-a2', installPath: existing.installPath },
       // 字段缺失，应被合并阶段校验跳过
-      { id: '', name: '', version: '1', platformId: 'x', installPath: '', status: 'stopped' as const, createdAt: 2, autoStart: false },
+      {
+        id: '',
+        name: '',
+        version: '1',
+        platformId: 'x',
+        installPath: '',
+        status: 'stopped' as const,
+        createdAt: 2,
+        autoStart: false,
+      },
       // 全新实例
-      { id: 'ins-b', name: 'B', version: '2.0.0', platformId: 'snowluma', installPath: 'D:\\Bots\\b', status: 'stopped' as const, createdAt: 3, autoStart: true },
+      {
+        id: 'ins-b',
+        name: 'B',
+        version: '2.0.0',
+        platformId: 'snowluma',
+        installPath: 'D:\\Bots\\b',
+        status: 'stopped' as const,
+        createdAt: 3,
+        autoStart: true,
+      },
     ];
 
     const result = await repository.mergeExternal(incoming);

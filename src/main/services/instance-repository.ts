@@ -11,6 +11,17 @@ import { writeJsonAtomic } from '../utils/atomic-json';
 /** 实例仓库负责把磁盘 JSON 规范化为领域记录，并通过串行原子写维持内存与持久化状态一致。 */
 type DiagnosticReporter = (message: string, error: Error) => void;
 
+/** 实例持久化结构的默认值；新增字段在无专用迁移时由此补齐。 */
+export const DEFAULT_INSTANCE: Omit<Instance, 'id'> = {
+  name: '',
+  version: 'unknown',
+  platformId: 'unknown',
+  installPath: '',
+  status: 'stopped',
+  createdAt: 0,
+  autoStart: false,
+};
+
 export class InstanceRepository {
   private readonly path: string;
   private instances?: Instance[];
@@ -18,8 +29,7 @@ export class InstanceRepository {
 
   constructor(
     dataDirectory: string,
-    private readonly report: DiagnosticReporter = (message, error) =>
-      console.error(message, error),
+    private readonly report: DiagnosticReporter = (message, error) => console.error(message, error),
   ) {
     this.path = join(dataDirectory, 'instances.json');
   }
@@ -70,7 +80,9 @@ export class InstanceRepository {
    * 批量合并外部迁移记录：同 ID 或同 installPath 视为冲突并跳过。
    * 调用方据此决定是否覆盖；返回实际写入的实例与被跳过的实例。
    */
-  async mergeExternal(incoming: Instance[]): Promise<{ imported: Instance[]; skipped: Instance[] }> {
+  async mergeExternal(
+    incoming: Instance[],
+  ): Promise<{ imported: Instance[]; skipped: Instance[] }> {
     const imported: Instance[] = [];
     const skipped: Instance[] = [];
     await this.mutate((instances) => {
@@ -112,16 +124,14 @@ export class InstanceRepository {
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown;
       const file = normalizeRepositoryFile(parsed, this.report);
-      // 即时升级：磁盘版本落后于当前版本时，立即用迁移后的内容覆写文件，
-      // 避免下次读取仍走迁移分支；不可读/未找到文件不触发写入。
-      if (file.version !== INSTANCES_VERSION) {
-        const upgraded = upgradeRepositoryFile(file);
-        await writeJsonAtomic(this.path, upgraded).catch((error) => {
-          this.report('Unable to persist upgraded instance repository', toError(error));
+      const canonical = file.version === INSTANCES_VERSION ? file : upgradeRepositoryFile(file);
+      // 文件版本升级或结构偏离默认 schema 时立即回写，既补齐新增字段也移除已废弃字段。
+      if (!isCanonicalRepositoryFile(parsed, canonical)) {
+        await writeJsonAtomic(this.path, canonical).catch((error) => {
+          this.report('Unable to persist normalized instance repository', toError(error));
         });
-        return upgraded.instances;
       }
-      return file.instances;
+      return canonical.instances;
     } catch (error) {
       // 文件不存在和损坏文件都以空集合恢复，且不在读取阶段覆盖用户原文件。
       if (!isRecord(error) || error.code !== 'ENOENT') {
@@ -159,11 +169,37 @@ export function normalizeRepositoryFile(
   };
 }
 
-/** 当前版本无需迁移；保留显式分支以承载未来字段升级。 */
+/**
+ * 升级仓库文件；需要变换字段语义的版本在此添加专用迁移，其他版本统一补齐默认字段。
+ */
 function upgradeRepositoryFile(file: InstanceRepositoryFile): InstanceRepositoryFile {
-  if (file.version === INSTANCES_VERSION) return file;
-  // 版本 1 是初始版本，无需转换；更高版本到来时在此追加迁移分支。
-  return { version: INSTANCES_VERSION, instances: file.instances.map((instance) => ({ ...instance })) };
+  // 版本 1 是初始版本；未来存在字段语义变化时在这里按版本转换 instances。
+  return {
+    version: INSTANCES_VERSION,
+    instances: file.instances.map((instance) => ({ ...DEFAULT_INSTANCE, ...instance })),
+  };
+}
+
+/** 判断磁盘原始值是否已完全符合当前仓库与实例结构，避免无变化时重复写入。 */
+function isCanonicalRepositoryFile(value: unknown, file: InstanceRepositoryFile): boolean {
+  if (!isRecord(value) || value.version !== INSTANCES_VERSION || !Array.isArray(value.instances)) {
+    return false;
+  }
+  return (
+    value.instances.length === file.instances.length &&
+    value.instances.every((instance, index) =>
+      isCanonicalInstance(instance, file.instances[index]),
+    ) &&
+    Object.keys(value).length === 2
+  );
+}
+
+/** 仅接受键和值均与规范化实例一致的记录，额外或缺失字段都会触发回写。 */
+function isCanonicalInstance(value: unknown, instance: Instance | undefined): boolean {
+  if (!instance || !isRecord(value) || Object.keys(value).length !== Object.keys(instance).length) {
+    return false;
+  }
+  return Object.entries(instance).every(([key, expected]) => value[key] === expected);
 }
 
 /**
@@ -186,7 +222,13 @@ export function normalizeInstance(value: unknown): Instance {
   }
   const extra = isRecord(value.extra) ? value.extra : {};
   const name = firstString(value.name, extra.displayName, value.qqNickname, value.id);
-  const installPath = firstString(value.installPath, value.neomofoxDir, value.platformDir, value.napcatDir, '');
+  const installPath = firstString(
+    value.installPath,
+    value.neomofoxDir,
+    value.platformDir,
+    value.napcatDir,
+    '',
+  );
   const platformId = firstString(
     value.platformId,
     value.platform,
@@ -195,9 +237,16 @@ export function normalizeInstance(value: unknown): Instance {
   );
   const createdAt = normalizeTimestamp(value.createdAt);
   return {
+    ...DEFAULT_INSTANCE,
     id: value.id,
     name,
-    version: firstString(value.version, value.neomofoxVersion, value.platformVersion, value.napcatVersion, 'unknown'),
+    version: firstString(
+      value.version,
+      value.neomofoxVersion,
+      value.platformVersion,
+      value.napcatVersion,
+      'unknown',
+    ),
     platformId,
     installPath,
     status: value.status === 'error' ? 'error' : 'stopped',
@@ -226,7 +275,9 @@ function validateInstance(instance: Instance): void {
  * @returns 首个非空白字符串，或空字符串。
  */
 function firstString(...values: unknown[]): string {
-  return (values.find((value) => typeof value === 'string' && value.trim()) as string | undefined) ?? '';
+  return (
+    (values.find((value) => typeof value === 'string' && value.trim()) as string | undefined) ?? ''
+  );
 }
 
 /**
