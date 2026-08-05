@@ -728,10 +728,17 @@ onMounted(() => {
 
 .settings-view__header {
   grid-column: 2;
+  width: calc(100% - 64px);
   max-width: 824px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 24px 32px 20px;
+  box-sizing: border-box;
+  margin: 20px auto 0;
+  padding: 20px 32px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 20px;
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
 }
 
 .settings-view__title {
@@ -831,27 +838,34 @@ onMounted(() => {
 .settings-view__content {
   grid-column: 2;
   width: 100%;
-  max-width: 824px;
   min-width: 0;
   margin: 0 auto;
-  padding: 0 32px 64px;
+  padding: 20px 32px 64px;
   overflow-y: auto;
 }
 
+.settings-group {
+  width: 100%;
+  max-width: 824px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 20px;
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
+}
+
 .settings-group__title {
-  margin: 12px 0 12px;
+  margin: 0;
+  padding: 16px 16px 12px;
   font: var(--md-sys-typescale-title-small);
   color: var(--md-sys-color-primary);
 }
 
 .settings-group__card {
-  border: 1px solid var(--app-glass-border);
-  border-radius: 20px;
-  background: var(--md-sys-color-surface-container-low);
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
   overflow: hidden;
 }
 
@@ -1330,12 +1344,14 @@ onMounted(() => {
 
   .settings-view__header {
     flex: 0 0 auto;
-    padding: 20px 20px 16px;
+    width: auto;
+    margin: 16px 20px 0;
+    padding: 16px 20px;
   }
 
   .settings-view__content {
     flex: 1;
-    padding: 0 20px 40px;
+    padding: 16px 20px 40px;
   }
 
   .settings-sidebar {
@@ -1374,7 +1390,7 @@ onMounted(() => {
   }
 
   .settings-group__title {
-    margin-top: 0;
+    padding: 14px 16px 10px;
   }
 
   .settings-item {
