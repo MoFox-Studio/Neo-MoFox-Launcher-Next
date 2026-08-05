@@ -14,11 +14,15 @@ export const router = createRouter({
   ],
 });
 
-// OOBE 守卫：未完成首次引导时强制停留在 /oobe，避免渲染进程绕过依赖安装与设置流程。
+// OOBE 守卫：未完成首次引导时强制停留在 /oobe，避免渲染进程绕过依赖安装与设置流程；
+// 已完成后不再进入引导，直接回到主界面。
 router.beforeEach((to) => {
-  if (to.name === 'oobe') return true;
   const settings = useSettingsStore();
-  if (!settings.loaded || !settings.settings.oobeCompleted) {
+  const completed = settings.loaded && settings.settings.oobeCompleted;
+  if (to.name === 'oobe') {
+    return completed ? { name: 'dashboard' } : true;
+  }
+  if (!completed) {
     return { name: 'oobe' };
   }
   return true;

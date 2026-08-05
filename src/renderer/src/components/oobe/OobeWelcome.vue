@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
-import { computed } from 'vue';
-import { useSettingsStore } from '@/stores/settings';
-
-const router = useRouter();
-const settingsStore = useSettingsStore();
-
-const version = computed(() => settingsStore.settings ? '0.1.0' : '0.1.0');
+const version = '0.1.0';
 
 const emit = defineEmits<{ (e: 'next'): void }>();
 </script>
@@ -23,14 +16,6 @@ const emit = defineEmits<{ (e: 'next'): void }>();
     <p class="oobe__version">版本 {{ version }}</p>
     <button type="button" class="btn btn--filled btn--large state-layer" @click="emit('next')">
       开始
-    </button>
-    <button
-      v-if="settingsStore.settings.oobeCompleted"
-      type="button"
-      class="btn btn--text state-layer oobe__skip"
-      @click="router.push({ name: 'dashboard' })"
-    >
-      跳过引导
     </button>
   </section>
 </template>
@@ -75,10 +60,6 @@ const emit = defineEmits<{ (e: 'next'): void }>();
   margin: 0 0 32px;
 }
 
-.oobe__skip {
-  margin-top: 12px;
-}
-
 .btn {
   position: relative;
   display: inline-flex;
@@ -103,12 +84,6 @@ const emit = defineEmits<{ (e: 'next'): void }>();
 .btn--filled {
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
-}
-
-.btn--text {
-  background: transparent;
-  color: var(--md-sys-color-primary);
-  padding: 0 12px;
 }
 
 .btn--large {

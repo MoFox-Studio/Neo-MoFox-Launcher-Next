@@ -27,15 +27,13 @@ async function finish(): Promise<void> {
     summary.value = await oobe.complete();
     // 同步设置仓库以反映 oobeCompleted=true。
     await settingsStore.load();
+    // 完成后直接进入主界面。
+    await router.replace({ name: 'dashboard' });
   } catch (error) {
     errorMessage.value = describeError(error);
   } finally {
     completing.value = false;
   }
-}
-
-function goDashboard(): void {
-  router.push({ name: 'dashboard' });
 }
 
 // 从依赖安装步骤的状态快照先填一份显示，完成后再替换为后端结果。
@@ -81,7 +79,6 @@ defineExpose({ finish });
 
     <div class="summary-actions">
       <button
-        v-if="!summary"
         type="button"
         class="btn btn--filled btn--large state-layer"
         :disabled="completing"
@@ -90,14 +87,6 @@ defineExpose({ finish });
         <span v-if="completing" class="spinner spinner--small" aria-hidden="true"></span>
         完成安装
       </button>
-      <template v-else>
-        <button type="button" class="btn btn--text state-layer" @click="router.push({ name: 'install' })">
-          立即安装实例
-        </button>
-        <button type="button" class="btn btn--filled btn--large state-layer" @click="goDashboard">
-          进入概览
-        </button>
-      </template>
     </div>
   </section>
 </template>

@@ -162,17 +162,10 @@ onUnmounted(() => {
       </div>
 
       <ul v-else class="dep-list">
-        <li
-          v-for="dep in oobe.dependencies"
-          :key="dep.id"
-          class="dep-list__item"
-          :class="`dep-list__item--${dep.status}`"
-        >
-          <span
-            class="msr dep-list__icon"
-            :class="{ 'dep-list__icon--spin': dep.status === 'installing' }"
-            aria-hidden="true"
-          >
+        <li v-for="dep in oobe.dependencies" :key="dep.id" class="dep-list__item"
+          :class="`dep-list__item--${dep.status}`">
+          <span class="msr dep-list__icon" :class="{ 'dep-list__icon--spin': dep.status === 'installing' }"
+            aria-hidden="true">
             {{ statusIcon(dep.status) }}
           </span>
           <div class="dep-list__body">
@@ -202,20 +195,16 @@ onUnmounted(() => {
           Linux 安装系统依赖需要 sudo 权限。密码只在本次安装期间保留于主进程内存，完成后会立即清除，不会写入磁盘。
         </p>
         <label class="field">
-          <input
-            v-model="password"
-            class="field__input"
-            type="password"
-            placeholder=" "
-            autocomplete="current-password"
-            @keyup.enter="submitPassword"
-          />
+          <input v-model="password" class="field__input" type="password" placeholder=" " autocomplete="current-password"
+            @keyup.enter="submitPassword" />
           <span class="field__label">sudo 密码</span>
         </label>
         <p v-if="sudoErrorMessage" class="field__support field__support--error">{{ sudoErrorMessage }}</p>
         <div class="sudo-actions">
-          <button type="button" class="btn btn--text state-layer" :disabled="verifying" @click="awaitingSudo = false">取消</button>
-          <button type="button" class="btn btn--filled state-layer" :disabled="!canSubmitPassword" @click="submitPassword">
+          <button type="button" class="btn btn--text state-layer" :disabled="verifying"
+            @click="awaitingSudo = false">取消</button>
+          <button type="button" class="btn btn--filled state-layer" :disabled="!canSubmitPassword"
+            @click="submitPassword">
             <span v-if="verifying" class="spinner spinner--small" aria-hidden="true"></span>
             验证并安装
           </button>
@@ -225,68 +214,302 @@ onUnmounted(() => {
       <p v-if="oobe.currentMessage && oobe.installing" class="dep-current">{{ oobe.currentMessage }}</p>
 
       <div class="dep-actions">
-        <button type="button" class="btn btn--text state-layer" :disabled="oobe.installing" @click="emit('back')">上一步</button>
+        <button type="button" class="btn btn--text state-layer" :disabled="oobe.installing"
+          @click="emit('back')">上一步</button>
         <button v-if="hasFailure" type="button" class="btn btn--text state-layer" @click="showErrorDialog = true">
           <span class="msr" aria-hidden="true">description</span>
           查看日志
         </button>
-        <button v-if="hasFailure" type="button" class="btn btn--filled state-layer" :disabled="oobe.installing" @click="retryInstall">重新检查</button>
-        <button v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue || oobe.installing" @click="emit('next')">继续</button>
+        <button v-if="hasFailure" type="button" class="btn btn--filled state-layer" :disabled="oobe.installing"
+          @click="retryInstall">重新检查</button>
+        <button v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue || oobe.installing"
+          @click="emit('next')">继续</button>
       </div>
     </template>
 
-    <ErrorDialog
-      :open="showErrorDialog"
-      :description="oobe.installError ? describeError(oobe.installError) : '依赖安装失败'"
-      :stack="errorLogText || undefined"
-      title="依赖安装失败"
-      @close="showErrorDialog = false"
-    />
+    <ErrorDialog :open="showErrorDialog" :description="oobe.installError ? describeError(oobe.installError) : '依赖安装失败'"
+      :stack="errorLogText || undefined" title="依赖安装失败" @close="showErrorDialog = false" />
   </section>
 </template>
 
 <style scoped>
-.dep-list { list-style: none; margin: 0 0 20px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.dep-list__item { display: flex; align-items: center; gap: 12px; padding: 14px 4px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
-.dep-list__icon { font-size: 20px; color: var(--md-sys-color-on-surface-variant); }
-.dep-list__icon--spin { animation: dep-spin 1.2s linear infinite; }
-.dep-list__item--installed .dep-list__icon, .dep-list__item--skipped .dep-list__icon { color: var(--md-sys-color-tertiary); }
-.dep-list__item--failed .dep-list__icon { color: var(--md-sys-color-error); }
-.dep-list__body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.dep-list__name { font: var(--md-sys-typescale-body-large); }
-.dep-list__message { font: var(--md-sys-typescale-body-small); color: var(--md-sys-color-on-surface-variant); }
-.dep-list__status { font: var(--md-sys-typescale-label-medium); padding: 4px 10px; border-radius: var(--md-sys-shape-corner-full); border: 1px solid var(--md-sys-color-outline-variant); color: var(--md-sys-color-on-surface-variant); }
-.dep-list__status--installed, .dep-list__status--skipped { color: var(--md-sys-color-tertiary); border-color: var(--md-sys-color-tertiary); }
-.dep-list__status--failed { color: var(--md-sys-color-error); border-color: var(--md-sys-color-error); }
-.dep-list__status--installing { color: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
-.dep-list__empty { display: flex; align-items: center; gap: 12px; min-height: 188px; color: var(--md-sys-color-on-surface-variant); font: var(--md-sys-typescale-body-medium); }
-.install-choice, .sudo-block, .inspection-error { border-radius: var(--md-sys-shape-corner-medium); background: var(--md-sys-color-surface-container-high); }
-.install-choice { display: grid; grid-template-columns: auto 1fr; gap: 12px; padding: 16px; margin-bottom: 20px; }
-.install-choice__icon { color: var(--md-sys-color-primary); font-size: 22px; }
-.install-choice__title, .install-choice__desc, .sudo-block__hint { margin: 0; }
-.install-choice__title { font: var(--md-sys-typescale-title-small); }
-.install-choice__desc, .sudo-block__hint { margin-top: 4px; font: var(--md-sys-typescale-body-small); color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
-.install-choice__actions { grid-column: 2; display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-.sudo-block { padding: 16px; margin-bottom: 20px; }
-.field { position: relative; display: block; height: 56px; margin-top: 16px; }
-.field__input { width: 100%; height: 100%; padding: 20px 16px 6px; border-radius: var(--md-sys-shape-corner-small); border: 1px solid var(--md-sys-color-outline); background: transparent; color: var(--md-sys-color-on-surface); font: var(--md-sys-typescale-body-large); outline: none; }
-.field__input:focus { border: 2px solid var(--md-sys-color-primary); padding: 19px 15px 5px; }
-.field__label { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); font: var(--md-sys-typescale-body-large); color: var(--md-sys-color-on-surface-variant); background: var(--md-sys-color-surface-container-high); padding: 0 4px; pointer-events: none; transition: all var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard); }
-.field__input:focus + .field__label, .field__input:not(:placeholder-shown) + .field__label { top: 0; transform: translateY(-50%) scale(.85); }
-.field__input:focus + .field__label { color: var(--md-sys-color-primary); }
-.field__support { margin: 8px 0 0 16px; font: var(--md-sys-typescale-body-small); }
-.field__support--error { color: var(--md-sys-color-error); }
-.sudo-actions, .dep-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
-.sudo-actions { margin-top: 16px; }
-.dep-current { margin: 0 0 16px; font: var(--md-sys-typescale-body-small); color: var(--md-sys-color-on-surface-variant); }
-.inspection-error { display: flex; align-items: center; gap: 10px; padding: 16px; margin-bottom: 20px; color: var(--md-sys-color-error); font: var(--md-sys-typescale-body-medium); }
-.inspection-error .btn { margin-left: auto; }
-.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 20px; border: none; border-radius: var(--md-sys-shape-corner-full); font: var(--md-sys-typescale-label-large); cursor: pointer; overflow: hidden; }
-.btn:disabled { opacity: .38; cursor: not-allowed; pointer-events: none; }
-.btn--filled { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
-.btn--text { background: transparent; color: var(--md-sys-color-primary); }
-.spinner { width: 20px; height: 20px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent); border-top-color: var(--md-sys-color-primary); animation: spinner-spin .8s linear infinite; }
-.spinner--small { width: 14px; height: 14px; }
-@keyframes spinner-spin { to { transform: rotate(360deg); } }
-@keyframes dep-spin { to { transform: rotate(360deg); } }
+.dep-list {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dep-list__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.dep-list__icon {
+  font-size: 20px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.dep-list__icon--spin {
+  animation: dep-spin 1.2s linear infinite;
+}
+
+.dep-list__item--installed .dep-list__icon,
+.dep-list__item--skipped .dep-list__icon {
+  color: var(--md-sys-color-tertiary);
+}
+
+.dep-list__item--failed .dep-list__icon {
+  color: var(--md-sys-color-error);
+}
+
+.dep-list__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dep-list__name {
+  font: var(--md-sys-typescale-body-large);
+}
+
+.dep-list__message {
+  font: var(--md-sys-typescale-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.dep-list__status {
+  font: var(--md-sys-typescale-label-medium);
+  padding: 4px 10px;
+  border-radius: var(--md-sys-shape-corner-full);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.dep-list__status--installed,
+.dep-list__status--skipped {
+  color: var(--md-sys-color-tertiary);
+  border-color: var(--md-sys-color-tertiary);
+}
+
+.dep-list__status--failed {
+  color: var(--md-sys-color-error);
+  border-color: var(--md-sys-color-error);
+}
+
+.dep-list__status--installing {
+  color: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
+}
+
+.dep-list__empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 188px;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.install-choice,
+.sudo-block,
+.inspection-error {
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.install-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.install-choice__icon {
+  color: var(--md-sys-color-primary);
+  font-size: 22px;
+}
+
+.install-choice__title,
+.install-choice__desc,
+.sudo-block__hint {
+  margin: 0;
+}
+
+.install-choice__title {
+  font: var(--md-sys-typescale-title-small);
+}
+
+.install-choice__desc,
+.sudo-block__hint {
+  margin-top: 4px;
+  font: var(--md-sys-typescale-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.install-choice__actions {
+  grid-column: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sudo-block {
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.field {
+  position: relative;
+  display: block;
+  height: 56px;
+  margin-top: 16px;
+}
+
+.field__input {
+  width: 100%;
+  height: 100%;
+  padding: 20px 16px 6px;
+  border-radius: var(--md-sys-shape-corner-small);
+  border: 1px solid var(--md-sys-color-outline);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-large);
+  outline: none;
+}
+
+.field__input:focus {
+  border: 2px solid var(--md-sys-color-primary);
+  padding: 19px 15px 5px;
+}
+
+.field__label {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: var(--md-sys-typescale-body-large);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-high);
+  padding: 0 4px;
+  pointer-events: none;
+  transition: all var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.field__input:focus+.field__label,
+.field__input:not(:placeholder-shown)+.field__label {
+  top: 0;
+  transform: translateY(-50%) scale(.85);
+}
+
+.field__input:focus+.field__label {
+  color: var(--md-sys-color-primary);
+}
+
+.field__support {
+  margin: 8px 0 0 16px;
+  font: var(--md-sys-typescale-body-small);
+}
+
+.field__support--error {
+  color: var(--md-sys-color-error);
+}
+
+.sudo-actions,
+.dep-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.sudo-actions {
+  margin-top: 16px;
+}
+
+.dep-current {
+  margin: 0 0 16px;
+  font: var(--md-sys-typescale-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.inspection-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+  color: var(--md-sys-color-error);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.inspection-error .btn {
+  margin-left: auto;
+}
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  font: var(--md-sys-typescale-label-large);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.btn:disabled {
+  opacity: .38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn--filled {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.btn--text {
+  background: transparent;
+  color: var(--md-sys-color-primary);
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
+  border-top-color: var(--md-sys-color-primary);
+  animation: spinner-spin .8s linear infinite;
+}
+
+.spinner--small {
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dep-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 </style>
