@@ -54,6 +54,9 @@ function emitMaximizeState(window: BrowserWindow): void {
  * @returns 初始化完成的 BrowserWindow。
  */
 function createMainWindow(): BrowserWindow {
+  const isMac = process.platform === 'darwin';
+  const isWindows = process.platform === 'win32';
+
   const window = new BrowserWindow({
     width: 1180,
     height: 760,
@@ -61,7 +64,13 @@ function createMainWindow(): BrowserWindow {
     minHeight: 620,
     frame: false,
     show: false,
+    // 透明像素区域由系统绘制材质：Windows 11 启用亚克力模糊桌面，macOS 启用侧栏
+    // 振动效果；Linux 与旧版 Windows 退回到此不透明背景色，保证可读性。
     backgroundColor: '#101418',
+    ...(isWindows ? { backgroundMaterial: 'acrylic' as const } : {}),
+    ...(isMac
+      ? { vibrancy: 'sidebar' as const, visualEffectState: 'followWindow' as const }
+      : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

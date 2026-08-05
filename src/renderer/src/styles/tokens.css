@@ -58,6 +58,22 @@
   --md-sys-motion-duration-medium4: 400ms;
   --md-sys-motion-duration-long2: 500ms;
 
+  /* 应用玻璃表面：沿用动态主题色，不引入额外装饰色。 */
+  --app-glass-surface: color-mix(in srgb, var(--md-sys-color-surface) 75%, transparent);
+  --app-glass-card: color-mix(
+    in srgb,
+    var(--md-sys-color-surface-container) 88%,
+    transparent
+  );
+  --app-glass-border: color-mix(
+    in srgb,
+    var(--md-sys-color-outline-variant) 72%,
+    transparent
+  );
+  --app-glass-filter: blur(12px);
+  --app-glass-card-shadow: 0 4px 16px rgb(24 28 32 / 0.04);
+  --app-glass-card-shadow-hover: 0 6px 20px rgb(24 28 32 / 0.08);
+
   /* 应用固定布局尺寸 */
   --app-titlebar-height: 40px;
   --app-navrail-width: 88px;

@@ -220,7 +220,12 @@ async function confirmRemove(): Promise<void> {
   height: 48px;
   padding: 0 16px;
   border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--app-glass-border);
+  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
 }
 
 .search-box__icon {

@@ -31,13 +31,15 @@ const bare = computed(() => route.meta.bare === true);
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--md-sys-color-surface-container);
+  /* 透明：让标题栏与导航栏所在列露出系统材质；主内容画布保持不透明。 */
+  background: transparent;
 }
 
 .shell__body {
   flex: 1;
   display: flex;
   min-height: 0;
+  background: transparent;
 }
 
 /* 主内容画布与首次引导的无圆角变体 */

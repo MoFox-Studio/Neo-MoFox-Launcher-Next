@@ -14,6 +14,11 @@ export class MofoxError extends Error {
   readonly code: MofoxErrorCode;
   readonly details?: Record<string, unknown>;
 
+  /**
+   * @param code - 稳定业务错误码，供界面分支处理。
+   * @param message - 人类可读错误描述。
+   * @param details - 可选的可序列化诊断上下文。
+   */
   constructor(code: MofoxErrorCode, message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = 'MofoxError';
@@ -28,6 +33,9 @@ const IPC_ERROR_PREFIX = 'MOFOX_ERROR:';
 /**
  * 将任意异常降级为可安全跨 IPC 传输的 Error。
  * 非 Mofox 错误一律映射为 INTERNAL，避免将未验证的错误码暴露给渲染层。
+ *
+ * @param error - 主进程抛出的任意异常。
+ * @returns 携带 `MOFOX_ERROR:` 前缀 JSON 载荷的 Error 实例。
  */
 export function serializeIpcError(error: unknown): Error {
   const errorCode = getErrorCode(error);
@@ -42,6 +50,9 @@ export function serializeIpcError(error: unknown): Error {
 /**
  * 恢复由主进程编码的业务错误；前缀缺失或 JSON 损坏时保留原始错误信息。
  * 兼容非 Error 抛出值，确保调用方始终收到 Error 实例。
+ *
+ * @param error - 经 IPC 传递回渲染层的错误值。
+ * @returns 解析成功时为对应的 `MofoxError`，否则为原始 Error。
  */
 export function deserializeIpcError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);

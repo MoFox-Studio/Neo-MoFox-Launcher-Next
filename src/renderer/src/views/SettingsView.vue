@@ -562,17 +562,18 @@ onMounted(() => {
   color: var(--md-sys-color-on-surface-variant);
 }
 
-/* 贴边导航抽屉沿用 MD3 表面与选中指示器，仅以透明度和模糊增强层次。 */
+/* 贴边导航抽屉与全局导航共用同一层玻璃表面。 */
 .settings-sidebar {
   grid-row: 1 / -1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   padding: 24px 12px 16px;
-  border-right: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 82%, transparent);
-  backdrop-filter: blur(20px) saturate(125%);
-  -webkit-backdrop-filter: blur(20px) saturate(125%);
+  border-right: 1px solid var(--app-glass-border);
+  background: var(--md-sys-color-surface);
+  background: var(--app-glass-surface);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
 }
 
 .settings-sidebar__nav {
@@ -660,8 +661,13 @@ onMounted(() => {
 }
 
 .settings-group__card {
+  border: 1px solid var(--app-glass-border);
+  border-radius: 20px;
   background: var(--md-sys-color-surface-container-low);
-  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
   overflow: hidden;
 }
 
@@ -1009,8 +1015,7 @@ onMounted(() => {
     min-height: 0;
     padding: 8px;
     border-right: 0;
-    border-bottom: 1px solid
-      color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+    border-bottom: 1px solid var(--app-glass-border);
   }
 
   .settings-sidebar__nav {

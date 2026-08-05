@@ -127,16 +127,22 @@ function onPrimaryAction(): void {
   flex-direction: column;
   gap: 12px;
   padding: 20px;
-  border-radius: var(--md-sys-shape-corner-large);
+  border: 1px solid var(--app-glass-border);
+  border-radius: 20px;
   background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
   transition:
     background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
 .instance-card:hover {
-  background: var(--md-sys-color-surface-container);
-  box-shadow: var(--md-sys-elevation-level1);
+  box-shadow: var(--app-glass-card-shadow-hover);
+  transform: translateY(-2px);
 }
 
 /* 标题与状态区 */
@@ -264,6 +270,16 @@ function onPrimaryAction(): void {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .instance-card {
+    transition:
+      background-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+      box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  }
+
+  .instance-card:hover {
+    transform: none;
+  }
+
   .instance-card__progress-bar {
     animation: none;
     opacity: 0.65;

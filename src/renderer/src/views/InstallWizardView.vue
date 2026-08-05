@@ -460,7 +460,11 @@ onMounted(async () => {
   width: 260px;
   flex: 0 0 260px;
   padding: 40px 24px;
-  background: var(--md-sys-color-surface-container-low);
+  border-right: 1px solid var(--app-glass-border);
+  background: var(--md-sys-color-surface);
+  background: var(--app-glass-surface);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
   overflow-y: auto;
 }
 
