@@ -72,6 +72,10 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     oobeComplete: () => invoke(IPC_INVOKE_CHANNELS.oobeComplete),
     pickFile: (options) => invoke(IPC_INVOKE_CHANNELS.pickFile, options),
     pickDirectory: (options) => invoke(IPC_INVOKE_CHANNELS.pickDirectory, options),
+    selectWallpaper: () => invoke(IPC_INVOKE_CHANNELS.selectWallpaper),
+    commitWallpaper: (assetId) => invoke(IPC_INVOKE_CHANNELS.commitWallpaper, assetId),
+    discardWallpaper: (assetId) => invoke(IPC_INVOKE_CHANNELS.discardWallpaper, assetId),
+    removeWallpaper: () => invoke(IPC_INVOKE_CHANNELS.removeWallpaper),
     on: <K extends keyof MofoxEventMap>(
       event: K,
       listener: (payload: MofoxEventMap[K]) => void,

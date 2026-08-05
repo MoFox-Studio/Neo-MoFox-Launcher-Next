@@ -69,6 +69,10 @@ let settings: LauncherSettings = {
   maxLogFileSizeMb: 16,
   maxLogArchiveDays: 14,
   compressLogArchive: true,
+  wallpaperType: 'none',
+  wallpaperFileName: '',
+  wallpaperBlur: 0,
+  wallpaperOpacity: 0.88,
   oobeCompleted: false,
 };
 
@@ -406,6 +410,24 @@ export const mockApi: MofoxApi = {
   async pickDirectory() {
     await delay(60);
     return null;
+  },
+  async selectWallpaper() {
+    await delay(60);
+    return null;
+  },
+  async commitWallpaper() {
+    return { ...settings };
+  },
+  async discardWallpaper() {},
+  async removeWallpaper() {
+    settings = {
+      ...settings,
+      wallpaperType: 'none',
+      wallpaperFileName: '',
+      wallpaperBlur: 0,
+      wallpaperOpacity: 0.88,
+    };
+    return { ...settings };
   },
 
   on(event, listener) {

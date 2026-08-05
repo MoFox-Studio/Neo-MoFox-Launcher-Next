@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import AppTitleBar from '@/components/AppTitleBar.vue';
 import NavRail from '@/components/NavRail.vue';
+import WallpaperLayer from '@/components/WallpaperLayer.vue';
 
 const route = useRoute();
 // 根据路由元数据切换首次引导的沉浸式布局。
@@ -11,17 +12,20 @@ const bare = computed(() => route.meta.bare === true);
 
 <template>
   <div class="shell">
-    <!-- 应用窗体栏与主导航框架 -->
-    <AppTitleBar />
-    <div class="shell__body">
-      <NavRail v-if="!bare" />
-      <main class="shell__content" :class="{ 'shell__content--bare': bare }">
-        <router-view v-slot="{ Component }">
-          <transition name="page" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
-      </main>
+    <WallpaperLayer />
+    <div class="shell__foreground">
+      <!-- 应用窗体栏与主导航框架始终位于壁纸层上方。 -->
+      <AppTitleBar />
+      <div class="shell__body">
+        <NavRail v-if="!bare" />
+        <main class="shell__content">
+          <router-view v-slot="{ Component }">
+            <transition name="page" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+        </main>
+      </div>
     </div>
   </div>
 </template>
@@ -31,8 +35,17 @@ const bare = computed(() => route.meta.bare === true);
   height: 100%;
   display: flex;
   flex-direction: column;
-  /* 透明：让标题栏与导航栏所在列露出系统材质；主内容画布保持不透明。 */
+  /* 透明：让标题栏与导航栏所在列露出系统材质或壁纸。 */
   background: transparent;
+}
+
+.shell__foreground {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .shell__body {
@@ -42,27 +55,27 @@ const bare = computed(() => route.meta.bare === true);
   background: transparent;
 }
 
-/* 主内容画布与首次引导的无圆角变体 */
+/* 主内容画布保持直角，避免内嵌侧栏右上角出现不连续的圆角。 */
 .shell__content {
   flex: 1;
   min-width: 0;
-  background: var(--md-sys-color-surface);
-  border-top-left-radius: var(--md-sys-shape-corner-extra-large);
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-surface) calc(var(--app-wallpaper-content-opacity) * 100%),
+    transparent
+  );
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.shell__content--bare {
-  border-top-left-radius: 0;
-}
-
-/* 路由页面的淡入上移动画 */
+/*
+ * 仅淡入路由页面。此前的 translateY 会为 SettingsView 和 InstallWizardView
+ * 创建变换祖先，Chromium 会在入场动画结束后才稳定合成其 backdrop-filter。
+ */
 .page-enter-active {
-  transition:
-    opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized-decelerate),
-    transform var(--md-sys-motion-duration-medium2)
-      var(--md-sys-motion-easing-emphasized-decelerate);
+  transition: opacity var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-emphasized-decelerate);
 }
 
 .page-leave-active {
@@ -72,7 +85,6 @@ const bare = computed(() => route.meta.bare === true);
 
 .page-enter-from {
   opacity: 0;
-  transform: translateY(12px);
 }
 
 .page-leave-to {
@@ -85,9 +97,5 @@ const bare = computed(() => route.meta.bare === true);
     transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
 
-  .page-enter-from,
-  .page-leave-to {
-    transform: none;
-  }
 }
 </style>

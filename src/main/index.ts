@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
 import { join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import * as nodePty from 'node-pty';
@@ -10,6 +10,7 @@ import { registerMigrationIpc } from './ipc/migration';
 import { registerOobeIpc } from './ipc/oobe';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerWindowIpc } from './ipc/window';
+import { registerWallpaperIpc } from './ipc/wallpaper';
 import { PlatformRegistry } from './platforms/registry';
 import { OobeService } from './services/oobe-service';
 import { InstallTaskService } from './services/install-task-service';
@@ -23,6 +24,8 @@ import {
 import { MirrorService } from './services/mirror-service';
 import { PlatformMetadataService } from './services/platform-metadata-service';
 import { SettingsService } from './services/settings-service';
+import { WallpaperService } from './services/wallpaper-service';
+import { createWallpaperProtocolHandler } from './wallpaper-protocol';
 import { EnvironmentService } from './utils/environment-service';
 import { createLogger, type Logger } from './utils/logger';
 import { removePathSafe } from './utils/native-file-remover';
@@ -30,6 +33,20 @@ import { MofoxError } from '../shared/domain/error';
 
 /** 主进程组合根：管理单实例锁、窗口生命周期、服务依赖与主进程到渲染进程的事件同步。 */
 let mainWindow: BrowserWindow | null = null;
+
+// 该协议只服务由 WallpaperService 管理的副本，必须在 app ready 前声明为安全标准协议。
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'mofox-wallpaper',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 /**
  * 通知渲染进程当前窗口的最大化状态。
@@ -134,6 +151,7 @@ if (!hasSingleInstanceLock) {
       else console.error(message, error);
     };
     const settings = new SettingsService(dataDirectory, report);
+    const wallpapers = new WallpaperService(dataDirectory, settings);
     const instances = new InstanceRepository(dataDirectory, report);
     const platforms = new PlatformRegistry();
     const mirrors = new MirrorService();
@@ -155,6 +173,22 @@ if (!hasSingleInstanceLock) {
       platforms: new PlatformMetadataService(platforms),
       settings,
     });
+    registerWallpaperIpc(ipcMain, {
+      selectAndStage: async () => {
+        const selected = await pickFile(() => mainWindow, {
+          title: '选择壁纸',
+          filters: [
+            { name: '图片壁纸', extensions: ['jpg', 'jpeg', 'png', 'webp'] },
+            { name: '视频壁纸', extensions: ['mp4', 'webm'] },
+          ],
+        });
+        return selected ? wallpapers.stage(selected[0]) : null;
+      },
+      commit: (id) => wallpapers.commit(id),
+      discard: (id) => wallpapers.discard(id),
+      remove: () => wallpapers.remove(),
+    });
+    protocol.handle('mofox-wallpaper', createWallpaperProtocolHandler(wallpapers));
     // 服务事件仅在有效窗口存在时转发，窗口重建期间丢弃过期 UI 通知。
     const send = (channel: string, payload: unknown) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);

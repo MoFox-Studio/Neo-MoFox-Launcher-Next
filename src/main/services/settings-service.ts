@@ -15,6 +15,10 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   maxLogFileSizeMb: 16,
   maxLogArchiveDays: 14,
   compressLogArchive: true,
+  wallpaperType: 'none',
+  wallpaperFileName: '',
+  wallpaperBlur: 0,
+  wallpaperOpacity: 0.88,
   oobeCompleted: false,
 };
 
@@ -186,6 +190,14 @@ function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boole
       return typeof value === 'number' && Number.isFinite(value) && value >= 1 && value <= 1024;
     case 'maxLogArchiveDays':
       return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 3650;
+    case 'wallpaperType':
+      return value === 'none' || value === 'image' || value === 'video';
+    case 'wallpaperFileName':
+      return typeof value === 'string' && (value === '' || /^wallpaper-[a-f0-9-]+\.(?:jpe?g|png|webp|mp4|webm)$/i.test(value));
+    case 'wallpaperBlur':
+      return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 20;
+    case 'wallpaperOpacity':
+      return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
     case 'oobeCompleted':
       return typeof value === 'boolean';
     default:

@@ -22,6 +22,7 @@ import type {
   FilePickerOptions,
   FilePickerResult,
 } from './domain/file-picker';
+import type { WallpaperAsset } from './domain/wallpaper';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
@@ -64,6 +65,10 @@ export const IPC_INVOKE_CHANNELS = {
   oobeComplete: 'oobe:complete',
   pickFile: 'dialog:pick-file',
   pickDirectory: 'dialog:pick-directory',
+  selectWallpaper: 'wallpaper:select',
+  commitWallpaper: 'wallpaper:commit',
+  discardWallpaper: 'wallpaper:discard',
+  removeWallpaper: 'wallpaper:remove',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -145,6 +150,12 @@ export interface MofoxApi {
    */
   pickFile(options?: FilePickerOptions): Promise<FilePickerResult>;
   pickDirectory(options?: DirectoryPickerOptions): Promise<DirectoryPickerResult>;
+
+  /** 通过主进程受控对话框选择并暂存媒体，供渲染端取色成功后提交。 */
+  selectWallpaper(): Promise<WallpaperAsset | null>;
+  commitWallpaper(assetId: string): Promise<LauncherSettings>;
+  discardWallpaper(assetId: string): Promise<void>;
+  removeWallpaper(): Promise<LauncherSettings>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

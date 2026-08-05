@@ -19,6 +19,10 @@ export const useSettingsStore = defineStore('settings', () => {
     maxLogFileSizeMb: 16,
     maxLogArchiveDays: 14,
     compressLogArchive: true,
+    wallpaperType: 'none',
+    wallpaperFileName: '',
+    wallpaperBlur: 0,
+    wallpaperOpacity: 0.88,
     oobeCompleted: false,
   });
   const loaded = ref(false);
@@ -38,5 +42,16 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return { settings, loaded, load, update };
+  /**
+   * 采用由非 settings:update IPC 返回的规范设置快照。
+   *
+   * 壁纸提交和删除会在主进程内同时更新文件与设置，因此不能重复提交相同补丁。
+   *
+   * @param next - 主进程返回的完整、已规范化设置。
+   */
+  function replace(next: LauncherSettings): void {
+    settings.value = next;
+  }
+
+  return { settings, loaded, load, update, replace };
 });
