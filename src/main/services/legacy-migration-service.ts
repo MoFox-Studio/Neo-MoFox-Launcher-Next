@@ -35,6 +35,11 @@ type DiagnosticReporter = (message: string, error: Error) => void;
  * 仅读取旧数据目录的 instances.json，归一化后并入新仓库；不修改旧目录任何文件。
  */
 export class LegacyMigrationService {
+  /**
+   * @param legacyDataDirectory - 旧启动器数据目录的绝对路径。
+   * @param repository - 新实例仓库，提供列表与批量合并接口。
+   * @param report - 可选诊断回调；默认输出至 `console.warn`。
+   */
   constructor(
     private readonly legacyDataDirectory: string,
     private readonly repository: {

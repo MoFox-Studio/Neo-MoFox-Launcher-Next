@@ -14,6 +14,7 @@ export class NapCatPlatform extends BaseBotPlatform {
   readonly supportedPlatforms = ['win32'] as Array<'win32'>;
   readonly supportedArch = ['x64'] as Array<'x64'>;
 
+  /** 构造 NapCat 平台实例并固定版本号。 */
   constructor() {
     super('4.2.19');
   }
@@ -35,6 +36,9 @@ export class NapCatPlatform extends BaseBotPlatform {
     );
   }
 
+  /**
+   * 当前平台无需安装后配置，故有意 no-op。
+   */
   override async configure(): Promise<void> {}
 
   /**

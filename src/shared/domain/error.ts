@@ -68,11 +68,22 @@ export function deserializeIpcError(error: unknown): Error {
   }
 }
 
-/** 从未知异常中安全提取候选错误码，避免直接访问空值或原始值。 */
+/**
+ * 从未知异常中安全提取候选错误码，避免直接访问空值或原始值。
+ *
+ * @param error - 待检查的异常值。
+ * @returns 存在 `code` 字段时返回其值，否则为 `undefined`。
+ */
 function getErrorCode(error: unknown): unknown {
   return typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
 }
 
+/**
+ * 判断给定值是否为合法的稳定错误码，用作 `MofoxErrorCode` 的类型守卫。
+ *
+ * @param value - 待校验的错误码候选值。
+ * @returns 属于合法错误码集合时为 `true`。
+ */
 function isMofoxErrorCode(value: unknown): value is MofoxErrorCode {
   return (
     value === 'INVALID_ARGUMENT' ||

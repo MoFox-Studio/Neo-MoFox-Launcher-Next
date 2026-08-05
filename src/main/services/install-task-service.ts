@@ -53,6 +53,11 @@ export class InstallTaskService {
   private readonly tasks = new Map<string, TaskRecord>();
   private nextId = 1;
 
+  /**
+   * @param registry - 平台注册表，用于按平台 ID 获取安装器与配置逻辑。
+   * @param dependencies - 仓库、镜像与时间/临时目录等外部依赖的注入点。
+   * @param events - 安装进度事件分发回调。
+   */
   constructor(
     private readonly registry: PlatformRegistry,
     private readonly dependencies: InstallTaskDependencies,
@@ -141,6 +146,12 @@ export class InstallTaskService {
     await this.requireTask(taskId).running;
   }
 
+  /**
+   * 构造任务记录：生成唯一 ID、临时工作目录与取消信号，不触发任何执行。
+   *
+   * @param request - 安装请求载荷。
+   * @returns 处于 pending 状态的 `TaskRecord`。
+   */
   private createTask(request: InstallRequest): TaskRecord {
     const id = `install-${this.nextId++}`;
     const root = this.dependencies.tempRoot ?? tmpdir();
@@ -155,6 +166,12 @@ export class InstallTaskService {
     };
   }
 
+  /**
+   * 按固定步骤顺序执行安装状态机；任一步骤抛错或取消时标记任务终态并回收临时目录。
+   *
+   * @param task - 待执行的任务记录（原地更新其状态）。
+   * @param startIndex - 起始步骤索引；重试时从失败步骤继续，常规从 0 开始。
+   */
   private async execute(task: TaskRecord, startIndex: number): Promise<void> {
     task.status = 'running';
     try {
@@ -188,6 +205,12 @@ export class InstallTaskService {
     }
   }
 
+  /**
+   * 委托平台安装器在暂存目录内安装指定版本并收集安装结果。
+   *
+   * @param task - 正在执行安装的任务记录。
+   * @returns 平台的安装结果（版本号与安装路径）。
+   */
   private async installPlatform(task: TaskRecord): Promise<InstallResult> {
     const platform = this.registry.get(task.request.platformId);
     const context: InstallContext = {
@@ -201,12 +224,25 @@ export class InstallTaskService {
     return platform.install(context);
   }
 
+  /**
+   * 基于已下载的安装结果调用平台的安装后配置逻辑。
+   *
+   * @param task - 正在执行配置步骤的任务记录。
+   * @throws {MofoxError} 缺少安装结果时抛出 `CONFLICT`。
+   */
   private async configurePlatform(task: TaskRecord): Promise<void> {
     const result = task.result;
     if (!result) throw new MofoxError('CONFLICT', '缺少平台安装结果');
     await this.registry.get(task.request.platformId).configure(task.id, result.installPath);
   }
 
+  /**
+   * 将暂存目录原子提交到目标路径，并在仓库中持久化新实例记录。
+   * 跨设备时回退为「复制后重命名」，保证目标目录仅在安装完整后可见。
+   *
+   * @param task - 正在执行收尾步骤的任务记录。
+   * @throws {MofoxError} 缺少安装结果或目标不可访问时抛出对应错误。
+   */
   private async finalize(task: TaskRecord): Promise<void> {
     const result = task.result;
     if (!result) throw new MofoxError('CONFLICT', '缺少平台安装结果');
@@ -237,6 +273,15 @@ export class InstallTaskService {
     });
   }
 
+  /**
+   * 将当前任务进度作为完整事件载荷分发给渲染端，供其推断步骤上下文。
+   *
+   * @param task - 来源任务记录。
+   * @param step - 当前步骤 ID。
+   * @param progress - 当前步骤内 0..1 的进度；-1 表示不可测量。
+   * @param status - 任务整体状态（running/failed/cancelled/done 等）。
+   * @param message - 人类可读的进度文本。
+   */
   private emit(
     task: TaskRecord,
     step: InstallStepId,
@@ -257,10 +302,23 @@ export class InstallTaskService {
     });
   }
 
+  /**
+   * 检查任务取消信号，已取消时抛错以终止当前步骤。
+   *
+   * @param task - 待检查的任务记录。
+   * @throws {MofoxError} 任务已被取消时抛出 `CONFLICT`。
+   */
   private throwIfCancelled(task: TaskRecord): void {
     if (task.controller.signal.aborted) throw new MofoxError('CONFLICT', '安装已取消');
   }
 
+  /**
+   * 按 ID 查找任务，空 ID 或不存在时抛错。
+   *
+   * @param taskId - 待查找的任务 ID。
+   * @returns 匹配的任务记录。
+   * @throws {MofoxError} 空 ID 抛 `INVALID_ARGUMENT`；未找到抛 `NOT_FOUND`。
+   */
   private requireTask(taskId: string): TaskRecord {
     if (!taskId.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Task ID is required');
     const task = this.tasks.get(taskId);

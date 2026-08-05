@@ -47,6 +47,10 @@ export class OobeService {
   /** 当前安装会话累积的日志行；随进度事件推送，失败时一并塞入错误对象。 */
   private logs: string[] = [];
 
+  /**
+   * @param dependencies - 设置、迁移、镜像、环境检测等服务依赖的注入点。
+   * @param events - OOBE 进度事件分发回调。
+   */
   constructor(
     private readonly dependencies: OobeDependencies,
     private readonly events: OobeEvents,
@@ -311,6 +315,11 @@ export class OobeService {
     return new MofoxError(code, message, details);
   }
 
+  /**
+   * 分发进度事件；每次推送时附带当前安装会话的累积日志快照。
+   *
+   * @param event - 待推送的进度事件（不含 logs 字段；方法内部追加日志快照）。
+   */
   private emit(event: OobeProgress): void {
     this.events.progress({ ...event, logs: [...this.logs] });
   }

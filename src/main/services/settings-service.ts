@@ -28,6 +28,10 @@ export class SettingsService {
   private settings?: LauncherSettings;
   private updateQueue: Promise<void> = Promise.resolve();
 
+  /**
+   * @param dataDirectory - 启动器数据目录的绝对路径。
+   * @param report - 可选诊断回调；默认输出至 `console.error`。
+   */
   constructor(
     dataDirectory: string,
     private readonly report: DiagnosticReporter = (message, error) => console.error(message, error),
@@ -69,6 +73,11 @@ export class SettingsService {
     return { ...result };
   }
 
+  /**
+   * 从磁盘加载设置，优先使用规范文件路径，缺失时回退至旧文件名。
+   *
+   * @returns 字段完整的设置对象；读取失败时返回默认值。
+   */
   private async load(): Promise<LauncherSettings> {
     // 优先使用规范文件；首次迁移时仅读取旧文件，不在加载失败时破坏原始数据。
     const canonical = await this.read(this.settingsPath);
@@ -77,6 +86,13 @@ export class SettingsService {
     return legacy.value ?? { ...DEFAULT_SETTINGS };
   }
 
+  /**
+   * 读取单个设置文件并归一化为完整设置对象。
+   * 文件不存在时返回 `{ found: false }`。
+   *
+   * @param path - 设置文件路径。
+   * @returns 含 `found` 标记与可选值的对象。
+   */
   private async read(path: string): Promise<{ found: boolean; value?: LauncherSettings }> {
     try {
       const source = JSON.parse(await readFile(path, 'utf8')) as unknown;

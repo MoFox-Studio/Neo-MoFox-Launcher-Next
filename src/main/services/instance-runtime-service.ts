@@ -434,6 +434,14 @@ export class InstanceRuntimeService {
     this.events.ptyData(instanceId, source, data);
   }
 
+  /**
+   * 在实例日志流中插入带时间前缀、颜色转义序列的启动器消息。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 进程源。
+   * @param level - 消息级别（info/success/warn/error）。
+   * @param message - 消息文本。
+   */
   private emitLauncherMessage(
     instanceId: string,
     source: InstanceProcessSource,
@@ -445,6 +453,13 @@ export class InstanceRuntimeService {
     this.appendLog(instanceId, source, `\x1b[90m${time}\x1b[0m ${colors[level]}[Launcher]\x1b[0m ${message}\r\n`);
   }
 
+  /**
+   * 按 ID 从仓库查找实例，空 ID 或不存在时抛错。
+   *
+   * @param instanceId - 实例 ID。
+   * @returns 匹配的实例记录。
+   * @throws {MofoxError} 空 ID 抛 `INVALID_ARGUMENT`；未找到抛 `NOT_FOUND`。
+   */
   private async find(instanceId: string): Promise<Instance> {
     if (!instanceId.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Instance ID is required');
     const instance = (await this.repository.list()).find((candidate) => candidate.id === instanceId);
@@ -452,6 +467,13 @@ export class InstanceRuntimeService {
     return instance;
   }
 
+  /**
+   * 先持久化实例状态再广播事件，确保渲染端收到通知后读取到的状态一致。
+   * 启动时会同步更新最后启动时间。
+   *
+   * @param instance - 当前实例记录。
+   * @param status - 目标生命周期状态。
+   */
   private async saveStatus(instance: Instance, status: InstanceStatus): Promise<void> {
     // 先落库再发事件，确保渲染进程收到状态后重新读取也能得到一致结果。
     const updated = { ...instance, status, ...(status === 'running' ? { lastStartedAt: Date.now() } : {}) };

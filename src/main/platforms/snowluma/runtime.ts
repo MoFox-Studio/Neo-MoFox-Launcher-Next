@@ -14,6 +14,7 @@ export class SnowLumaPlatform extends BaseBotPlatform {
   readonly supportedPlatforms = ['win32', 'linux'] as Array<'win32' | 'linux'>;
   readonly supportedArch = ['x64', 'arm64'] as Array<'x64' | 'arm64'>;
 
+  /** 构造 SnowLuma 平台实例并固定版本号。 */
   constructor() {
     super('1.9.2');
   }
@@ -43,6 +44,9 @@ export class SnowLumaPlatform extends BaseBotPlatform {
     );
   }
 
+  /**
+   * 当前平台无需安装后配置，故有意 no-op。
+   */
   override async configure(): Promise<void> {}
 
   /**
