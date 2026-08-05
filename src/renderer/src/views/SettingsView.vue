@@ -19,6 +19,18 @@ const update = (patch: Partial<LauncherSettings>) => {
   settingsStore.update(patch);
 };
 
+const settingCategories = [
+  { id: 'appearance', label: '外观', description: '主题、颜色与语言', icon: 'palette' },
+  { id: 'general', label: '通用', description: '目录与运行行为', icon: 'tune' },
+  { id: 'migration', label: '数据迁移', description: '导入旧版实例', icon: 'cloud_sync' },
+  { id: 'logs', label: '日志', description: '归档与存储限制', icon: 'article' },
+  { id: 'about', label: '关于', description: '版本与更新信息', icon: 'info' },
+] as const;
+
+type SettingsCategoryId = (typeof settingCategories)[number]['id'];
+
+const activeCategory = ref<SettingsCategoryId>('appearance');
+
 function onLanguageChange(event: Event): void {
   update({ language: (event.target as HTMLSelectElement).value as LauncherSettings['language'] });
 }
@@ -129,14 +141,45 @@ onMounted(() => {
 
 <template>
   <div class="settings-view">
+    <aside class="settings-sidebar">
+      <nav class="settings-sidebar__nav" aria-label="设置分类">
+        <button
+          v-for="category in settingCategories"
+          :key="category.id"
+          class="settings-sidebar__item state-layer"
+          :class="{ 'settings-sidebar__item--active': activeCategory === category.id }"
+          type="button"
+          :aria-current="activeCategory === category.id ? 'page' : undefined"
+          @click="activeCategory = category.id"
+        >
+          <span
+            class="msr settings-sidebar__icon"
+            :class="{ 'msr--fill': activeCategory === category.id }"
+            aria-hidden="true"
+          >
+            {{ category.icon }}
+          </span>
+          <span class="settings-sidebar__text">
+            <span class="settings-sidebar__label">{{ category.label }}</span>
+            <span class="settings-sidebar__description">{{ category.description }}</span>
+          </span>
+        </button>
+      </nav>
+      <div class="settings-sidebar__status">
+        <span class="msr settings-sidebar__status-icon" aria-hidden="true">cloud_done</span>
+        <span>更改将自动保存</span>
+      </div>
+    </aside>
+
     <header class="settings-view__header">
       <h1 class="settings-view__title">设置</h1>
+      <p class="settings-view__subtitle">调整启动器的外观、行为与数据选项</p>
     </header>
 
-    <div class="settings-view__content">
+    <main class="settings-view__content">
       <!-- 外观、通用、网络、日志与版本信息分组 -->
       <!-- 外观 -->
-      <section class="settings-group">
+      <section v-show="activeCategory === 'appearance'" class="settings-group">
         <h2 class="settings-group__title">外观</h2>
         <div class="settings-group__card">
           <div class="settings-item">
@@ -227,19 +270,22 @@ onMounted(() => {
               :value="settings.language"
               @change="onLanguageChange"
             >
+              <!-- Material Web Components 使用原生具名插槽，而不是 Vue 模板插槽。 -->
+              <!-- eslint-disable vue/no-deprecated-slot-attribute -->
               <md-select-option value="zh-CN">
                 <div slot="headline">简体中文</div>
               </md-select-option>
               <md-select-option value="en-US">
                 <div slot="headline">English</div>
               </md-select-option>
+              <!-- eslint-enable vue/no-deprecated-slot-attribute -->
             </md-outlined-select>
           </div>
         </div>
       </section>
 
       <!-- 通用 -->
-      <section class="settings-group">
+      <section v-show="activeCategory === 'general'" class="settings-group">
         <h2 class="settings-group__title">通用</h2>
         <div class="settings-group__card">
           <div class="settings-item">
@@ -298,8 +344,8 @@ onMounted(() => {
         </div>
       </section>
 
-      <!-- 日志 -->
-      <section class="settings-group">
+      <!-- 数据迁移 -->
+      <section v-show="activeCategory === 'migration'" class="settings-group">
         <h2 class="settings-group__title">数据迁移</h2>
         <div class="settings-group__card">
           <div class="settings-item">
@@ -403,7 +449,7 @@ onMounted(() => {
       </section>
 
       <!-- 日志 -->
-      <section class="settings-group">
+      <section v-show="activeCategory === 'logs'" class="settings-group">
         <h2 class="settings-group__title">日志</h2>
         <div class="settings-group__card">
           <div class="settings-item">
@@ -461,7 +507,7 @@ onMounted(() => {
       </section>
 
       <!-- 关于 -->
-      <section class="settings-group">
+      <section v-show="activeCategory === 'about'" class="settings-group">
         <h2 class="settings-group__title">关于</h2>
         <div class="settings-group__card">
           <div class="settings-item">
@@ -481,7 +527,7 @@ onMounted(() => {
           </div>
         </div>
       </section>
-    </div>
+    </main>
   </div>
 </template>
 
@@ -489,12 +535,19 @@ onMounted(() => {
 /* 设置页滚动布局与分组卡片 */
 .settings-view {
   height: 100%;
-  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
   background: var(--md-sys-color-surface);
 }
 
 .settings-view__header {
-  padding: 24px 32px;
+  grid-column: 2;
+  max-width: 824px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 32px 20px;
 }
 
 .settings-view__title {
@@ -503,14 +556,105 @@ onMounted(() => {
   color: var(--md-sys-color-on-surface);
 }
 
+.settings-view__subtitle {
+  margin: 4px 0 0;
+  font: var(--md-sys-typescale-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* 贴边导航抽屉沿用 MD3 表面与选中指示器，仅以透明度和模糊增强层次。 */
+.settings-sidebar {
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 24px 12px 16px;
+  border-right: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(125%);
+  -webkit-backdrop-filter: blur(20px) saturate(125%);
+}
+
+.settings-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-sidebar__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.settings-sidebar__item--active {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.settings-sidebar__icon {
+  flex: 0 0 auto;
+  font-size: 24px;
+}
+
+.settings-sidebar__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.settings-sidebar__label {
+  font: var(--md-sys-typescale-label-large);
+}
+
+.settings-sidebar__description {
+  overflow: hidden;
+  color: inherit;
+  font: var(--md-sys-typescale-body-small);
+  opacity: 0.72;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-sidebar__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 12px;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+}
+
+.settings-sidebar__status-icon {
+  color: var(--md-sys-color-primary);
+  font-size: 18px;
+}
+
 .settings-view__content {
-  max-width: 760px;
+  grid-column: 2;
+  width: 100%;
+  max-width: 824px;
+  min-width: 0;
   margin: 0 auto;
   padding: 0 32px 64px;
+  overflow-y: auto;
 }
 
 .settings-group__title {
-  margin: 32px 0 12px;
+  margin: 12px 0 12px;
   font: var(--md-sys-typescale-title-small);
   color: var(--md-sys-color-primary);
 }
@@ -831,5 +975,93 @@ onMounted(() => {
   border-radius: var(--md-sys-shape-corner-full);
   padding: 2px 8px;
   white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .settings-view {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+
+  .settings-sidebar__description {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .settings-view {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .settings-view__header {
+    flex: 0 0 auto;
+    padding: 20px 20px 16px;
+  }
+
+  .settings-view__content {
+    flex: 1;
+    padding: 0 20px 40px;
+  }
+
+  .settings-sidebar {
+    z-index: 2;
+    width: 100%;
+    min-height: 0;
+    padding: 8px;
+    border-right: 0;
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+  }
+
+  .settings-sidebar__nav {
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .settings-sidebar__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-sidebar__item {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 44px;
+    padding: 6px 12px;
+  }
+
+  .settings-sidebar__icon {
+    font-size: 20px;
+  }
+
+  .settings-sidebar__description,
+  .settings-sidebar__status {
+    display: none;
+  }
+
+  .settings-group__title {
+    margin-top: 0;
+  }
+
+  .settings-item {
+    flex-wrap: wrap;
+  }
+
+  .settings-item__body {
+    min-width: calc(100% - 48px);
+  }
+
+  .segmented-button {
+    margin-left: 40px;
+  }
+
+  .segmented-button__item {
+    padding: 0 12px;
+  }
+
+  .color-palette,
+  .language-select {
+    margin-left: 40px;
+  }
 }
 </style>
