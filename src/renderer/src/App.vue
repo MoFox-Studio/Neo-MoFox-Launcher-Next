@@ -59,9 +59,11 @@ const bare = computed(() => route.meta.bare === true);
 .shell__content {
   flex: 1;
   min-width: 0;
-  background: var(--app-shell-surface);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-surface) calc(var(--app-wallpaper-content-opacity) * 100%),
+    transparent
+  );
   overflow: hidden;
   display: flex;
   flex-direction: column;
