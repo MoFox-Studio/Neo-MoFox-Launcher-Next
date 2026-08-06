@@ -81,13 +81,7 @@ function createMainWindow(): BrowserWindow {
     minHeight: 620,
     frame: false,
     show: false,
-    // 透明像素区域由系统绘制材质：Windows 11 启用亚克力模糊桌面，macOS 启用侧栏
-    // 振动效果；Linux 与旧版 Windows 退回到此不透明背景色，保证可读性。
-    backgroundColor: '#101418',
-    ...(isWindows ? { backgroundMaterial: 'acrylic' as const } : {}),
-    ...(isMac
-      ? { vibrancy: 'sidebar' as const, visualEffectState: 'followWindow' as const }
-      : {}),
+    transparent: true, // 开启透明
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

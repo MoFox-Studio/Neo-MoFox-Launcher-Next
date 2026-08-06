@@ -18,7 +18,9 @@ export const DEFAULT_INSTANCE: Omit<Instance, 'id'> = {
   name: '',
   version: 'unknown',
   mofoxInstallDir: '',
-  platforms: {},
+  platforms: {
+    platformId: '',
+  },
   status: 'stopped',
   createdAt: 0,
   autoStart: false,
