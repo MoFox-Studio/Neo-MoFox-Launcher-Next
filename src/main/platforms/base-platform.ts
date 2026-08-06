@@ -54,10 +54,10 @@ export abstract class BaseBotPlatform implements BotPlatform {
    * 默认配置入口；子类可覆写以在安装完成后注入平台特定配置。
    *
    * @param _instanceId - 当前实例 ID。
-   * @param _installPath - 平台解压后的根目录。
+   * @param _platformPath - 平台适配器的安装根目录。
    * @throws {MofoxError} 始终抛出 `UNAVAILABLE`，提示未配置配置器。
    */
-  async configure(_instanceId: string, _installPath: string): Promise<void> {
+  async configure(_instanceId: string, _platformPath: string): Promise<void> {
     throw new MofoxError('UNAVAILABLE', `${this.name} 配置器尚未配置`);
   }
 
@@ -82,11 +82,11 @@ export abstract class BaseBotPlatform implements BotPlatform {
   }
 
   /**
-   * 返回实例的启动命令；具体平台需根据安装目录结构探测入口文件。
+   * 返回实例的启动命令；具体平台需根据平台安装路径探测入口文件。
    *
-   * @param installPath - 平台安装根目录。
+   * @param platformPath - 平台适配器的安装根目录；是平台启动命令的唯一路径来源。
    * @param instanceId - 当前实例 ID，部分平台用于生成实例专属脚本。
    * @returns 包含可执行命令、参数、工作目录与环境变量的 StartCommand。
    */
-  abstract getStartCommand(installPath: string, instanceId?: string): Promise<StartCommand>;
+  abstract getStartCommand(platformPath: string, instanceId?: string): Promise<StartCommand>;
 }

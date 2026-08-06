@@ -66,8 +66,8 @@ onUnmounted(() => unsubscribe?.());
   padding-left: 16px;
   -webkit-app-region: drag;
   color: var(--md-sys-color-on-surface-variant);
-  /* 标题栏单独提供玻璃表面，避免壁纸或系统材质令品牌和窗口控件失去可读性。 */
-  background: var(--app-glass-surface);
+  /* 透明：直接透出 body 的系统材质，保留模糊以维持品牌与控件可读性。 */
+  background: transparent;
   border-bottom: 1px solid var(--app-glass-border);
   backdrop-filter: var(--app-glass-filter);
   -webkit-backdrop-filter: var(--app-glass-filter);

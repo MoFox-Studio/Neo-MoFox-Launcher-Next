@@ -25,6 +25,10 @@ const isBusy = computed(
   () => props.instance.status === 'starting' || props.instance.status === 'stopping',
 );
 
+// v2 起平台信息存放在 platforms 字典中；卡片展示首个平台 ID 与 MoFox 本体安装目录。
+const platformId = computed(() => Object.keys(props.instance.platforms ?? {})[0] ?? '');
+const installPath = computed(() => props.instance.mofoxInstallDir);
+
 // 启动和停止共用同一入口，保证状态切换期间不会重复派发操作。
 function onPrimaryAction(): void {
   if (isBusy.value) return;
@@ -43,11 +47,11 @@ function onPrimaryAction(): void {
 
     <!-- 平台、版本及安装位置等实例元数据 -->
     <div class="instance-card__meta">
-      <span class="instance-card__chip">{{ instance.platformId }}</span>
+      <span class="instance-card__chip">{{ platformId }}</span>
       <span class="instance-card__version">v{{ instance.version }}</span>
     </div>
 
-    <p class="instance-card__path" :title="instance.installPath">{{ instance.installPath }}</p>
+    <p class="instance-card__path" :title="installPath">{{ installPath }}</p>
 
     <!-- 启动或停止期间展示不定进度，实际结果由上层状态更新驱动 -->
     <div v-if="isBusy" class="instance-card__progress" role="progressbar" aria-label="处理中">

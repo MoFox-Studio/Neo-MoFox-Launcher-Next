@@ -26,8 +26,8 @@ function makeInstance(overrides: Partial<Instance>): Instance {
     id: 'ins-x',
     name: 'X',
     version: '1.0.0',
-    platformId: 'napcat',
-    installPath: 'D:\\Bots\\x',
+    mofoxInstallDir: 'D:\\Bots\\x',
+    platforms: { napcat: 'D:\\Bots\\napcat' },
     status: 'stopped',
     createdAt: 1,
     autoStart: false,
@@ -143,8 +143,8 @@ describe('LegacyMigrationService', () => {
     });
     const repoDir = await createTempDirectory();
     const repository = new InstanceRepository(repoDir);
-    await repository.upsert(makeInstance({ id: 'dup-id', installPath: '/elsewhere' }));
-    await repository.upsert(makeInstance({ id: 'other', installPath: '/existing/path' }));
+    await repository.upsert(makeInstance({ id: 'dup-id', mofoxInstallDir: '/elsewhere' }));
+    await repository.upsert(makeInstance({ id: 'other', mofoxInstallDir: '/existing/path' }));
 
     const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
     const preview = await service.preview();
@@ -213,7 +213,7 @@ describe('LegacyMigrationService', () => {
     });
     const repoDir = await createTempDirectory();
     const repository = new InstanceRepository(repoDir);
-    await repository.upsert(makeInstance({ id: 'dup', installPath: '/dup' }));
+    await repository.upsert(makeInstance({ id: 'dup', mofoxInstallDir: '/dup' }));
 
     const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
     const result = await service.importInstances();

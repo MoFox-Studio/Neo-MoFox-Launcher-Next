@@ -4,9 +4,11 @@ import {
   INSTANCES_VERSION,
   type Instance,
   type InstanceRepositoryFile,
+  type PlatformPaths,
 } from '../../shared/domain/instance';
 import { MofoxError } from '../../shared/domain/error';
 import { writeJsonAtomic } from '../utils/atomic-json';
+import { upgradeInstancePathsToV2 } from '../utils/instance-migration';
 
 /** 实例仓库负责把磁盘 JSON 规范化为领域记录，并通过串行原子写维持内存与持久化状态一致。 */
 type DiagnosticReporter = (message: string, error: Error) => void;
@@ -15,8 +17,8 @@ type DiagnosticReporter = (message: string, error: Error) => void;
 export const DEFAULT_INSTANCE: Omit<Instance, 'id'> = {
   name: '',
   version: 'unknown',
-  platformId: 'unknown',
-  installPath: '',
+  mofoxInstallDir: '',
+  platforms: {},
   status: 'stopped',
   createdAt: 0,
   autoStart: false,
@@ -77,7 +79,7 @@ export class InstanceRepository {
   }
 
   /**
-   * 批量合并外部迁移记录：同 ID 或同 installPath 视为冲突并跳过。
+   * 批量合并外部迁移记录：同 ID 或同 mofoxInstallDir 视为冲突并跳过。
    * 调用方据此决定是否覆盖；返回实际写入的实例与被跳过的实例。
    */
   async mergeExternal(
@@ -87,7 +89,11 @@ export class InstanceRepository {
     const skipped: Instance[] = [];
     await this.mutate((instances) => {
       const byId = new Set(instances.map((instance) => instance.id));
-      const byPath = new Set(instances.map((instance) => instance.installPath));
+      const byPath = new Set(
+        instances
+          .map((instance) => instance.mofoxInstallDir)
+          .filter((value) => value.trim()),
+      );
       for (const candidate of incoming) {
         try {
           validateInstance(candidate);
@@ -95,12 +101,12 @@ export class InstanceRepository {
           skipped.push(candidate);
           continue;
         }
-        if (byId.has(candidate.id) || byPath.has(candidate.installPath)) {
+        if (byId.has(candidate.id) || byPath.has(candidate.mofoxInstallDir)) {
           skipped.push(candidate);
           continue;
         }
         byId.add(candidate.id);
-        byPath.add(candidate.installPath);
+        byPath.add(candidate.mofoxInstallDir);
         instances.push({ ...candidate });
         imported.push({ ...candidate });
       }
@@ -170,14 +176,34 @@ export function normalizeRepositoryFile(
 }
 
 /**
- * 升级仓库文件；需要变换字段语义的版本在此添加专用迁移，其他版本统一补齐默认字段。
+ * 升级仓库文件；需要变换字段语义的版本在此添加专用迁移。
+ *
+ * v1 → v2：把 `installPath` + `platformId` 拆分为 `mofoxInstallDir` + `platforms` 字典，
+ * 平台路径沿用 v1 的兄弟目录启发式烘焙为显式值，旧实例无需重新配置即可启动。
  */
 function upgradeRepositoryFile(file: InstanceRepositoryFile): InstanceRepositoryFile {
-  // 版本 1 是初始版本；未来存在字段语义变化时在这里按版本转换 instances。
-  return {
-    version: INSTANCES_VERSION,
-    instances: file.instances.map((instance) => ({ ...DEFAULT_INSTANCE, ...instance })),
-  };
+  const instances = file.instances.map((instance) => {
+    const raw = instance as unknown as Record<string, unknown>;
+    // 已经是 v2 结构（含 mofoxInstallDir/platforms）的直接补齐默认字段；否则按 v1 升级路径。
+    if (typeof raw.mofoxInstallDir === 'string' || typeof raw.platforms === 'object') {
+      return { ...DEFAULT_INSTANCE, ...instance };
+    }
+    const { mofoxInstallDir, platforms } = upgradeInstancePathsToV2({
+      installPath: raw.installPath as string | undefined,
+      platformId: raw.platformId as string | undefined,
+    });
+    // 移除已废弃的 v1 字段，避免回写后残留。
+    const { installPath: _ip, platformId: _pi, ...rest } = raw;
+    void _ip;
+    void _pi;
+    return {
+      ...DEFAULT_INSTANCE,
+      ...rest,
+      mofoxInstallDir,
+      platforms,
+    } as Instance;
+  });
+  return { version: INSTANCES_VERSION, instances };
 }
 
 /** 判断磁盘原始值是否已完全符合当前仓库与实例结构，避免无变化时重复写入。 */
@@ -214,7 +240,7 @@ function extractVersion(value: unknown): number {
 
 /**
  * 规范化单条实例记录；导出供迁移器在预览阶段复用。
- * 历史字段（napcatDir、qqNickname 等）在此被收敛到当前 schema。
+ * 历史字段（napcatDir、qqNickname、installPath、platformId 等）在此被收敛到当前 v2 schema。
  */
 export function normalizeInstance(value: unknown): Instance {
   if (!isRecord(value) || typeof value.id !== 'string' || !value.id.trim()) {
@@ -222,19 +248,32 @@ export function normalizeInstance(value: unknown): Instance {
   }
   const extra = isRecord(value.extra) ? value.extra : {};
   const name = firstString(value.name, extra.displayName, value.qqNickname, value.id);
-  const installPath = firstString(
+  // v1 installPath 同时承担 MoFox 本体与平台目录语义；优先采用 v2 字段，回退到 v1 字段。
+  const legacyInstallPath = firstString(
     value.installPath,
     value.neomofoxDir,
     value.platformDir,
     value.napcatDir,
     '',
   );
-  const platformId = firstString(
+  const mofoxInstallDir = firstString(value.mofoxInstallDir, legacyInstallPath);
+  const legacyPlatformId = firstString(
     value.platformId,
     value.platform,
     value.platformDir || value.napcatDir ? 'napcat' : undefined,
-    'unknown',
+    '',
   );
+  // v2 platforms 字典优先；缺失时用 v1→v2 路径升级把兄弟目录烘焙为显式平台路径。
+  const inheritedPlatforms = isRecord(value.platforms)
+    ? (Object.fromEntries(
+        Object.entries(value.platforms).filter((entry) => typeof entry[1] === 'string'),
+      ) as PlatformPaths)
+    : {};
+  const { platforms } = upgradeInstancePathsToV2({
+    mofoxInstallDir,
+    platforms: inheritedPlatforms,
+    platformId: legacyPlatformId,
+  });
   const createdAt = normalizeTimestamp(value.createdAt);
   return {
     ...DEFAULT_INSTANCE,
@@ -247,8 +286,8 @@ export function normalizeInstance(value: unknown): Instance {
       value.napcatVersion,
       'unknown',
     ),
-    platformId,
-    installPath,
+    mofoxInstallDir,
+    platforms,
     status: value.status === 'error' ? 'error' : 'stopped',
     createdAt,
     ...(typeof value.lastStartedAt === 'number' ? { lastStartedAt: value.lastStartedAt } : {}),
@@ -260,11 +299,11 @@ export function normalizeInstance(value: unknown): Instance {
  * 校验实例记录的关键字段是否非空。
  *
  * @param instance - 待校验的实例对象。
- * @throws {MofoxError} ID、名称或安装路径为空时抛出 `INVALID_ARGUMENT`。
+ * @throws {MofoxError} ID、名称或 MoFox 安装目录为空时抛出 `INVALID_ARGUMENT`。
  */
 function validateInstance(instance: Instance): void {
-  if (!instance.id.trim() || !instance.name.trim() || !instance.installPath.trim()) {
-    throw new MofoxError('INVALID_ARGUMENT', 'Instance ID, name and install path are required');
+  if (!instance.id.trim() || !instance.name.trim() || !instance.mofoxInstallDir.trim()) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Instance ID, name and mofoxInstallDir are required');
   }
 }
 

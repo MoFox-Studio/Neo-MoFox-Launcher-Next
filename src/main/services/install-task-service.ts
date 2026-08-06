@@ -12,6 +12,7 @@ import type {
 import type { MirrorSource } from '../../shared/domain/mirror';
 import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';
+import { generateInstanceId } from '../utils/id-generator';
 
 /**
  * 将平台安装拆为可观察、可重试的步骤状态机；进度事件是主进程到渲染进程的状态同步边界。
@@ -51,7 +52,6 @@ export interface InstallTaskDependencies {
 
 export class InstallTaskService {
   private readonly tasks = new Map<string, TaskRecord>();
-  private nextId = 1;
 
   /**
    * @param registry - 平台注册表，用于按平台 ID 获取安装器与配置逻辑。
@@ -149,11 +149,13 @@ export class InstallTaskService {
   /**
    * 构造任务记录：生成唯一 ID、临时工作目录与取消信号，不触发任何执行。
    *
+   * ID 基于 `crypto.randomUUID` 生成，进程重启后不会与既有实例 ID 冲突。
+   *
    * @param request - 安装请求载荷。
    * @returns 处于 pending 状态的 `TaskRecord`。
    */
   private createTask(request: InstallRequest): TaskRecord {
-    const id = `install-${this.nextId++}`;
+    const id = generateInstanceId();
     const root = this.dependencies.tempRoot ?? tmpdir();
     return {
       id,
@@ -265,8 +267,9 @@ export class InstallTaskService {
       id: task.id,
       name: task.request.instanceName,
       version: result.version,
-      platformId: task.request.platformId,
-      installPath: target,
+      // 安装向导只下载平台适配器；MoFox 本体目录暂留空，后续安装流程再回填。
+      mofoxInstallDir: '',
+      platforms: { [task.request.platformId]: target },
       status: 'stopped',
       createdAt: this.dependencies.now?.() ?? Date.now(),
       autoStart: false,

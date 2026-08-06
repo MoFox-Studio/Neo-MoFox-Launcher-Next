@@ -39,7 +39,15 @@ describe('InstallTaskService', () => {
     await service.wait(taskId);
 
     expect(await readFile(join(target, 'ready.txt'), 'utf8')).toBe('ready');
-    expect(repository.upsert).toHaveBeenCalledWith(expect.objectContaining({ id: taskId, installPath: target, createdAt: 42 }));
+    // v2：安装向导只装平台，targetDir 进入 platforms 字典；mofoxInstallDir 暂留空。
+    expect(repository.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: taskId,
+        mofoxInstallDir: '',
+        platforms: { test: target },
+        createdAt: 42,
+      }),
+    );
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done', step: 'finalize' }));
   });
 

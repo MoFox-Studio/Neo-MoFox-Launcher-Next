@@ -6,7 +6,7 @@ import {
   InstanceRepository,
   normalizeInstance,
 } from '../../../src/main/services/instance-repository';
-import { INSTANCES_VERSION } from '../../../src/shared/domain/instance';
+import { INSTANCES_VERSION, type Instance } from '../../../src/shared/domain/instance';
 
 /** 验证仓库首次加载、历史格式归一化、坏记录隔离及原子增删后的状态。 */
 const tempDirectories: string[] = [];
@@ -56,8 +56,9 @@ describe('InstanceRepository', () => {
         id: 'bot-10001',
         name: 'Primary bot',
         version: '4.2.0',
-        platformId: 'napcat',
-        installPath: 'D:\\Bots\\10001',
+        // v1 installPath 升级为 v2 的 mofoxInstallDir；platformId 收敛为 platforms 字典。
+        mofoxInstallDir: 'D:\\Bots\\10001',
+        platforms: { napcat: 'D:\\Bots\\napcat' },
         status: 'stopped',
       }),
     ]);
@@ -93,8 +94,8 @@ describe('InstanceRepository', () => {
       id: 'instance-1',
       name: 'Test',
       version: '1.0.0',
-      platformId: 'snowluma',
-      installPath: 'D:\\Bots\\Test',
+      mofoxInstallDir: 'D:\\Bots\\Test',
+      platforms: { snowluma: 'D:\\Bots\\Test\\snowluma' },
       status: 'stopped' as const,
       createdAt: 123,
       autoStart: false,
@@ -109,7 +110,7 @@ describe('InstanceRepository', () => {
 
   // ─── 版本升级与合并 ──────────────────────────────────────────────────
 
-  it('eagerly upgrades a legacy versioned file on load and persists version 1', async () => {
+  it('eagerly upgrades a legacy versioned file on load and persists version 2', async () => {
     const directory = await createTempDirectory();
     const instancesPath = join(directory, 'instances.json');
     await writeFile(
@@ -133,7 +134,13 @@ describe('InstanceRepository', () => {
     // 首次读取触发升级；磁盘文件应被改写为当前版本且字段已规范化。
     const loaded = await repository.list();
     expect(loaded).toEqual([
-      expect.objectContaining({ id: 'bot-1', name: '主号', platformId: 'napcat' }),
+      expect.objectContaining({
+        id: 'bot-1',
+        name: '主号',
+        // v1 的 installPath/platformId 拆分为 v2 的 mofoxInstallDir + platforms 字典。
+        mofoxInstallDir: 'D:\\Bots\\1',
+        platforms: { napcat: 'D:\\Bots\\napcat' },
+      }),
     ]);
 
     const persisted = JSON.parse(await readFile(instancesPath, 'utf8'));
@@ -142,6 +149,8 @@ describe('InstanceRepository', () => {
     // 旧字段不应在升级后的文件中残留。
     expect(persisted.instances[0].qqNickname).toBeUndefined();
     expect(persisted.instances[0].neomofoxDir).toBeUndefined();
+    expect(persisted.instances[0].installPath).toBeUndefined();
+    expect(persisted.instances[0].platformId).toBeUndefined();
   });
 
   it('leaves an already-current file untouched on load', async () => {
@@ -167,7 +176,7 @@ describe('InstanceRepository', () => {
           {
             id: 'bot-1',
             name: 'Bot 1',
-            installPath: '/bots/1',
+            mofoxInstallDir: '/bots/1',
             createdAt: 123,
             deprecatedInstanceField: true,
           },
@@ -181,7 +190,7 @@ describe('InstanceRepository', () => {
         ...DEFAULT_INSTANCE,
         id: 'bot-1',
         name: 'Bot 1',
-        installPath: '/bots/1',
+        mofoxInstallDir: '/bots/1',
         createdAt: 123,
       },
     ]);
@@ -192,7 +201,7 @@ describe('InstanceRepository', () => {
           ...DEFAULT_INSTANCE,
           id: 'bot-1',
           name: 'Bot 1',
-          installPath: '/bots/1',
+          mofoxInstallDir: '/bots/1',
           createdAt: 123,
         },
       ],
@@ -206,7 +215,7 @@ describe('InstanceRepository', () => {
       instancesPath,
       JSON.stringify({
         version: INSTANCES_VERSION + 1,
-        instances: [{ id: 'bot-1', name: 'Bot 1', installPath: '/bots/1', createdAt: 123 }],
+        instances: [{ id: 'bot-1', name: 'Bot 1', mofoxInstallDir: '/bots/1', createdAt: 123 }],
       }),
     );
     const repository = new InstanceRepository(directory, vi.fn());
@@ -220,7 +229,7 @@ describe('InstanceRepository', () => {
           ...DEFAULT_INSTANCE,
           id: 'bot-1',
           name: 'Bot 1',
-          installPath: '/bots/1',
+          mofoxInstallDir: '/bots/1',
           createdAt: 123,
         },
       ],
@@ -234,26 +243,26 @@ describe('InstanceRepository', () => {
       id: 'ins-a',
       name: 'A',
       version: '1.0.0',
-      platformId: 'napcat',
-      installPath: 'D:\\Bots\\a',
+      mofoxInstallDir: 'D:\\Bots\\a',
+      platforms: { napcat: 'D:\\Bots\\a\\napcat' },
       status: 'stopped' as const,
       createdAt: 1,
       autoStart: false,
     };
     await repository.upsert(existing);
 
-    const incoming = [
+    const incoming: Instance[] = [
       // 与已有 ID 冲突
       { ...existing, name: 'A-dup' },
-      // 与已有 installPath 冲突
-      { ...existing, id: 'ins-a2', installPath: existing.installPath },
+      // 与已有 mofoxInstallDir 冲突
+      { ...existing, id: 'ins-a2', mofoxInstallDir: existing.mofoxInstallDir },
       // 字段缺失，应被合并阶段校验跳过
       {
         id: '',
         name: '',
         version: '1',
-        platformId: 'x',
-        installPath: '',
+        mofoxInstallDir: '',
+        platforms: {},
         status: 'stopped' as const,
         createdAt: 2,
         autoStart: false,
@@ -263,8 +272,8 @@ describe('InstanceRepository', () => {
         id: 'ins-b',
         name: 'B',
         version: '2.0.0',
-        platformId: 'snowluma',
-        installPath: 'D:\\Bots\\b',
+        mofoxInstallDir: 'D:\\Bots\\b',
+        platforms: { snowluma: 'D:\\Bots\\b\\snowluma' },
         status: 'stopped' as const,
         createdAt: 3,
         autoStart: true,
@@ -296,8 +305,9 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-2',
         name: '展示名',
-        platformId: 'napcat',
-        installPath: '/bots/2',
+        // v1 的 installPath/platformId 收敛为 v2 的 mofoxInstallDir + platforms 字典。
+        mofoxInstallDir: '/bots/2',
+        platforms: { napcat: '/bots/napcat' },
         version: '4.1.0',
         status: 'stopped',
         autoStart: true,

@@ -97,7 +97,7 @@ onMounted(async () => {
         >
           <span class="msr legacy-list__icon" aria-hidden="true">{{ entry.conflict ? 'block' : 'check_circle' }}</span>
           <span class="legacy-list__name">{{ entry.instance.name }}</span>
-          <span class="legacy-list__meta">{{ entry.instance.platformId }} · {{ entry.instance.installPath }}</span>
+          <span class="legacy-list__meta">{{ Object.keys(entry.instance.platforms ?? {})[0] ?? '' }} · {{ entry.instance.mofoxInstallDir }}</span>
         </li>
       </ul>
     </template>

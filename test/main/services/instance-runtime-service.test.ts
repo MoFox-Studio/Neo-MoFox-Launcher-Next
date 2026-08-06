@@ -157,13 +157,22 @@ describe('InstanceRuntimeService', () => {
 
     await service.remove('one');
 
-    expect(removePath).toHaveBeenCalledWith(repository.current.installPath);
+    expect(removePath).toHaveBeenCalledWith(repository.current.mofoxInstallDir);
     expect(repository.remove).toHaveBeenCalledWith('one');
   });
 });
 
 function createInstance(installPath = 'D:\\Bot'): Instance {
-  return { id: 'one', name: 'One', version: '1', platformId: 'test', installPath, status: 'stopped', createdAt: 1, autoStart: false };
+  return {
+    id: 'one',
+    name: 'One',
+    version: '1',
+    mofoxInstallDir: installPath,
+    platforms: { test: installPath },
+    status: 'stopped',
+    createdAt: 1,
+    autoStart: false,
+  };
 }
 
 async function createMofoxDir(): Promise<string> {

@@ -1,5 +1,5 @@
 import { access } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { BaseBotPlatform } from '../base-platform';
 import type { StartCommand } from '../../../shared/domain/bot-platform';
 import type { InstallContext, InstallResult } from '../../../shared/domain/bot-platform';
@@ -50,42 +50,30 @@ export class SnowLumaPlatform extends BaseBotPlatform {
   override async configure(): Promise<void> {}
 
   /**
-   * 在安装目录中探测 SnowLuma 启动命令。
+   * 在平台安装路径中探测 SnowLuma 启动命令。
    *
-   * 兼容旧安装布局：当前路径优先，其次查找 `neo-mofox` 同级的 `snowluma` 目录。
+   * v2 起 `platformPath` 是平台启动命令的唯一路径来源，不再回退到兄弟目录。
    * 启动顺序：自定义实例脚本 > 官方 launcher 脚本 > 内置 node + index.mjs > 系统 node + index.mjs。
    *
-   * @param installPath - 平台安装根目录。
+   * @param platformPath - 平台适配器的安装根目录。
    * @param instanceId - 当前实例 ID，用于定位实例专属脚本。
    * @returns 包含命令、参数、工作目录与环境变量的启动命令对象。
    * @throws {MofoxError} 未找到任何可用启动入口时抛出 `NOT_FOUND`。
    */
-  async getStartCommand(installPath: string, instanceId = ''): Promise<StartCommand> {
+  async getStartCommand(platformPath: string, instanceId = ''): Promise<StartCommand> {
     const env = { SNOWLUMA_WEBUI_PORT: '5099', SNOWLUMA_HOOK_AUTOLOAD: '1' };
-    // 兼容旧安装布局：当前路径优先，其次查找 neo-mofox 的同级 snowluma 目录。
-    for (const root of uniquePaths([installPath, join(dirname(installPath), 'snowluma')])) {
-      // 自定义实例脚本优先于官方启动器和 Node 直接执行，以保留用户级配置。
-      const custom = join(root, process.platform === 'win32' ? `start_snowluma_${instanceId}.bat` : `start_snowluma_${instanceId}.sh`);
-      if (await exists(custom)) return { command: custom, args: [], cwd: root, env };
-      const launcher = join(root, process.platform === 'win32' ? 'launcher.bat' : 'launcher.sh');
-      if (await exists(launcher)) return { command: launcher, args: [], cwd: root, env };
-      const bundledNode = join(root, process.platform === 'win32' ? 'node.exe' : 'node');
-      const entry = join(root, 'index.mjs');
-      if (await exists(bundledNode) && await exists(entry)) return { command: bundledNode, args: [entry], cwd: root, env };
-      if (await exists(entry)) return { command: 'node', args: [entry], cwd: root, env };
-    }
-    throw new MofoxError('NOT_FOUND', `未找到 SnowLuma 实例启动入口: ${installPath}`);
+    const root = platformPath;
+    // 自定义实例脚本优先于官方启动器和 Node 直接执行，以保留用户级配置。
+    const custom = join(root, process.platform === 'win32' ? `start_snowluma_${instanceId}.bat` : `start_snowluma_${instanceId}.sh`);
+    if (await exists(custom)) return { command: custom, args: [], cwd: root, env };
+    const launcher = join(root, process.platform === 'win32' ? 'launcher.bat' : 'launcher.sh');
+    if (await exists(launcher)) return { command: launcher, args: [], cwd: root, env };
+    const bundledNode = join(root, process.platform === 'win32' ? 'node.exe' : 'node');
+    const entry = join(root, 'index.mjs');
+    if (await exists(bundledNode) && await exists(entry)) return { command: bundledNode, args: [entry], cwd: root, env };
+    if (await exists(entry)) return { command: 'node', args: [entry], cwd: root, env };
+    throw new MofoxError('NOT_FOUND', `未找到 SnowLuma 实例启动入口: ${platformPath}`);
   }
-}
-
-/**
- * 对路径数组去重，保留首次出现的顺序。
- *
- * @param paths - 可能包含重复项的路径数组。
- * @returns 去重后的路径数组。
- */
-function uniquePaths(paths: string[]): string[] {
-  return [...new Set(paths)];
 }
 
 /**

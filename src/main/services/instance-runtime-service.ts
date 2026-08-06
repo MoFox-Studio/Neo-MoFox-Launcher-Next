@@ -93,10 +93,13 @@ export class InstanceRuntimeService {
     try {
       const commands = await this.resolveCommands(instance);
       if (commands.size === 0) {
-        throw new MofoxError('NOT_FOUND', `实例目录中既没有 MoFox 本体也没有平台启动入口: ${instance.installPath}`);
+        throw new MofoxError(
+          'NOT_FOUND',
+          `实例未配置 MoFox 本体目录或平台路径: mofoxInstallDir=${instance.mofoxInstallDir}`,
+        );
       }
       for (const [source, command] of commands) {
-        this.emitLauncherMessage(instanceId, source, 'info', `正在启动 ${source === 'mofox' ? 'MoFox' : instance.platformId} 进程...`);
+        this.emitLauncherMessage(instanceId, source, 'info', `正在启动 ${source === 'mofox' ? 'MoFox' : '平台'} 进程...`);
         this.spawn(instanceId, source, command);
       }
       await this.saveStatus(instance, 'running');
@@ -145,7 +148,7 @@ export class InstanceRuntimeService {
   }
 
   /**
-   * 删除实例：先停止进程，再删除安装目录与持久化记录，并清理运行时缓存。
+   * 删除实例：先停止进程，再删除 MoFox 本体目录与持久化记录，并清理运行时缓存。
    *
    * @param instanceId - 待删除的实例 ID。
    */
@@ -153,7 +156,7 @@ export class InstanceRuntimeService {
     // 先停止进程，再删除目录和记录，避免运行进程继续持有已删除路径。
     const instance = await this.find(instanceId);
     await this.stop(instanceId);
-    await this.removePath(instance.installPath);
+    await this.removePath(instance.mofoxInstallDir);
     await this.repository.remove(instanceId);
     for (const source of SOURCES) {
       this.logBuffers.delete(bufferKey(instanceId, source));
@@ -162,13 +165,13 @@ export class InstanceRuntimeService {
   }
 
   /**
-   * 在系统文件管理器中打开实例安装目录。
+   * 在系统文件管理器中打开 MoFox 本体安装目录。
    *
    * @param instanceId - 实例 ID。
    */
   async openFolder(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
-    await this.openPath(instance.installPath);
+    await this.openPath(instance.mofoxInstallDir);
   }
 
   /**
@@ -260,12 +263,21 @@ export class InstanceRuntimeService {
 
   // ── Command resolution ────────────────────────────────────────────
 
-  /** Mirrors the legacy launcher: MoFox = venv python main.py (uv fallback), platform via registry. */
+  /**
+   * 解析实例的启动命令集合。
+   *
+   * MoFox 本体进程：当 `mofoxInstallDir/main.py` 存在时启动（venv python 优先，uv 回退）。
+   * 平台进程：遍历 `platforms` 字典，逐个用 `platformPath` 调用对应平台的 `getStartCommand`。
+   * v2 起平台路径完全来自 `platforms` 字典，不再回退到兄弟目录。
+   *
+   * @param instance - 待启动的实例。
+   * @returns 进程源到启动命令的映射；无可用入口时为空集合。
+   */
   private async resolveCommands(instance: Instance): Promise<Map<InstanceProcessSource, StartCommand>> {
     const commands = new Map<InstanceProcessSource, StartCommand>();
 
-    const mofoxDir = instance.installPath;
-    if (await exists(join(mofoxDir, 'main.py'))) {
+    const mofoxDir = instance.mofoxInstallDir;
+    if (mofoxDir && await exists(join(mofoxDir, 'main.py'))) {
       const venvPython = await findVenvPython(mofoxDir);
       const env = {
         TERM: 'xterm-256color',
@@ -282,20 +294,25 @@ export class InstanceRuntimeService {
       );
     }
 
-    try {
-      const platformCommand = await this.registry
-        .get(instance.platformId)
-        .getStartCommand(instance.installPath, instance.id);
-      commands.set('platform', platformCommand);
-    } catch (error) {
-      // A missing platform is not fatal when MoFox itself can start (MoFox-only instances).
-      if (commands.size === 0) throw error;
-      this.emitLauncherMessage(
-        instance.id,
-        'platform',
-        'warn',
-        `未找到平台启动入口，仅启动 MoFox: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    // 平台路径的唯一来源是 platforms 字典；当前业务为单平台，取第一项即可。
+    const platformEntries = Object.entries(instance.platforms).filter(([, path]) => path?.trim());
+    if (platformEntries.length > 0) {
+      const [platformId, platformPath] = platformEntries[0];
+      try {
+        const platformCommand = await this.registry
+          .get(platformId)
+          .getStartCommand(platformPath, instance.id);
+        commands.set('platform', platformCommand);
+      } catch (error) {
+        // 平台缺失不是致命错误：当 MoFox 本体能独立启动时允许仅启动 MoFox。
+        if (commands.size === 0) throw error;
+        this.emitLauncherMessage(
+          instance.id,
+          'platform',
+          'warn',
+          `未找到平台启动入口，仅启动 MoFox: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
     return commands;
   }

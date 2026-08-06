@@ -1,5 +1,5 @@
 import { access, readdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { BaseBotPlatform } from '../base-platform';
 import type { StartCommand } from '../../../shared/domain/bot-platform';
 import type { InstallContext, InstallResult } from '../../../shared/domain/bot-platform';
@@ -42,29 +42,22 @@ export class NapCatPlatform extends BaseBotPlatform {
   override async configure(): Promise<void> {}
 
   /**
-   * 在安装目录中探测 NapCat 启动命令。
+   * 在平台安装路径中探测 NapCat 启动命令。
    *
+   * v2 起 `platformPath` 是平台启动命令的唯一路径来源，不再回退到兄弟目录。
    * 同时探测根目录与可能存在的 `NapCat*Shell*` 子目录，以兼容不同 Release 的解压结构。
    * 启动顺序：实例专属批处理 > 内置 node.exe + index.js 直启。
    *
-   * @param installPath - 平台安装根目录。
+   * @param platformPath - 平台适配器的安装根目录。
    * @param instanceId - 当前实例 ID，用于定位实例专属批处理。
    * @returns 包含命令、参数与工作目录的启动命令对象。
    * @throws {MofoxError} 未找到任何可用启动入口时抛出 `NOT_FOUND`。
    */
-  async getStartCommand(installPath: string, instanceId = ''): Promise<StartCommand> {
-    const platformRoots = uniquePaths([installPath, join(dirname(installPath), 'napcat')]);
+  async getStartCommand(platformPath: string, instanceId = ''): Promise<StartCommand> {
     // 同时探测根目录和 Release 可能生成的 Shell 子目录，兼容不同版本的解压结构。
-    const roots = (
-      await Promise.all(
-        platformRoots.map(async (root) => [
-          root,
-          ...(await childDirectories(root))
-            .filter((name) => name.startsWith('NapCat') && name.includes('Shell'))
-            .map((name) => join(root, name)),
-        ]),
-      )
-    ).flat();
+    const roots = [platformPath, ...(await childDirectories(platformPath))
+      .filter((name) => name.startsWith('NapCat') && name.includes('Shell'))
+      .map((name) => join(platformPath, name))];
     for (const root of roots) {
       // 实例专用批处理优先；缺失时退回内置 Node 和入口文件直接启动。
       const batch = join(root, `start_napcat_${instanceId}.bat`);
@@ -73,7 +66,7 @@ export class NapCatPlatform extends BaseBotPlatform {
       const entry = join(root, 'index.js');
       if (await exists(node) && await exists(entry)) return { command: node, args: [entry, '-q', instanceId], cwd: root };
     }
-    throw new MofoxError('NOT_FOUND', `未找到 NapCat 实例启动入口: ${installPath}`);
+    throw new MofoxError('NOT_FOUND', `未找到 NapCat 实例启动入口: ${platformPath}`);
   }
 }
 
@@ -95,14 +88,4 @@ async function childDirectories(path: string): Promise<string[]> {
  */
 async function exists(path: string): Promise<boolean> {
   try { await access(path); return true; } catch { return false; }
-}
-
-/**
- * 对路径数组去重，保留首次出现的顺序。
- *
- * @param paths - 可能包含重复项的路径数组。
- * @returns 去重后的路径数组。
- */
-function uniquePaths(paths: string[]): string[] {
-  return [...new Set(paths)];
 }

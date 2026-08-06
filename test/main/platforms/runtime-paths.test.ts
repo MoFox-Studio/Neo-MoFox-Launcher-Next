@@ -7,40 +7,64 @@ import { SnowLumaPlatform } from '../../../src/main/platforms/snowluma/runtime';
 
 const temporaryDirectories: string[] = [];
 
-// 构造隔离的旧版目录布局，并在每个用例后递归清理临时根目录。
+// 每个用例后递归清理临时根目录。
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe('legacy runtime paths', () => {
-  // 保护安装目录仍指向 neo-mofox 时，两个运行时都能回退发现同级历史目录的兼容场景。
-  it('finds NapCat in a sibling directory when installPath points to neo-mofox', async () => {
+describe('platform runtime paths (v2)', () => {
+  // v2 起平台路径是唯一来源：getStartCommand 直接使用传入的 platformPath，
+  // 不再回退到 dirname(installPath)/<platformId> 兄弟目录。
+  it('NapCat launches directly from the given platform path without sibling fallback', async () => {
     const root = await createRoot();
-    const neoMofox = join(root, 'neo-mofox');
     const napcat = join(root, 'napcat');
-    await mkdir(neoMofox);
+    const unrelated = join(root, 'snowluma');
     await mkdir(napcat);
+    await mkdir(unrelated);
     await writeFile(join(napcat, 'node.exe'), '');
     await writeFile(join(napcat, 'index.js'), '');
 
-    await expect(new NapCatPlatform().getStartCommand(neoMofox, '123')).resolves.toEqual({
+    await expect(new NapCatPlatform().getStartCommand(napcat, '123')).resolves.toEqual({
       command: join(napcat, 'node.exe'),
       args: [join(napcat, 'index.js'), '-q', '123'],
       cwd: napcat,
     });
   });
 
-  it('finds SnowLuma in a sibling directory when installPath points to neo-mofox', async () => {
+  it('NapCat throws NOT_FOUND when the platform path lacks entry files, even if a sibling has them', async () => {
     const root = await createRoot();
-    const neoMofox = join(root, 'neo-mofox');
+    const empty = join(root, 'empty');
+    const sibling = join(root, 'napcat');
+    await mkdir(empty);
+    await mkdir(sibling);
+    await writeFile(join(sibling, 'node.exe'), '');
+    await writeFile(join(sibling, 'index.js'), '');
+
+    // v2 不再回退到兄弟目录；空路径直接抛 NOT_FOUND。
+    await expect(new NapCatPlatform().getStartCommand(empty, '123')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('SnowLuma launches directly from the given platform path without sibling fallback', async () => {
+    const root = await createRoot();
     const snowluma = join(root, 'snowluma');
-    await mkdir(neoMofox);
     await mkdir(snowluma);
     await writeFile(join(snowluma, 'index.mjs'), '');
 
-    const command = await new SnowLumaPlatform().getStartCommand(neoMofox, '123');
+    const command = await new SnowLumaPlatform().getStartCommand(snowluma, '123');
     expect(command.cwd).toBe(snowluma);
     expect(command.args).toEqual([join(snowluma, 'index.mjs')]);
+  });
+
+  it('SnowLuma throws NOT_FOUND when the platform path lacks entry files', async () => {
+    const root = await createRoot();
+    const empty = join(root, 'empty');
+    await mkdir(empty);
+
+    await expect(new SnowLumaPlatform().getStartCommand(empty, '123')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 });
 

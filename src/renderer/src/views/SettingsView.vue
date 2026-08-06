@@ -605,10 +605,10 @@ onMounted(() => {
                   <span class="msr migration-preview__icon">{{
                     entry.conflict ? 'block' : 'check_circle'
                   }}</span>
-                  <div class="migration-preview__text">
+                    <div class="migration-preview__text">
                     <span class="migration-preview__name">{{ entry.instance.name }}</span>
                     <span class="migration-preview__meta">
-                      {{ entry.instance.platformId }} · {{ entry.instance.installPath }}
+                      {{ Object.keys(entry.instance.platforms ?? {})[0] ?? '' }} · {{ entry.instance.mofoxInstallDir }}
                     </span>
                   </div>
                   <span v-if="entry.conflict" class="migration-preview__tag">

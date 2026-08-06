@@ -59,7 +59,7 @@ export interface PlatformInstaller {
 
 /** 安装完成后写入实例专属配置的能力契约。 */
 export interface PlatformConfig {
-  configure(instanceId: string, installPath: string): Promise<void>;
+  configure(instanceId: string, platformPath: string): Promise<void>;
 }
 
 /** 查询版本与执行更新的能力契约。 */
@@ -68,9 +68,9 @@ export interface PlatformUpdater {
   update(context: InstallContext): Promise<InstallResult>;
 }
 
-/** 根据安装目录生成实际子进程启动命令的能力契约。 */
+/** 根据平台安装路径生成实际子进程启动命令的能力契约。 */
 export interface PlatformRuntime {
-  getStartCommand(installPath: string, instanceId?: string): Promise<StartCommand>;
+  getStartCommand(platformPath: string, instanceId?: string): Promise<StartCommand>;
 }
 
 /** 一个完整平台实现必须同时提供元数据、可用性、安装、配置、更新和运行能力。 */

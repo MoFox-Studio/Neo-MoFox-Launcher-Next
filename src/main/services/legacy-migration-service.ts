@@ -82,7 +82,9 @@ export class LegacyMigrationService {
     const existing = await this.repository.list();
     const existingIds = new Set(existing.map((instance) => instance.id));
     const existingPaths = new Set(
-      existing.map((instance) => instance.installPath).filter((value) => value.trim()),
+      existing
+        .map((instance) => instance.mofoxInstallDir)
+        .filter((value) => value.trim()),
     );
 
     const previews: LegacyInstancePreview[] = [];
@@ -142,7 +144,7 @@ function detectConflict(
   existingPaths: Set<string>,
 ): LegacyInstancePreview['conflict'] {
   if (existingIds.has(instance.id)) return 'duplicate-id';
-  if (instance.installPath.trim() && existingPaths.has(instance.installPath)) {
+  if (instance.mofoxInstallDir.trim() && existingPaths.has(instance.mofoxInstallDir)) {
     return 'duplicate-path';
   }
   return null;

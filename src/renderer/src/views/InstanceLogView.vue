@@ -24,9 +24,10 @@ const isRunning = computed(() => status.value === 'running');
 const isBusy = computed(() => status.value === 'starting' || status.value === 'stopping');
 
 const PLATFORM_LABELS: Record<string, string> = { napcat: 'NapCat', snowluma: 'SnowLuma' };
-const platformLabel = computed(
-  () => PLATFORM_LABELS[instance.value?.platformId ?? ''] ?? instance.value?.platformId ?? '平台',
-);
+const platformLabel = computed(() => {
+  const id = Object.keys(instance.value?.platforms ?? {})[0] ?? '';
+  return PLATFORM_LABELS[id] ?? id ?? '平台';
+});
 
 const SOURCES: InstanceProcessSource[] = ['mofox', 'platform'];
 const activeTab = ref<InstanceProcessSource>('mofox');
