@@ -4,9 +4,14 @@ import { useOobeStore } from '@/stores/oobe';
 import { MofoxError } from '@shared/domain/error';
 import type { OobeDependencyStatus } from '@shared/domain/oobe';
 import ErrorDialog from '@/components/ErrorDialog.vue';
+import BaseDialog from '@/components/BaseDialog.vue';
 
 const oobe = useOobeStore();
 const emit = defineEmits<{ (e: 'next'): void; (e: 'back'): void; (e: 'skip'): void }>();
+
+// 依赖安装完成后，部分组件（如新加入 PATH 的可执行文件）需要重启系统才能生效。
+// 弹窗以不可关闭的方式提示用户手动重启，避免用户误以为可直接继续。
+const showRestartDialog = ref(false);
 
 // 仅 Linux 的系统包安装需要 sudo；macOS 与 Windows 不展示密码表单。
 const needsSudo = typeof navigator !== 'undefined' && /Linux/i.test(navigator.userAgent);
@@ -127,6 +132,26 @@ function skipInstallation(): void {
   emit('skip');
 }
 
+/**
+ * 点击“继续”时不直接进入下一步，而是先弹出重启提示。
+ *
+ * 仅在实际执行过安装（未跳过且无失败）时展示弹窗；若用户跳过了安装，
+ * 则无需重启，直接放行。
+ */
+function requestContinue(): void {
+  if (installationSkipped.value || !oobe.dependencies.some((d) => d.status === 'installed')) {
+    emit('next');
+    return;
+  }
+  showRestartDialog.value = true;
+}
+
+/** 用户确认后，关闭弹窗并进入下一步。 */
+function confirmRestarted(): void {
+  showRestartDialog.value = false;
+  emit('next');
+}
+
 async function retryInstall(): Promise<void> {
   oobe.reset();
   sudoVerified.value = false;
@@ -162,9 +187,11 @@ onUnmounted(() => {
       </div>
 
       <ul v-else class="dep-list">
-        <li v-for="dep in oobe.dependencies" :key="dep.id" class="dep-list__item"
+        <li
+v-for="dep in oobe.dependencies" :key="dep.id" class="dep-list__item"
           :class="`dep-list__item--${dep.status}`">
-          <span class="msr dep-list__icon" :class="{ 'dep-list__icon--spin': dep.status === 'installing' }"
+          <span
+class="msr dep-list__icon" :class="{ 'dep-list__icon--spin': dep.status === 'installing' }"
             aria-hidden="true">
             {{ statusIcon(dep.status) }}
           </span>
@@ -195,15 +222,20 @@ onUnmounted(() => {
           Linux 安装系统依赖需要 sudo 权限。密码只在本次安装期间保留于主进程内存，完成后会立即清除，不会写入磁盘。
         </p>
         <label class="field">
-          <input v-model="password" class="field__input" type="password" placeholder=" " autocomplete="current-password"
+          <input
+v-model="password" class="field__input" type="password" placeholder=" " autocomplete="current-password"
             @keyup.enter="submitPassword" />
           <span class="field__label">sudo 密码</span>
         </label>
         <p v-if="sudoErrorMessage" class="field__support field__support--error">{{ sudoErrorMessage }}</p>
         <div class="sudo-actions">
-          <button type="button" class="btn btn--text state-layer" :disabled="verifying"
-            @click="awaitingSudo = false">取消</button>
-          <button type="button" class="btn btn--filled state-layer" :disabled="!canSubmitPassword"
+          <button
+type="button" class="btn btn--text state-layer" :disabled="verifying"
+            @click="awaitingSudo = false">
+取消
+</button>
+          <button
+type="button" class="btn btn--filled state-layer" :disabled="!canSubmitPassword"
             @click="submitPassword">
             <span v-if="verifying" class="spinner spinner--small" aria-hidden="true"></span>
             验证并安装
@@ -214,21 +246,45 @@ onUnmounted(() => {
       <p v-if="oobe.currentMessage && oobe.installing" class="dep-current">{{ oobe.currentMessage }}</p>
 
       <div class="dep-actions">
-        <button type="button" class="btn btn--text state-layer" :disabled="oobe.installing"
-          @click="emit('back')">上一步</button>
+        <button
+type="button" class="btn btn--text state-layer" :disabled="oobe.installing"
+          @click="emit('back')">
+上一步
+</button>
         <button v-if="hasFailure" type="button" class="btn btn--text state-layer" @click="showErrorDialog = true">
           <span class="msr" aria-hidden="true">description</span>
           查看日志
         </button>
-        <button v-if="hasFailure" type="button" class="btn btn--filled state-layer" :disabled="oobe.installing"
-          @click="retryInstall">重新检查</button>
-        <button v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue || oobe.installing"
-          @click="emit('next')">继续</button>
+        <button
+v-if="hasFailure" type="button" class="btn btn--filled state-layer" :disabled="oobe.installing"
+          @click="retryInstall">
+重新检查
+</button>
+        <button
+v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue || oobe.installing"
+          @click="requestContinue">
+继续
+</button>
       </div>
     </template>
 
-    <ErrorDialog :open="showErrorDialog" :description="oobe.installError ? describeError(oobe.installError) : '依赖安装失败'"
+    <ErrorDialog
+:open="showErrorDialog" :description="oobe.installError ? describeError(oobe.installError) : '依赖安装失败'"
       :stack="errorLogText || undefined" title="依赖安装失败" @close="showErrorDialog = false" />
+
+    <BaseDialog
+:open="showRestartDialog" :dismissible="false" :show-actions="false" title="请重启电脑以完成安装"
+      :width="440">
+      <div class="restart-dialog">
+        <span class="msr restart-dialog__icon" aria-hidden="true">restart_alt</span>
+        <p class="restart-dialog__message">
+          部分依赖（如新加入系统 PATH 的可执行文件）需要重启系统后才能生效。请保存当前工作并手动重启电脑，重启后再次打开启动器即可继续。
+        </p>
+      </div>
+      <template #actions>
+        <button type="button" class="btn btn--filled state-layer" @click="confirmRestarted">知道了</button>
+      </template>
+    </BaseDialog>
   </section>
 </template>
 
@@ -511,5 +567,26 @@ onUnmounted(() => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.restart-dialog {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.restart-dialog__icon {
+  font-size: 24px;
+  color: var(--md-sys-color-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.restart-dialog__message {
+  margin: 0;
+  font: var(--md-sys-typescale-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.5;
+  word-break: break-word;
 }
 </style>
