@@ -9,7 +9,7 @@ import {
   MaterialDynamicColors,
   SchemeTonalSpot,
 } from '@material/material-color-utilities';
-import type { ThemeMode } from '@shared/domain/instance';
+import type { ThemeMode } from '@shared/domain/settings';
 
 // 动态色工具支持且需要暴露给组件样式的系统色键。
 const COLOR_KEYS = [

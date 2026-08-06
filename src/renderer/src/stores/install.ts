@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref } from 'vue';
-import type { InstallProgressEvent, InstallRequest } from '@shared/domain/instance';
+import type { InstallProgressEvent, InstallRequest } from '@shared/domain/install';
 import { mofoxApi } from '@/services/mofox-api';
 
 /**
@@ -51,5 +51,16 @@ export const useInstallStore = defineStore('install', () => {
     logLines.value = [];
   }
 
-  return { activeTaskId, progress, logLines, isInstalling, isFailed, isDone, begin, retry, cancel, reset };
+  return {
+    activeTaskId,
+    progress,
+    logLines,
+    isInstalling,
+    isFailed,
+    isDone,
+    begin,
+    retry,
+    cancel,
+    reset,
+  };
 });

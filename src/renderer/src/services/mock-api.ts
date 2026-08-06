@@ -3,13 +3,13 @@
  * 以可控延迟、事件和内存状态复现渲染进程依赖的主进程交互。
  */
 import type { MofoxApi, MofoxEventMap, Unsubscribe } from '@shared/ipc';
+import type { Instance } from '@shared/domain/instance';
+import type { LauncherSettings } from '@shared/domain/settings';
 import type {
-  Instance,
   LegacyLauncherInfo,
-  LauncherSettings,
   MigrationPreview,
   MigrationResult,
-} from '@shared/domain/instance';
+} from '@shared/domain/migration';
 import type { OobeCompletionSummary, OobeDependencyStatus } from '@shared/domain/oobe';
 
 type Listener<K extends keyof MofoxEventMap> = (payload: MofoxEventMap[K]) => void;
@@ -354,7 +354,13 @@ export const mockApi: MofoxApi = {
   async oobeInspectDependencies(): Promise<OobeDependencyStatus[]> {
     await delay(180);
     return [
-      { id: 'git', displayName: 'Git', status: 'skipped', version: '2.47.1', message: '已安装 2.47.1' },
+      {
+        id: 'git',
+        displayName: 'Git',
+        status: 'skipped',
+        version: '2.47.1',
+        message: '已安装 2.47.1',
+      },
       { id: 'python', displayName: 'Python', status: 'pending', message: '未安装' },
       { id: 'uv', displayName: 'uv', status: 'pending', message: '未安装' },
     ];

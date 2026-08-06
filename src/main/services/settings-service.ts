@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LauncherSettings } from '../../shared/domain/instance';
+import type { LauncherSettings } from '../../shared/domain/settings';
 import { MofoxError } from '../../shared/domain/error';
 import { writeJsonAtomic } from '../utils/atomic-json';
 
@@ -193,7 +193,10 @@ function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boole
     case 'wallpaperType':
       return value === 'none' || value === 'image' || value === 'video';
     case 'wallpaperFileName':
-      return typeof value === 'string' && (value === '' || /^wallpaper-[a-f0-9-]+\.(?:jpe?g|png|webp|mp4|webm)$/i.test(value));
+      return (
+        typeof value === 'string' &&
+        (value === '' || /^wallpaper-[a-f0-9-]+\.(?:jpe?g|png|webp|mp4|webm)$/i.test(value))
+      );
     case 'wallpaperBlur':
       return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 20;
     case 'wallpaperOpacity':

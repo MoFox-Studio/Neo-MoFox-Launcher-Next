@@ -5,7 +5,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { useInstallStore } from '@/stores/install';
 import { mofoxApi } from '@/services/mofox-api';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
-import type { InstallRequest, InstallStepId } from '@shared/domain/instance';
+import type { InstallRequest, InstallStepId } from '@shared/domain/install';
 
 // 五步安装向导：收集请求参数，并持续呈现安装仓库中的后台进度；镜像源由安装器内部自动轮询。
 const STEP_TITLES = ['选择平台', '实例信息', '安装位置', '确认摘要', '执行安装'];
@@ -374,7 +374,9 @@ onMounted(async () => {
               <div
                 class="progress-track__bar"
                 :class="{ 'progress-track__bar--indeterminate': isIndeterminate }"
-                :style="isIndeterminate ? undefined : { transform: `scaleX(${progressPercent / 100})` }"
+                :style="
+                  isIndeterminate ? undefined : { transform: `scaleX(${progressPercent / 100})` }
+                "
               ></div>
             </div>
 
@@ -795,8 +797,7 @@ onMounted(async () => {
   background: var(--md-sys-color-primary);
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform var(--md-sys-motion-duration-medium2)
-    var(--md-sys-motion-easing-standard);
+  transition: transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
 }
 
 .progress-track__bar--indeterminate {

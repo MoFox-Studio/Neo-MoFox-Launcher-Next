@@ -3,12 +3,12 @@ import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { InstallContext, InstallResult } from '../../shared/domain/bot-platform';
+import type { Instance } from '../../shared/domain/instance';
 import type {
-  Instance,
   InstallProgressEvent,
   InstallRequest,
   InstallStepId,
-} from '../../shared/domain/instance';
+} from '../../shared/domain/install';
 import type { MirrorSource } from '../../shared/domain/mirror';
 import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';

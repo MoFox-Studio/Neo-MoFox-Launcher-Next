@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import type { LauncherSettings } from '@shared/domain/instance';
+import type { LauncherSettings } from '@shared/domain/settings';
 import { mofoxApi } from '@/services/mofox-api';
 import { applyTheme } from '@/services/theme';
 

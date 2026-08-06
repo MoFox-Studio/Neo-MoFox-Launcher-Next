@@ -1,4 +1,4 @@
-import type { LauncherSettings } from '../../shared/domain/instance';
+import type { LauncherSettings } from '../../shared/domain/settings';
 import type { WallpaperAsset } from '../../shared/domain/wallpaper';
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';

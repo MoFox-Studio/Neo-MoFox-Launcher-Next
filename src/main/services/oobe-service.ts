@@ -3,8 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MofoxError } from '../../shared/domain/error';
-import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from '../../shared/domain/oobe';
-import type { LegacyLauncherInfo } from '../../shared/domain/instance';
+import type {
+  OobeCompletionSummary,
+  OobeDependencyStatus,
+  OobeProgress,
+} from '../../shared/domain/oobe';
+import type { LegacyLauncherInfo } from '../../shared/domain/migration';
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
 import {
   DEPENDENCY_INSTALLERS,
@@ -30,7 +34,9 @@ export interface OobeEvents {
 export interface OobeDependencies {
   settings: SettingsService;
   legacy: LegacyMigrationService;
-  mirrors: { list(): { id: string; type: 'github' | 'python-ftp'; name: string; baseUrl: string }[] };
+  mirrors: {
+    list(): { id: string; type: 'github' | 'python-ftp'; name: string; baseUrl: string }[];
+  };
   /** 环境检测服务，用于在安装前后判断各依赖是否已可用。 */
   environment: { detect(): Promise<SystemEnvInfo> };
   now?: () => number;
@@ -200,13 +206,24 @@ export class OobeService {
       status.version = detected;
       status.message = `已安装 ${detected}`;
       this.log(`${installer.displayName} 已存在 (${detected})，跳过`);
-      this.emit({ phase: 'installing', message: `${installer.displayName} 已存在，跳过`, progress: 1, dependencies: this.snapshot(statuses) });
+      this.emit({
+        phase: 'installing',
+        message: `${installer.displayName} 已存在，跳过`,
+        progress: 1,
+        dependencies: this.snapshot(statuses),
+      });
       return;
     }
 
     status.status = 'installing';
     this.log(`开始安装 ${installer.displayName}`);
-    this.emit({ phase: 'installing', dependencyId: installer.id, message: `正在安装 ${installer.displayName}...`, progress: -1, dependencies: this.snapshot(statuses) });
+    this.emit({
+      phase: 'installing',
+      dependencyId: installer.id,
+      message: `正在安装 ${installer.displayName}...`,
+      progress: -1,
+      dependencies: this.snapshot(statuses),
+    });
 
     const context: DependencyInstallContext = {
       workDir: this.workDir ?? tmpdir(),
@@ -231,12 +248,24 @@ export class OobeService {
       status.version = version;
       status.message = '安装完成';
       this.log(`${installer.displayName} 安装完成 (${version})`);
-      this.emit({ phase: 'installing', dependencyId: installer.id, message: `${installer.displayName} 安装完成`, progress: 1, dependencies: this.snapshot(statuses) });
+      this.emit({
+        phase: 'installing',
+        dependencyId: installer.id,
+        message: `${installer.displayName} 安装完成`,
+        progress: 1,
+        dependencies: this.snapshot(statuses),
+      });
     } catch (error) {
       status.status = 'failed';
       status.message = error instanceof Error ? error.message : String(error);
       this.log(`${installer.displayName} 安装失败: ${status.message}`);
-      this.emit({ phase: 'error', dependencyId: installer.id, message: `${installer.displayName} 安装失败: ${status.message}`, progress: -1, dependencies: this.snapshot(statuses) });
+      this.emit({
+        phase: 'error',
+        dependencyId: installer.id,
+        message: `${installer.displayName} 安装失败: ${status.message}`,
+        progress: -1,
+        dependencies: this.snapshot(statuses),
+      });
       throw this.wrapWithLogs(error);
     }
   }
@@ -311,7 +340,10 @@ export class OobeService {
   private wrapWithLogs(error: unknown): MofoxError {
     const message = error instanceof Error ? error.message : String(error);
     const code = error instanceof MofoxError ? error.code : 'IO_ERROR';
-    const details = { ...(error instanceof MofoxError && error.details ? error.details : {}), logs: [...this.logs] };
+    const details = {
+      ...(error instanceof MofoxError && error.details ? error.details : {}),
+      logs: [...this.logs],
+    };
     return new MofoxError(code, message, details);
   }
 

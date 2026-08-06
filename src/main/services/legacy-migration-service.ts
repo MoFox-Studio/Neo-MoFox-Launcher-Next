@@ -1,12 +1,12 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type Instance } from '../../shared/domain/instance';
 import {
-  type Instance,
   type LegacyInstancePreview,
   type LegacyLauncherInfo,
   type MigrationPreview,
   type MigrationResult,
-} from '../../shared/domain/instance';
+} from '../../shared/domain/migration';
 import { MofoxError } from '../../shared/domain/error';
 import { normalizeInstance } from './instance-repository';
 
@@ -46,8 +46,7 @@ export class LegacyMigrationService {
       list(): Promise<Instance[]>;
       mergeExternal(incoming: Instance[]): Promise<{ imported: Instance[]; skipped: Instance[] }>;
     },
-    private readonly report: DiagnosticReporter = (message, error) =>
-      console.warn(message, error),
+    private readonly report: DiagnosticReporter = (message, error) => console.warn(message, error),
   ) {}
 
   /** 探测旧启动器数据目录是否存在 instances.json，并返回其摘要。 */
@@ -73,18 +72,13 @@ export class LegacyMigrationService {
   async preview(): Promise<MigrationPreview> {
     const info = await this.detect();
     if (!info) {
-      throw new MofoxError(
-        'NOT_FOUND',
-        `未在 ${this.legacyDataDirectory} 找到旧启动器数据`,
-      );
+      throw new MofoxError('NOT_FOUND', `未在 ${this.legacyDataDirectory} 找到旧启动器数据`);
     }
     const records = await this.readRawRecords(join(this.legacyDataDirectory, 'instances.json'));
     const existing = await this.repository.list();
     const existingIds = new Set(existing.map((instance) => instance.id));
     const existingPaths = new Set(
-      existing
-        .map((instance) => instance.mofoxInstallDir)
-        .filter((value) => value.trim()),
+      existing.map((instance) => instance.mofoxInstallDir).filter((value) => value.trim()),
     );
 
     const previews: LegacyInstancePreview[] = [];

@@ -1,6 +1,10 @@
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
-import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from '../../shared/domain/instance';
+import type {
+  LegacyLauncherInfo,
+  MigrationPreview,
+  MigrationResult,
+} from '../../shared/domain/migration';
 
 /** 迁移 IPC 边界：渲染端只能触发检测、预览与导入三种动作，路径解析与文件 IO 留在服务层。 */
 interface MigrationServices {

@@ -1,4 +1,4 @@
-import type { InstallRequest } from '../../shared/domain/instance';
+import type { InstallRequest } from '../../shared/domain/install';
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
@@ -22,9 +22,13 @@ interface IpcMainRegistrar {
  * @param actions - 暴露给渲染端的安装任务动作集合（start/retry/cancel）。
  */
 export function registerInstallIpc(ipcMain: IpcMainRegistrar, actions: InstallActions): void {
-  register(ipcMain, IPC_INVOKE_CHANNELS.startInstall, (request) => actions.start(requireRequest(request)));
+  register(ipcMain, IPC_INVOKE_CHANNELS.startInstall, (request) =>
+    actions.start(requireRequest(request)),
+  );
   register(ipcMain, IPC_INVOKE_CHANNELS.retryInstall, (taskId) => actions.retry(requireId(taskId)));
-  register(ipcMain, IPC_INVOKE_CHANNELS.cancelInstall, (taskId) => actions.cancel(requireId(taskId)));
+  register(ipcMain, IPC_INVOKE_CHANNELS.cancelInstall, (taskId) =>
+    actions.cancel(requireId(taskId)),
+  );
 }
 
 /**
@@ -41,7 +45,12 @@ function requireRequest(value: unknown): InstallRequest {
     throw new MofoxError('INVALID_ARGUMENT', 'Install request must be an object');
   }
   const request = value as Partial<InstallRequest>;
-  if (typeof request.instanceName !== 'string' || typeof request.platformId !== 'string' || typeof request.version !== 'string' || typeof request.targetDir !== 'string') {
+  if (
+    typeof request.instanceName !== 'string' ||
+    typeof request.platformId !== 'string' ||
+    typeof request.version !== 'string' ||
+    typeof request.targetDir !== 'string'
+  ) {
     throw new MofoxError('INVALID_ARGUMENT', 'Install request fields are invalid');
   }
   return request as InstallRequest;
@@ -54,7 +63,8 @@ function requireRequest(value: unknown): InstallRequest {
  * @returns 去除首尾空白后的任务 ID。
  */
 function requireId(value: unknown): string {
-  if (typeof value !== 'string' || !value.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Task ID is required');
+  if (typeof value !== 'string' || !value.trim())
+    throw new MofoxError('INVALID_ARGUMENT', 'Task ID is required');
   return value;
 }
 
@@ -65,9 +75,17 @@ function requireId(value: unknown): string {
  * @param channel - 需要监听的 IPC 通道名。
  * @param handler - 实际业务处理函数，参数来自渲染端 invoke 调用。
  */
-function register(ipcMain: IpcMainRegistrar, channel: string, handler: (...args: unknown[]) => unknown): void {
+function register(
+  ipcMain: IpcMainRegistrar,
+  channel: string,
+  handler: (...args: unknown[]) => unknown,
+): void {
   ipcMain.handle(channel, async (_event, ...args) => {
     // 对取消、冲突和安装失败使用统一错误协议，避免泄露主进程异常对象。
-    try { return await handler(...args); } catch (error) { throw serializeIpcError(error); }
+    try {
+      return await handler(...args);
+    } catch (error) {
+      throw serializeIpcError(error);
+    }
   });
 }

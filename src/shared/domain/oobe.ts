@@ -1,4 +1,4 @@
-import type { LegacyLauncherInfo } from './instance';
+import type { LegacyLauncherInfo } from './migration';
 
 /** 单个依赖的安装状态，供 UI 渲染进度列表。 */
 export interface OobeDependencyStatus {

@@ -1,4 +1,4 @@
-import type { LauncherSettings } from '../../shared/domain/instance';
+import type { LauncherSettings } from '../../shared/domain/settings';
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
 import type { BotPlatformMetadata } from '../../shared/domain/bot-platform';

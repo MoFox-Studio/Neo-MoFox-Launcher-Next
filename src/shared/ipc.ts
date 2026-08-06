@@ -8,13 +8,10 @@ import type {
   InstanceProcessSource,
   InstanceStats,
   InstanceStatus,
-  InstallProgressEvent,
-  InstallRequest,
-  LauncherSettings,
-  LegacyLauncherInfo,
-  MigrationPreview,
-  MigrationResult,
 } from './domain/instance';
+import type { InstallProgressEvent, InstallRequest } from './domain/install';
+import type { LauncherSettings } from './domain/settings';
+import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from './domain/migration';
 import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from './domain/oobe';
 import type {
   DirectoryPickerOptions,

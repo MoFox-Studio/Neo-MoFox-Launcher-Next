@@ -82,6 +82,10 @@ function createMainWindow(): BrowserWindow {
     frame: false,
     show: false,
     transparent: true, // 开启透明
+    // 系统原生材质：无壁纸时由 shell 玻璃层透出桌面，提供微微模糊的桌面感。
+    backgroundMaterial: isMac ? 'none' : isWindows ? 'mica' : 'none',
+    visualEffectState: 'active',
+    vibrancy: isMac ? 'under-window' : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

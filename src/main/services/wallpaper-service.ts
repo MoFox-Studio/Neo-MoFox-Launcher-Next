@@ -1,7 +1,7 @@
 import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { LauncherSettings } from '../../shared/domain/instance';
+import type { LauncherSettings } from '../../shared/domain/settings';
 import type { WallpaperAsset, WallpaperType } from '../../shared/domain/wallpaper';
 import { MofoxError } from '../../shared/domain/error';
 
@@ -154,7 +154,8 @@ export class WallpaperService {
    * @throws {MofoxError} 文件名未处于当前或暂存白名单时抛出 `NOT_FOUND`。
    */
   async resolveMediaPath(fileName: string): Promise<string> {
-    if (!isManagedFileName(fileName)) throw new MofoxError('NOT_FOUND', 'Wallpaper asset was not found');
+    if (!isManagedFileName(fileName))
+      throw new MofoxError('NOT_FOUND', 'Wallpaper asset was not found');
     const current = await this.settings.get();
     const isCurrent = current.wallpaperFileName === fileName;
     const isStaged = [...this.staged.values()].some((asset) => asset.fileName === fileName);
@@ -168,7 +169,8 @@ export class WallpaperService {
   private async getRegularFileStat(path: string) {
     try {
       const info = await stat(path);
-      if (!info.isFile()) throw new MofoxError('INVALID_ARGUMENT', 'Wallpaper must be a regular file');
+      if (!info.isFile())
+        throw new MofoxError('INVALID_ARGUMENT', 'Wallpaper must be a regular file');
       return info;
     } catch (error) {
       if (error instanceof MofoxError) throw error;
@@ -199,7 +201,10 @@ export class WallpaperService {
 function getWallpaperType(extension: string): Exclude<WallpaperType, 'none'> {
   if (IMAGE_EXTENSIONS.has(extension)) return 'image';
   if (VIDEO_EXTENSIONS.has(extension)) return 'video';
-  throw new MofoxError('INVALID_ARGUMENT', 'Supported wallpaper formats: JPG, PNG, WebP, MP4, WebM');
+  throw new MofoxError(
+    'INVALID_ARGUMENT',
+    'Supported wallpaper formats: JPG, PNG, WebP, MP4, WebM',
+  );
 }
 
 /** 判断文件名是否符合暂存或正式受管媒体的严格命名规则。 */

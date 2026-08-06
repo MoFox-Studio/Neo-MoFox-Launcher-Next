@@ -3,14 +3,19 @@ import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
+import type { LauncherSettings } from '@shared/domain/settings';
 import type {
-  LauncherSettings,
   LegacyLauncherInfo,
   MigrationPreview,
   MigrationResult,
-} from '@shared/domain/instance';
+} from '@shared/domain/migration';
 import { MofoxError } from '@shared/domain/error';
-import { extractColorsFromImage, clearWallpaperColors, loadWallpaperColors, saveWallpaperColors } from '@/utils/wallpaper-color-manager';
+import {
+  extractColorsFromImage,
+  clearWallpaperColors,
+  loadWallpaperColors,
+  saveWallpaperColors,
+} from '@/utils/wallpaper-color-manager';
 import { extractFirstFrameAsFile } from '@/utils/video-frame-extractor';
 import { getWallpaperMediaUrl, loadWallpaperFile } from '@/utils/wallpaper-media';
 
@@ -329,7 +334,11 @@ onMounted(() => {
               <span v-if="wallpaperError" class="settings-item__error">{{ wallpaperError }}</span>
             </div>
             <div class="wallpaper-actions">
-              <button class="text-button state-layer" :disabled="wallpaperBusy" @click="selectWallpaper">
+              <button
+                class="text-button state-layer"
+                :disabled="wallpaperBusy"
+                @click="selectWallpaper"
+              >
                 {{ wallpaperBusy ? '正在导入' : hasWallpaper ? '更换' : '选择壁纸' }}
               </button>
               <button
@@ -367,7 +376,10 @@ onMounted(() => {
             </div>
           </div>
 
-          <div class="wallpaper-controls" :class="{ 'wallpaper-controls--disabled': !hasWallpaper }">
+          <div
+            class="wallpaper-controls"
+            :class="{ 'wallpaper-controls--disabled': !hasWallpaper }"
+          >
             <label class="wallpaper-slider">
               <span class="wallpaper-slider__label">模糊</span>
               <input
@@ -392,7 +404,9 @@ onMounted(() => {
                 :disabled="!hasWallpaper || wallpaperBusy"
                 @input="updateWallpaperOpacity"
               />
-              <span class="wallpaper-slider__value">{{ Math.round(settings.wallpaperOpacity * 100) }}%</span>
+              <span class="wallpaper-slider__value"
+                >{{ Math.round(settings.wallpaperOpacity * 100) }}%</span
+              >
             </label>
           </div>
 
@@ -605,10 +619,11 @@ onMounted(() => {
                   <span class="msr migration-preview__icon">{{
                     entry.conflict ? 'block' : 'check_circle'
                   }}</span>
-                    <div class="migration-preview__text">
+                  <div class="migration-preview__text">
                     <span class="migration-preview__name">{{ entry.instance.name }}</span>
                     <span class="migration-preview__meta">
-                      {{ Object.keys(entry.instance.platforms ?? {})[0] ?? '' }} · {{ entry.instance.mofoxInstallDir }}
+                      {{ Object.keys(entry.instance.platforms ?? {})[0] ?? '' }} ·
+                      {{ entry.instance.mofoxInstallDir }}
                     </span>
                   </div>
                   <span v-if="entry.conflict" class="migration-preview__tag">
@@ -959,11 +974,7 @@ onMounted(() => {
 }
 
 .wallpaper-preview--empty {
-  background: color-mix(
-    in srgb,
-    var(--md-sys-color-surface-container-high) 72%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 72%, transparent);
 }
 
 .wallpaper-preview__empty {
