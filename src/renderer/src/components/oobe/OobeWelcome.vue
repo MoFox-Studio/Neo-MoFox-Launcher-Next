@@ -28,16 +28,16 @@ const emit = defineEmits<{ (e: 'next'): void }>();
 }
 
 .oobe__hero {
-  width: 160px;
-  height: 160px;
+  width: 216px;
+  height: 216px;
   display: grid;
   place-items: center;
   margin-bottom: 32px;
 }
 
 .oobe__hero-logo {
-  width: 136px;
-  height: 136px;
+  width: 192px;
+  height: 192px;
   object-fit: contain;
 }
 

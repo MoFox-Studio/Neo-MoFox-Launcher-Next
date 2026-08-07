@@ -76,8 +76,8 @@ onUnmounted(() => unsubscribe?.());
 }
 
 .titlebar__logo {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   flex: none;
   object-fit: contain;
 }
