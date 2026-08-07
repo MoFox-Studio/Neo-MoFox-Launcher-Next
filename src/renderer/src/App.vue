@@ -38,12 +38,12 @@ const bare = computed(() => route.meta.bare === true);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
   border-radius: var(--app-window-radius);
-  background: color-mix(in srgb, var(--md-sys-color-surface) 76%, transparent);
+  background: var(--app-glass-surface);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.24),
     0 18px 48px rgb(20 18 24 / 0.16);
-  backdrop-filter: blur(24px) saturate(145%);
-  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
 }
 
 .shell--bare {
