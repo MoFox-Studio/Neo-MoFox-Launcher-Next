@@ -13,6 +13,7 @@
   <img alt="TypeScript 5.7" src="https://img.shields.io/badge/TypeScript-5.7-fb923c?style=flat-square&logo=typescript&logoColor=white">
   <img alt="Windows 与 Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-475569?style=flat-square">
   <img alt="早期开发阶段" src="https://img.shields.io/badge/status-early%20development-6b4f3f?style=flat-square">
+  <img alt="许可证 AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square">
 </p>
 
 <p align="center">
@@ -153,3 +154,7 @@ test/           # main、preload、renderer 的单元测试
 - [重构设计说明](./docs/Neo-MoFox-Laucher.md)
 - [问题反馈](https://github.com/MoFox-Studio/Neo-MoFox-Launcher/issues)
 - [讨论区](https://github.com/MoFox-Studio/Neo-MoFox-Launcher/discussions)
+
+## 许可证
+
+本项目采用 [GNU Affero General Public License v3.0](./LICENSE)（AGPL-3.0）授权。

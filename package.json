@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Neo-MoFox Launcher — Electron + Vue 3 + TypeScript rewrite",
   "author": "Neo-MoFox",
+  "license": "AGPL-3.0-only",
   "private": true,
   "main": "dist/main/index.js",
   "type": "commonjs",
