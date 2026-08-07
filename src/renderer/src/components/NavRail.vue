@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router';
+import { useAddInstanceStore } from '@/stores/add-instance';
 
 // 主导航：路由驱动选中态。
 interface NavItem {
@@ -17,6 +18,7 @@ const items: NavItem[] = [
 // 当前路由决定导航的动态视觉状态。
 const route = useRoute();
 const router = useRouter();
+const addInstanceStore = useAddInstanceStore();
 
 function isActive(item: NavItem): boolean {
   return route.name === item.name;
@@ -45,7 +47,7 @@ function isActive(item: NavItem): boolean {
     <button
       class="rail__primary state-layer"
       type="button"
-      @click="router.push({ name: 'install' })"
+      @click="addInstanceStore.show()"
     >
       <span class="msr" aria-hidden="true">add_circle</span>
       <span>新建实例</span>

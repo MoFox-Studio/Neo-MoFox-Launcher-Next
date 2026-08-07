@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import type { Instance } from '@shared/domain/instance';
 import StatusBadge from './StatusBadge.vue';
+import ExportPackDialog from './ExportPackDialog.vue';
 
 interface Props {
   instance: Instance;
@@ -10,6 +11,7 @@ interface Props {
 
 const props = defineProps<Props>();
 const router = useRouter();
+const exportOpen = ref(false);
 
 // 将卡片操作上抛给实例列表，由上层统一处理进程和文件系统行为。
 const emit = defineEmits<{
@@ -131,6 +133,15 @@ function openPathConfiguration(): void {
       <button
         class="icon-btn state-layer"
         type="button"
+        title="导出整合包"
+        aria-label="导出整合包"
+        @click="exportOpen = true"
+      >
+        <span class="msr" aria-hidden="true">archive</span>
+      </button>
+      <button
+        class="icon-btn state-layer"
+        type="button"
         title="删除"
         aria-label="删除"
         @click="emit('remove', instance.id)"
@@ -139,6 +150,8 @@ function openPathConfiguration(): void {
       </button>
     </div>
   </article>
+
+  <ExportPackDialog :instance="instance" :open="exportOpen" @close="exportOpen = false" />
 </template>
 
 <style scoped>

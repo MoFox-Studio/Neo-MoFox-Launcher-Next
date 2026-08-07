@@ -47,6 +47,31 @@ describe('createMofoxApi', () => {
     });
     await api.retryInstall('task-1');
     await api.cancelInstall('task-1');
+    await api.scanInstancePlugins('instance-1');
+    await api.scanInstancePluginConfigs('instance-1');
+    await api.exportIntegrationPack('instance-1', {
+      packName: 'Test',
+      packVersion: '1.0.0',
+      packAuthor: '',
+      packDescription: '',
+      includeMofox: true,
+      includeConfig: true,
+      includePlugins: true,
+      selectedPlugins: [],
+      includePluginConfigs: false,
+      selectedPluginConfigs: [],
+      includeData: false,
+    }, 'C:\\MoFox\\test.mfpack');
+    await api.validateIntegrationPack('C:\\MoFox\\test.mfpack');
+    await api.importIntegrationPack({
+      packPath: 'C:\\MoFox\\test.mfpack',
+      instanceName: 'Test',
+      targetDir: 'C:\\MoFox',
+    });
+    await api.manualAddInstance({
+      mofoxInstallDir: 'C:\\MoFox',
+      displayName: 'Test',
+    });
     await api.detectSystemEnv();
     await api.listBotPlatforms();
     await api.getSettings();

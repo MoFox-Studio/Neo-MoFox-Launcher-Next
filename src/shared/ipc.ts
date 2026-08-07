@@ -11,6 +11,15 @@ import type {
   InstanceStatus,
 } from './domain/instance';
 import type { InstallProgressEvent, InstallRequest } from './domain/install';
+import type { ManualAddRequest, ManualAddResult } from './domain/manual-add';
+import type {
+  PackExportOptions,
+  PackImportRequest,
+  PackItemInfo,
+  PackManifest,
+  PackProgressEvent,
+  PackValidationResult,
+} from './domain/pack';
 import type { LauncherSettings } from './domain/settings';
 import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from './domain/migration';
 import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from './domain/oobe';
@@ -50,6 +59,12 @@ export const IPC_INVOKE_CHANNELS = {
   startInstall: 'install:start',
   retryInstall: 'install:retry',
   cancelInstall: 'install:cancel',
+  scanInstancePlugins: 'instances:scan-plugins',
+  scanInstancePluginConfigs: 'instances:scan-plugin-configs',
+  exportIntegrationPack: 'pack:export',
+  validateIntegrationPack: 'pack:validate',
+  importIntegrationPack: 'pack:import',
+  manualAddInstance: 'instances:manual-add',
   detectSystemEnv: 'environment:detect',
   listBotPlatforms: 'bot-platforms:list',
   getSettings: 'settings:get',
@@ -78,6 +93,7 @@ export const IPC_EVENT_CHANNELS = {
   'window-maximize-changed': 'event:window-maximize-changed',
   'download-progress': 'event:download-progress',
   'oobe-progress': 'event:oobe-progress',
+  'pack-progress': 'event:pack-progress',
 } as const satisfies Record<keyof MofoxEventMap, string>;
 
 /** 从主进程推送至渲染进程的事件载荷映射。 */
@@ -89,6 +105,7 @@ export interface MofoxEventMap {
   'window-maximize-changed': boolean;
   'download-progress': DownloadProgress;
   'oobe-progress': OobeProgress;
+  'pack-progress': PackProgressEvent;
 }
 
 export interface MofoxApi {
@@ -123,6 +140,18 @@ export interface MofoxApi {
   startInstall(request: InstallRequest): Promise<string>;
   retryInstall(taskId: string): Promise<void>;
   cancelInstall(taskId: string): Promise<void>;
+
+  /** 整合包：扫描实例组件、导出、校验与导入。 */
+  scanInstancePlugins(instanceId: string): Promise<PackItemInfo[]>;
+  scanInstancePluginConfigs(instanceId: string): Promise<PackItemInfo[]>;
+  exportIntegrationPack(
+    instanceId: string,
+    options: PackExportOptions,
+    destPath: string,
+  ): Promise<void>;
+  validateIntegrationPack(packPath: string): Promise<PackValidationResult>;
+  importIntegrationPack(request: PackImportRequest): Promise<PackManifest>;
+  manualAddInstance(config: ManualAddRequest): Promise<ManualAddResult>;
 
   /** 系统探测与平台元数据查询。 */
   detectSystemEnv(): Promise<SystemEnvInfo>;

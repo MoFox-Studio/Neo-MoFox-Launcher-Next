@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useInstancesStore } from '@/stores/instances';
+import { useAddInstanceStore } from '@/stores/add-instance';
 import { mofoxApi } from '@/services/mofox-api';
 import PageHeader from '@/components/PageHeader.vue';
 import InstanceCard from '@/components/InstanceCard.vue';
@@ -9,6 +10,7 @@ import InstanceCard from '@/components/InstanceCard.vue';
 // 概览页聚合实例运行数据，并将卡片交互委派给实例仓库或路由。
 const router = useRouter();
 const instancesStore = useInstancesStore();
+const addInstanceStore = useAddInstanceStore();
 
 // 随当前时段生成问候语，统计值始终从响应式实例列表派生。
 const greeting = computed(() => {
@@ -55,7 +57,7 @@ function onLogs(id: string): void {
 }
 
 function goInstall(): void {
-  router.push({ name: 'install' });
+  addInstanceStore.show();
 }
 </script>
 

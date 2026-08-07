@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import AppTitleBar from '@/components/AppTitleBar.vue';
 import NavRail from '@/components/NavRail.vue';
 import WallpaperLayer from '@/components/WallpaperLayer.vue';
+import AddInstanceDialog from '@/components/AddInstanceDialog.vue';
 
 const route = useRoute();
 // 根据路由元数据切换首次引导的沉浸式布局。
@@ -28,6 +29,7 @@ const hideNavRail = computed(() => route.name === 'instance-logs');
         <NavRail v-if="!bare && !hideNavRail" />
       </div>
     </div>
+    <AddInstanceDialog v-if="!bare" />
   </div>
 </template>
 

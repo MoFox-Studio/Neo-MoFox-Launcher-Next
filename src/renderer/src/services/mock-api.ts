@@ -290,6 +290,122 @@ export const mockApi: MofoxApi = {
   async retryInstall() {},
   async cancelInstall() {},
 
+  async scanInstancePlugins(instanceId) {
+    await delay(80);
+    const ins = instances.find((i) => i.id === instanceId);
+    if (!ins) throw new Error(`unknown instance ${instanceId}`);
+    return [
+      { name: 'auto-reply', type: 'folder' },
+      { name: 'memory-store', type: 'folder' },
+      { name: 'stats-banner', type: 'folder' },
+    ];
+  },
+  async scanInstancePluginConfigs(instanceId) {
+    await delay(80);
+    const ins = instances.find((i) => i.id === instanceId);
+    if (!ins) throw new Error(`unknown instance ${instanceId}`);
+    return [
+      { name: 'auto-reply.toml', type: 'file' },
+      { name: 'memory-store.toml', type: 'file' },
+      { name: 'stats-banner.toml', type: 'file' },
+    ];
+  },
+  async exportIntegrationPack(_instanceId, _options, _destPath) {
+    await delay(60);
+    const percent = [8, 22, 41, 63, 84, 100];
+    for (const p of percent) {
+      await delay(160);
+      emit('pack-progress', {
+        taskId: `pack-${Date.now()}`,
+        percent: p,
+        message: `正在打包 ${p}%`,
+      });
+    }
+    return undefined as void;
+  },
+  async validateIntegrationPack(_packPath) {
+    await delay(140);
+    return {
+      valid: true,
+      errors: [],
+      warnings: [],
+      manifest: {
+        version: 2,
+        packName: '示例整合包',
+        packVersion: '1.0.0',
+        author: 'mofox',
+        description: '整合包示例',
+        createdAt: new Date().toISOString(),
+        content: {
+          neoMofox: { included: true, version: '0.9.4' },
+          platform: { id: 'napcat', installOnImport: false },
+          plugins: { included: true, list: ['auto-reply', 'memory-store'] },
+          config: { included: true },
+          pluginConfigs: { included: true, list: ['auto-reply.toml'] },
+          data: { included: false },
+        },
+      },
+    };
+  },
+  async importIntegrationPack(request) {
+    await delay(200);
+    const percent = [15, 38, 62, 85, 100];
+    for (const p of percent) {
+      await delay(90);
+      emit('pack-progress', {
+        taskId: `pack-${Date.now()}`,
+        percent: p,
+        message: `导入 ${p}%`,
+      });
+    }
+    instances.push({
+      id: `ins-${Date.now()}`,
+      name: request.instanceName || '整合包实例',
+      version: '1.0.0',
+      mofoxInstallDir: request.targetDir,
+      platforms: {},
+      status: 'stopped',
+      createdAt: Date.now(),
+      autoStart: false,
+    });
+    return {
+      version: 2,
+      packName: request.instanceName || '整合包实例',
+      packVersion: '1.0.0',
+      author: '',
+      description: '',
+      createdAt: new Date().toISOString(),
+      content: {
+        neoMofox: { included: false },
+        platform: { id: 'napcat' },
+        plugins: { included: false, list: [] },
+        config: { included: false },
+        pluginConfigs: { included: false, list: [] },
+        data: { included: false },
+      },
+    };
+  },
+  async manualAddInstance(config) {
+    await delay(160);
+    const insId = `ins-${Date.now()}`;
+    instances.push({
+      id: insId,
+      name: config.displayName || config.mofoxInstallDir.split(/[\\/]/).pop() || '手动添加实例',
+      version: config.platformVersion || 'unknown',
+      mofoxInstallDir: config.mofoxInstallDir,
+      platforms: config.platformId
+        ? { [config.platformId]: config.platformDir || config.mofoxInstallDir }
+        : {},
+      status: 'stopped',
+      createdAt: Date.now(),
+      autoStart: false,
+    });
+    return {
+      success: true,
+      instanceId: insId,
+    };
+  },
+
   async detectSystemEnv() {
     await delay(350);
     return {

@@ -11,9 +11,12 @@ import { registerOobeIpc } from './ipc/oobe';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
+import { registerPackIpc } from './ipc/pack';
 import { PlatformRegistry } from './platforms/registry';
+import { ManualAddService } from './services/manual-add-service';
 import { OobeService } from './services/oobe-service';
 import { InstallTaskService } from './services/install-task-service';
+import { PackService } from './services/pack-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
 import { pickDirectory, pickFile } from './services/filepicker-service';
@@ -243,6 +246,19 @@ if (!hasSingleInstanceLock) {
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
     registerInstallIpc(ipcMain, installTasks);
+    const packService = new PackService(instances, {
+      progress: (event) => send(IPC_EVENT_CHANNELS['pack-progress'], event),
+    });
+    const manualAddService = new ManualAddService(instances);
+    registerPackIpc(ipcMain, {
+      scanPlugins: (id) => packService.scanInstancePlugins(id),
+      scanPluginConfigs: (id) => packService.scanInstancePluginConfigs(id),
+      exportPack: (id, options, destPath) =>
+        packService.exportIntegrationPack(id, options, destPath),
+      validatePack: (path) => packService.validateIntegrationPack(path),
+      importPack: (request) => packService.importIntegrationPack(request),
+      manualAdd: (request) => manualAddService.add(request),
+    });
     // 旧启动器迁移：默认指向与当前 userData 同级的 Neo-MoFox-Launcher 目录。
     const legacyDataDir = resolveLegacyLauncherDataDir({
       appDataDir: app.getPath('appData'),

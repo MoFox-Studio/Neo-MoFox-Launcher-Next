@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { Instance, InstanceStatus } from '@shared/domain/instance';
 import { useInstancesStore } from '@/stores/instances';
+import { useAddInstanceStore } from '@/stores/add-instance';
 import { mofoxApi } from '@/services/mofox-api';
 import PageHeader from '@/components/PageHeader.vue';
 import InstanceCard from '@/components/InstanceCard.vue';
@@ -26,6 +27,7 @@ const FILTERS: FilterOption[] = [
 const router = useRouter();
 const route = useRoute();
 const instancesStore = useInstancesStore();
+const addInstanceStore = useAddInstanceStore();
 
 // 筛选条件和待确认删除项只属于当前视图的临时响应式状态。
 const keyword = ref('');
@@ -74,7 +76,7 @@ function onRefresh(): void {
 }
 
 function goInstall(): void {
-  router.push({ name: 'install' });
+  addInstanceStore.show();
 }
 
 function onStart(id: string): void {

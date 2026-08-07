@@ -60,6 +60,17 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     startInstall: (request) => invoke(IPC_INVOKE_CHANNELS.startInstall, request),
     retryInstall: (taskId) => invoke(IPC_INVOKE_CHANNELS.retryInstall, taskId),
     cancelInstall: (taskId) => invoke(IPC_INVOKE_CHANNELS.cancelInstall, taskId),
+    scanInstancePlugins: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.scanInstancePlugins, instanceId),
+    scanInstancePluginConfigs: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.scanInstancePluginConfigs, instanceId),
+    exportIntegrationPack: (instanceId, options, destPath) =>
+      invoke(IPC_INVOKE_CHANNELS.exportIntegrationPack, instanceId, options, destPath),
+    validateIntegrationPack: (packPath) =>
+      invoke(IPC_INVOKE_CHANNELS.validateIntegrationPack, packPath),
+    importIntegrationPack: (request) =>
+      invoke(IPC_INVOKE_CHANNELS.importIntegrationPack, request),
+    manualAddInstance: (config) => invoke(IPC_INVOKE_CHANNELS.manualAddInstance, config),
     detectSystemEnv: () => invoke(IPC_INVOKE_CHANNELS.detectSystemEnv),
     listBotPlatforms: () => invoke(IPC_INVOKE_CHANNELS.listBotPlatforms),
     getSettings: () => invoke(IPC_INVOKE_CHANNELS.getSettings),

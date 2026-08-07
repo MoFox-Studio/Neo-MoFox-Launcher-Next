@@ -10,6 +10,8 @@ export const router = createRouter({
     { path: '/instances/:id/logs', name: 'instance-logs', component: () => import('@/views/InstanceLogView.vue') },
     { path: '/instances/:id/paths', name: 'instance-paths', component: () => import('@/views/InstancePathsView.vue') },
     { path: '/install', name: 'install', component: () => import('@/views/InstallWizardView.vue') },
+    { path: '/import', name: 'import-pack', component: () => import('@/views/ImportPackView.vue') },
+    { path: '/manual-add', name: 'manual-add', component: () => import('@/views/ManualAddView.vue') },
     { path: '/oobe', name: 'oobe', component: () => import('@/views/OobeView.vue'), meta: { bare: true } },
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
   ],
