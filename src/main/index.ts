@@ -78,6 +78,9 @@ function createMainWindow(): BrowserWindow {
     height: 760,
     minWidth: 900,
     minHeight: 620,
+    icon: app.isPackaged
+      ? join(process.resourcesPath, 'icon.ico')
+      : join(__dirname, '../../assets/images/icon.ico'),
     frame: false,
     show: false,
     // Acrylic 必须使用普通 DWM 窗口；layered transparent 窗口不会获得 Windows 11 原生圆角。

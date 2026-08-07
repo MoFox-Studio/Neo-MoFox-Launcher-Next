@@ -21,7 +21,7 @@ onUnmounted(() => unsubscribe?.());
   <header class="titlebar">
     <!-- 品牌区与原生窗口控制按钮 -->
     <div class="titlebar__brand">
-      <span class="msr msr--fill titlebar__logo" aria-hidden="true">pets</span>
+      <img class="titlebar__logo" src="/logo.png" alt="" />
       <span class="titlebar__name">Neo-MoFox</span>
     </div>
 
@@ -76,8 +76,10 @@ onUnmounted(() => unsubscribe?.());
 }
 
 .titlebar__logo {
-  font-size: 17px;
-  color: var(--md-sys-color-primary);
+  width: 20px;
+  height: 20px;
+  flex: none;
+  object-fit: contain;
 }
 
 .titlebar__name {
