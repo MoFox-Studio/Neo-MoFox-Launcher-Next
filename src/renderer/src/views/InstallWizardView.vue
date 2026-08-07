@@ -463,10 +463,7 @@ onMounted(async () => {
   flex: 0 0 260px;
   padding: 40px 24px;
   border-right: 1px solid var(--app-glass-border);
-  background: var(--md-sys-color-surface);
-  background: var(--app-glass-surface);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 24%, transparent);
   overflow-y: auto;
 }
 
@@ -552,7 +549,7 @@ onMounted(async () => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 40px 48px;
+  padding: 40px 48px 96px;
   overflow: hidden;
 }
 

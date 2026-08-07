@@ -11,13 +11,11 @@ const bare = computed(() => route.meta.bare === true);
 </script>
 
 <template>
-  <div class="shell">
+  <div class="shell" :class="{ 'shell--bare': bare }">
     <WallpaperLayer />
     <div class="shell__foreground">
-      <!-- 应用窗体栏与主导航框架始终位于壁纸层上方。 -->
       <AppTitleBar />
       <div class="shell__body">
-        <NavRail v-if="!bare" />
         <main class="shell__content">
           <router-view v-slot="{ Component }">
             <transition name="page" mode="out-in">
@@ -25,6 +23,7 @@ const bare = computed(() => route.meta.bare === true);
             </transition>
           </router-view>
         </main>
+        <NavRail v-if="!bare" />
       </div>
     </div>
   </div>
@@ -32,16 +31,24 @@ const bare = computed(() => route.meta.bare === true);
 
 <style scoped>
 .shell {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
-  /* 透明：让标题栏与导航栏所在列露出系统材质或壁纸。 */
-  background: transparent;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
+  border-radius: var(--app-window-radius);
+  background: color-mix(in srgb, var(--md-sys-color-surface) 76%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.24),
+    0 18px 48px rgb(20 18 24 / 0.16);
+  backdrop-filter: blur(24px) saturate(145%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
 }
 
 .shell__foreground {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -49,24 +56,22 @@ const bare = computed(() => route.meta.bare === true);
 }
 
 .shell__body {
+  position: relative;
   flex: 1;
   display: flex;
   min-height: 0;
+  flex-direction: column;
   background: transparent;
 }
 
-/* 主内容画布保持直角，避免内嵌侧栏右上角出现不连续的圆角。 */
 .shell__content {
   flex: 1;
   min-width: 0;
-  background: color-mix(
-    in srgb,
-    var(--md-sys-color-surface) calc(var(--app-wallpaper-content-opacity) * 100%),
-    transparent
-  );
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: transparent;
 }
 
 /*
@@ -96,6 +101,5 @@ const bare = computed(() => route.meta.bare === true);
   .page-leave-active {
     transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
-
 }
 </style>

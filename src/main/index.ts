@@ -71,7 +71,6 @@ function emitMaximizeState(window: BrowserWindow): void {
  * @returns 初始化完成的 BrowserWindow。
  */
 function createMainWindow(): BrowserWindow {
-  const isMac = process.platform === 'darwin';
   const isWindows = process.platform === 'win32';
 
   const window = new BrowserWindow({
@@ -81,11 +80,10 @@ function createMainWindow(): BrowserWindow {
     minHeight: 620,
     frame: false,
     show: false,
-    transparent: true, // 开启透明
-    // 系统原生材质：无壁纸时由 shell 玻璃层透出桌面，提供微微模糊的桌面感。
-    backgroundMaterial: isMac ? 'none' : isWindows ? 'mica' : 'none',
-    visualEffectState: 'active',
-    vibrancy: isMac ? 'under-window' : undefined,
+    transparent: true,
+    backgroundColor: '#00000000',
+    // CSS 无法模糊透明窗口后面的桌面；Windows Acrylic 由 DWM 负责采样和模糊。
+    backgroundMaterial: isWindows ? 'acrylic' : 'none',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

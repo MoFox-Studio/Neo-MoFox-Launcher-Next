@@ -22,7 +22,7 @@ onUnmounted(() => unsubscribe?.());
     <!-- 品牌区与原生窗口控制按钮 -->
     <div class="titlebar__brand">
       <span class="msr msr--fill titlebar__logo" aria-hidden="true">pets</span>
-      <span class="titlebar__name">Neo-MoFox Launcher</span>
+      <span class="titlebar__name">Neo-MoFox</span>
     </div>
 
     <div class="titlebar__controls">
@@ -63,30 +63,26 @@ onUnmounted(() => unsubscribe?.());
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-left: 16px;
+  padding-left: 24px;
   -webkit-app-region: drag;
   color: var(--md-sys-color-on-surface-variant);
-  /* 透明：直接透出 body 的系统材质，保留模糊以维持品牌与控件可读性。 */
   background: transparent;
-  border-bottom: 1px solid var(--app-glass-border);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
 }
 
 .titlebar__brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .titlebar__logo {
-  font-size: 18px;
+  font-size: 17px;
   color: var(--md-sys-color-primary);
 }
 
 .titlebar__name {
-  font: var(--md-sys-typescale-label-medium);
-  letter-spacing: 0.04em;
+  font: var(--md-sys-typescale-label-large);
+  color: var(--md-sys-color-on-surface);
 }
 
 .titlebar__controls {
@@ -96,7 +92,7 @@ onUnmounted(() => unsubscribe?.());
 }
 
 .titlebar__btn {
-  width: 46px;
+  width: 44px;
   height: 100%;
   display: grid;
   place-items: center;
@@ -104,6 +100,13 @@ onUnmounted(() => unsubscribe?.());
   background: transparent;
   color: inherit;
   cursor: default;
+  transition:
+    background-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+    transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.titlebar__btn:active {
+  transform: scale(0.94);
 }
 
 .titlebar__btn .msr {

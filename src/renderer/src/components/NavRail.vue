@@ -28,167 +28,177 @@ function isActive(item: NavItem): boolean {
 
 <template>
   <nav class="rail" aria-label="主导航">
-    <!-- 快捷创建入口 -->
-    <button
-      class="rail__fab state-layer"
-      type="button"
-      title="新建实例"
-      @click="router.push({ name: 'install' })"
-    >
-      <span class="msr" aria-hidden="true">add</span>
-    </button>
-
-    <!-- 路由导航项与安装中徽标 -->
     <ul class="rail__list">
       <li v-for="item in items" :key="item.name">
         <button
-          class="rail__item"
+          class="rail__item state-layer"
           type="button"
           :class="{ 'rail__item--active': isActive(item) }"
           :aria-current="isActive(item) ? 'page' : undefined"
           @click="router.push({ name: item.name })"
         >
-          <span class="rail__indicator state-layer">
-            <span class="msr" :class="{ 'msr--fill': isActive(item) }" aria-hidden="true">
-              {{ item.icon }}
-            </span>
-            <span
-              v-if="item.name === 'install' && install.isInstalling"
-              class="rail__badge"
-              aria-label="正在安装"
-            ></span>
+          <span class="msr rail__icon" :class="{ 'msr--fill': isActive(item) }" aria-hidden="true">
+            {{ item.icon }}
           </span>
           <span class="rail__label">{{ item.label }}</span>
+          <span
+            v-if="item.name === 'install' && install.isInstalling"
+            class="rail__badge"
+            aria-label="正在安装"
+          ></span>
         </button>
       </li>
     </ul>
+
+    <button
+      class="rail__primary state-layer"
+      type="button"
+      @click="router.push({ name: 'install' })"
+    >
+      <span class="msr" aria-hidden="true">add_circle</span>
+      <span>新建实例</span>
+    </button>
   </nav>
 </template>
 
 <style scoped>
-/* 导航栏、快捷入口和选中态 */
+/* 窗口内悬浮 Dock，不占据主内容布局高度。 */
 .rail {
-  width: var(--app-navrail-width);
-  flex: 0 0 var(--app-navrail-width);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 8px 0 20px;
-  border-right: 1px solid var(--app-glass-border);
-  background: var(--md-sys-color-surface);
-  background: var(--app-glass-surface);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
   z-index: 5;
-}
-
-.rail__fab {
-  width: 56px;
-  height: 56px;
-  border: none;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  min-height: var(--app-navbar-height);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid var(--app-glass-highlight);
   border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-high);
-  color: var(--md-sys-color-primary);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.rail__fab:hover {
-  background: var(--md-sys-color-primary-container);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
-  transform: scale(1.02);
-}
-
-.rail__fab:active {
-  transform: scale(0.98);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 68%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    0 10px 30px rgb(20 18 24 / 0.16);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  transform: translateX(-50%);
 }
 
 .rail__list {
-  width: 100%;
+  min-width: 0;
   list-style: none;
   margin: 0;
-  padding: 0 8px;
+  padding: 0;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  gap: 4px;
 }
 
 .rail__item {
   position: relative;
-  width: 100%;
-  min-height: 56px;
+  min-width: 68px;
+  height: 38px;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
-  gap: 4px;
-  padding: 8px 4px;
-  border: none;
-  border-radius: var(--md-sys-shape-corner-large);
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-small);
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
-  overflow: hidden;
   transition:
     background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
-.rail__item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 3px;
-  height: 32px;
-  border-radius: 0 2px 2px 0;
-  background: var(--md-sys-color-primary);
-  transform: translateY(-50%) scaleY(0);
-  transform-origin: center;
-  transition: transform var(--md-sys-motion-duration-short4)
-    var(--md-sys-motion-easing-standard);
-}
-
-.rail__item:hover {
-  background: var(--md-sys-color-surface-container-highest);
-}
-
-.rail__indicator {
-  position: relative;
-  width: 56px;
-  height: 24px;
-  border-radius: var(--md-sys-shape-corner-full);
-  display: grid;
-  place-items: center;
+.rail__item:active,
+.rail__primary:active {
+  transform: scale(0.97);
 }
 
 .rail__item--active {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+  background: color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent);
+  color: var(--md-sys-color-primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.42),
+    0 1px 5px rgb(20 18 24 / 0.06);
 }
 
-.rail__item--active::before {
-  transform: translateY(-50%) scaleY(1);
+.rail__icon {
+  font-size: 18px;
+}
+
+.rail__label,
+.rail__primary {
+  font: var(--md-sys-typescale-label-large);
 }
 
 .rail__badge {
   position: absolute;
-  top: 0;
-  right: 10px;
-  width: 8px;
-  height: 8px;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--md-sys-color-surface);
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-error);
 }
 
-.rail__label {
-  font: var(--md-sys-typescale-label-medium);
+.rail__primary {
+  height: 38px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  cursor: pointer;
+  transition: transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.rail__primary .msr {
+  font-size: 18px;
+}
+
+@media (max-width: 960px) {
+  .rail {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .rail__item {
+    min-width: 44px;
+    padding-inline: 11px;
+  }
+
+  .rail__item:not(.rail__item--active) .rail__label {
+    display: none;
+  }
+
+  .rail__primary span:last-child {
+    display: none;
+  }
+
+  .rail__primary {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .rail {
+    background: var(--md-sys-color-surface-container);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 </style>

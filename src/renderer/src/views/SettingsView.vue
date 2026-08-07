@@ -776,10 +776,7 @@ onMounted(() => {
   min-height: 0;
   padding: 24px 12px 16px;
   border-right: 1px solid var(--app-glass-border);
-  background: var(--md-sys-color-surface);
-  background: var(--app-glass-surface);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 24%, transparent);
 }
 
 .settings-sidebar__nav {
@@ -855,7 +852,7 @@ onMounted(() => {
   width: 100%;
   min-width: 0;
   margin: 0 auto;
-  padding: 20px 32px 64px;
+  padding: 20px 32px 104px;
   overflow-y: auto;
 }
 
