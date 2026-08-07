@@ -122,11 +122,6 @@ function goInstall(): void {
             @remove="onRemove"
             @open-folder="onOpenFolder"
           />
-
-          <button class="new-instance-card state-layer" type="button" @click="goInstall">
-            <span class="msr new-instance-card__icon" aria-hidden="true">add</span>
-            <span class="new-instance-card__label">新建实例</span>
-          </button>
         </div>
       </section>
     </div>
@@ -237,28 +232,6 @@ function goInstall(): void {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
-}
-
-.new-instance-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 160px;
-  border: 1px dashed var(--md-sys-color-outline);
-  border-radius: var(--md-sys-shape-corner-large);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-}
-
-.new-instance-card__icon {
-  font-size: 32px;
-}
-
-.new-instance-card__label {
-  font: var(--md-sys-typescale-label-large);
 }
 
 .empty-state {

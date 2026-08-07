@@ -8,6 +8,8 @@ import WallpaperLayer from '@/components/WallpaperLayer.vue';
 const route = useRoute();
 // 根据路由元数据切换首次引导的沉浸式布局。
 const bare = computed(() => route.meta.bare === true);
+// 日志页面隐去底部导航栏，避免悬浮 Dock 遮住日志内容。
+const hideNavRail = computed(() => route.name === 'instance-logs');
 </script>
 
 <template>
@@ -23,7 +25,7 @@ const bare = computed(() => route.meta.bare === true);
             </transition>
           </router-view>
         </main>
-        <NavRail v-if="!bare" />
+        <NavRail v-if="!bare && !hideNavRail" />
       </div>
     </div>
   </div>

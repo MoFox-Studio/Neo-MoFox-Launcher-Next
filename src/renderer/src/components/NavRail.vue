@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router';
-import { useInstallStore } from '@/stores/install';
 
-// 主导航：路由驱动选中态，并显示后台安装任务提示。
+// 主导航：路由驱动选中态。
 interface NavItem {
   name: string;
   label: string;
@@ -12,14 +11,12 @@ interface NavItem {
 const items: NavItem[] = [
   { name: 'dashboard', label: '概览', icon: 'space_dashboard' },
   { name: 'instances', label: '实例', icon: 'deployed_code' },
-  { name: 'install', label: '安装', icon: 'download' },
   { name: 'settings', label: '设置', icon: 'settings' },
 ];
 
-// 当前路由和安装仓库共同决定导航的动态视觉状态。
+// 当前路由决定导航的动态视觉状态。
 const route = useRoute();
 const router = useRouter();
-const install = useInstallStore();
 
 function isActive(item: NavItem): boolean {
   return route.name === item.name;
@@ -41,11 +38,6 @@ function isActive(item: NavItem): boolean {
             {{ item.icon }}
           </span>
           <span class="rail__label">{{ item.label }}</span>
-          <span
-            v-if="item.name === 'install' && install.isInstalling"
-            class="rail__badge"
-            aria-label="正在安装"
-          ></span>
         </button>
       </li>
     </ul>
@@ -136,17 +128,6 @@ function isActive(item: NavItem): boolean {
 .rail__label,
 .rail__primary {
   font: var(--md-sys-typescale-label-large);
-}
-
-.rail__badge {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  width: 7px;
-  height: 7px;
-  border: 1px solid var(--md-sys-color-surface);
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-error);
 }
 
 .rail__primary {
