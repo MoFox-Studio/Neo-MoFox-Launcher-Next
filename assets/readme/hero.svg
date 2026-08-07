@@ -1,133 +1,74 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="hero-title hero-desc">
-  <title id="hero-title">Neo-MoFox Launcher Next — Neo-MoFox 框架的桌面实例管理启动器</title>
-  <desc id="hero-desc">Electron 35 + Vue 3 + TypeScript 全量重写的桌面启动器：卡片式实例管理、双进程终端、六阶段安装流水线。右侧展示实例卡片、双终端标签与状态点。</desc>
-
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">Neo-MoFox Launcher Next — AI Bot Orchestration</title>
+  <desc id="desc">面向 Neo-MoFox QQ 机器人的 AI 产品式桌面编排控制台。一个实例由 MoFox、OneBot 适配器和实时终端组成，并持续反馈运行状态。</desc>
   <defs>
-    <linearGradient id="surfaceGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#171A21"/>
-      <stop offset="1" stop-color="#0E1014"/>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#120d0b"/>
+      <stop offset="0.52" stop-color="#24130f"/>
+      <stop offset="1" stop-color="#31231b"/>
     </linearGradient>
-    <linearGradient id="termGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#1A1D24"/>
-      <stop offset="1" stop-color="#14161C"/>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff7043"/>
+      <stop offset="0.52" stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#34d399"/>
     </linearGradient>
-    <pattern id="dotGrid" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-      <circle cx="1" cy="1" r="1" fill="#E6E1E5" opacity="0.05"/>
+    <radialGradient id="glow" cx="70%" cy="38%" r="55%">
+      <stop offset="0" stop-color="#fb923c" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#fb923c" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" fill="none" stroke="#fed7aa" stroke-opacity="0.07"/>
     </pattern>
   </defs>
 
-  <rect width="1200" height="420" rx="24" fill="url(#surfaceGrad)"/>
-  <rect width="1200" height="420" rx="24" fill="url(#dotGrid)"/>
+  <rect width="1200" height="420" rx="30" fill="url(#background)"/>
+  <rect width="1200" height="420" rx="30" fill="url(#glow)"/>
+  <rect width="1200" height="420" rx="30" fill="url(#grid)"/>
 
-  <!-- left rail accent -->
-  <rect x="0" y="0" width="6" height="420" fill="#FF8A65"/>
-
-  <!-- ============ LEFT: title block ============ -->
-  <g transform="translate(64 56)">
-    <!-- eyebrow: category + version -->
-    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="1.5">
-      <text x="0" y="0" fill="#8B90A0">DESKTOP LAUNCHER</text>
-      <text x="222" y="0" fill="#4DD0E1">v0.1.0 · ELECTRON 35</text>
-    </g>
-
-    <!-- project name -->
-    <text x="0" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="58" font-weight="700" fill="#E6E1E5" letter-spacing="-1">Neo-MoFox</text>
-    <text x="0" y="128" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="58" font-weight="700" fill="#E6E1E5" letter-spacing="-1">Launcher<tspan fill="#FF8A65"> Next</tspan></text>
-
-    <!-- value -->
-    <text x="0" y="178" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="21" fill="#B9BDC9">Neo-MoFox QQ 机器人框架的桌面实例管理启动器</text>
-    <text x="0" y="208" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="21" fill="#B9BDC9">Electron · Vue 3 · TypeScript 全量重写</text>
-
-    <!-- tech chips -->
-    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">
-      <g transform="translate(0 240)">
-        <rect width="92" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="46" y="20" text-anchor="middle" fill="#B9BDC9">Electron</text>
-      </g>
-      <g transform="translate(102 240)">
-        <rect width="68" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="34" y="20" text-anchor="middle" fill="#B9BDC9">Vue 3</text>
-      </g>
-      <g transform="translate(178 240)">
-        <rect width="100" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="50" y="20" text-anchor="middle" fill="#B9BDC9">TypeScript</text>
-      </g>
-      <g transform="translate(286 240)">
-        <rect width="60" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="30" y="20" text-anchor="middle" fill="#B9BDC9">Vite</text>
-      </g>
-      <g transform="translate(354 240)">
-        <rect width="104" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="52" y="20" text-anchor="middle" fill="#B9BDC9">Material 3</text>
-      </g>
-    </g>
-
-    <!-- motif: status point + prompt -->
-    <g transform="translate(0 296)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#8B90A0">
-      <circle cx="6" cy="6" r="5" fill="#4DD0E1"/>
-      <circle cx="6" cy="6" r="5" fill="#4DD0E1" opacity="0.3"/>
-      <text x="22" y="11">running</text>
-      <text x="92" y="11" fill="#5A6070">▌</text>
-      <text x="108" y="11">node-pty · xterm.js · contextIsolation</text>
+  <g id="identity" transform="translate(68 72)">
+    <rect width="220" height="34" rx="17" fill="#ff7043" fill-opacity="0.14" stroke="#fb923c" stroke-opacity="0.65"/>
+    <circle cx="21" cy="17" r="5" fill="#fdba74"/>
+    <text x="38" y="23" fill="#ffedd5" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="700" letter-spacing="1.4">AI BOT ORCHESTRATION</text>
+    <text x="0" y="100" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="56" font-weight="750" letter-spacing="-1.5">Neo-MoFox</text>
+    <text x="0" y="160" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="56" font-weight="750" letter-spacing="-1.5">Launcher <tspan fill="#fb923c">Next</tspan></text>
+    <text x="0" y="212" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="23">让机器人实例的安装、运行与诊断形成一个可观察的工作流。</text>
+    <g transform="translate(0 258)">
+      <rect width="434" height="40" rx="10" fill="#1c120f" fill-opacity="0.88" stroke="#69402b"/>
+      <text x="17" y="26" fill="#fbbf24" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">Electron 43  /  Vue 3  /  TypeScript  /  PTY</text>
     </g>
   </g>
 
-  <!-- ============ RIGHT: product proof ============ -->
-  <g transform="translate(680 56)">
+  <g id="orchestration-proof" transform="translate(692 62)">
+    <text x="0" y="0" fill="#fdba74" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" letter-spacing="1.5">LIVE INSTANCE GRAPH</text>
+    <rect x="0" y="26" width="440" height="282" rx="22" fill="#18100e" fill-opacity="0.82" stroke="#71452f"/>
 
-    <!-- Instance card -->
-    <g transform="translate(0 0)">
-      <rect width="464" height="124" rx="14" fill="#1A1D24" stroke="#262B36"/>
-      <rect x="0" y="0" width="4" height="124" rx="2" fill="#4DD0E1"/>
-      <!-- status dot -->
-      <circle cx="26" cy="28" r="6" fill="#4DD0E1"/>
-      <circle cx="26" cy="28" r="6" fill="#4DD0E1" opacity="0.25"/>
-      <text x="44" y="33" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="18" font-weight="600" fill="#E6E1E5">napcat-prod</text>
-      <text x="180" y="33" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#4DD0E1">RUNNING</text>
-
-      <!-- sub processes -->
-      <g transform="translate(26 56)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">
-        <rect width="196" height="28" rx="7" fill="#14161C" stroke="#262B36"/>
-        <circle cx="14" cy="14" r="3.5" fill="#4DD0E1"/>
-        <text x="26" y="19" fill="#B9BDC9">mofox</text>
-        <text x="120" y="19" fill="#5A6070">pid 4821</text>
-
-        <g transform="translate(216 0)">
-          <rect width="196" height="28" rx="7" fill="#14161C" stroke="#262B36"/>
-          <circle cx="14" cy="14" r="3.5" fill="#FF8A65"/>
-          <text x="26" y="19" fill="#B9BDC9">adapter</text>
-          <text x="120" y="19" fill="#5A6070">pid 4822</text>
-        </g>
-      </g>
-
-      <!-- footer meta -->
-      <g transform="translate(26 102)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#5A6070">
-        <text x="0" y="0">uptime 02:14:33</text>
-        <text x="180" y="0">CPU 3.2%</text>
-        <text x="280" y="0">RSS 128M</text>
-        <text x="372" y="0" fill="#4DD0E1">▌</text>
-      </g>
+    <g id="instance-node" transform="translate(30 60)">
+      <rect width="166" height="82" rx="16" fill="#3a1f17" stroke="#ff7043" stroke-width="2"/>
+      <circle cx="24" cy="26" r="8" fill="#fb923c"/>
+      <text x="42" y="31" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="19" font-weight="700">my-qq-bot</text>
+      <text x="20" y="61" fill="#fed7aa" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">INSTANCE / ACTIVE</text>
     </g>
 
-    <!-- Dual terminal -->
-    <g transform="translate(0 142)">
-      <rect width="464" height="166" rx="14" fill="url(#termGrad)" stroke="#262B36"/>
-      <!-- tab bar -->
-      <g transform="translate(20 22)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">
-        <rect x="-8" y="-16" width="116" height="22" rx="6" fill="#262B36"/>
-        <text x="0" y="0" fill="#E6E1E5">mofox ▌</text>
-        <text x="140" y="0" fill="#5A6070">adapter</text>
-      </g>
+    <path d="M196 101C239 101 236 89 274 89" fill="none" stroke="url(#flow)" stroke-width="4" stroke-linecap="round"/>
+    <path d="M196 101C240 101 238 207 274 207" fill="none" stroke="url(#flow)" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="237" cy="97" r="5" fill="#f59e0b"/>
+    <circle cx="239" cy="160" r="5" fill="#34d399"/>
 
-      <!-- terminal lines -->
-      <g transform="translate(20 56)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13.5">
-        <text x="0" y="0" fill="#5A6070">❯</text>
-        <text x="16" y="0" fill="#B9BDC9">mofox run --instance napcat-prod</text>
-        <text x="0" y="22" fill="#8B90A0">[INFO] loading platform: NapCat</text>
-        <text x="0" y="44" fill="#8B90A0">[INFO] onebot11 ws://127.0.0.1:3001 ready</text>
-        <text x="0" y="66" fill="#4DD0E1">[OK]   bot online as 100012345</text>
-        <text x="0" y="88" fill="#5A6070">▌</text>
-      </g>
+    <g id="mofox-node" transform="translate(274 54)">
+      <rect width="136" height="70" rx="14" fill="#3b2714" stroke="#f59e0b" stroke-width="2"/>
+      <text x="18" y="30" fill="#fef3c7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700">MoFox</text>
+      <text x="18" y="53" fill="#fbbf24" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">CORE PROCESS</text>
+    </g>
+    <g id="platform-node" transform="translate(274 172)">
+      <rect width="136" height="70" rx="14" fill="#12352b" stroke="#34d399" stroke-width="2"/>
+      <text x="18" y="30" fill="#d1fae5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700">OneBot</text>
+      <text x="18" y="53" fill="#6ee7b7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">ADAPTER</text>
+    </g>
+
+    <g id="feedback" transform="translate(30 253)">
+      <rect width="380" height="34" rx="9" fill="#201612"/>
+      <circle cx="18" cy="17" r="5" fill="#34d399"/>
+      <text x="34" y="23" fill="#d6c7bc" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">PTY streaming · status synchronized</text>
     </g>
   </g>
 </svg>
