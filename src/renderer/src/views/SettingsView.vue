@@ -1337,6 +1337,13 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .md-switch__thumb {
+    transition: background-color var(--md-sys-motion-duration-short4)
+      var(--md-sys-motion-easing-standard);
+  }
+}
+
 @media (max-width: 900px) {
   .settings-view {
     grid-template-columns: 200px minmax(0, 1fr);

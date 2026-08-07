@@ -20,7 +20,7 @@ const bare = computed(() => route.meta.bare === true);
         <NavRail v-if="!bare" />
         <main class="shell__content">
           <router-view v-slot="{ Component }">
-            <transition name="page" mode="out-in">
+            <transition name="page">
               <component :is="Component" />
             </transition>
           </router-view>
@@ -74,26 +74,17 @@ const bare = computed(() => route.meta.bare === true);
  * 创建变换祖先，Chromium 会在入场动画结束后才稳定合成其 backdrop-filter。
  */
 .page-enter-active {
-  transition: opacity var(--md-sys-motion-duration-medium2)
+  transition: opacity var(--md-sys-motion-duration-short4)
     var(--md-sys-motion-easing-emphasized-decelerate);
-}
-
-.page-leave-active {
-  transition: opacity var(--md-sys-motion-duration-short2)
-    var(--md-sys-motion-easing-emphasized-accelerate);
 }
 
 .page-enter-from {
   opacity: 0;
 }
 
-.page-leave-to {
-  opacity: 0;
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .page-enter-active,
-  .page-leave-active {
+  .page-enter-active {
     transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
 

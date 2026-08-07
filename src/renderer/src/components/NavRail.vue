@@ -191,4 +191,21 @@ function isActive(item: NavItem): boolean {
 .rail__label {
   font: var(--md-sys-typescale-label-medium);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .rail__item {
+    transition:
+      background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+      color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  }
+
+  .rail__fab {
+    transition: none;
+  }
+
+  .rail__fab:hover,
+  .rail__fab:active {
+    transform: none;
+  }
+}
 </style>

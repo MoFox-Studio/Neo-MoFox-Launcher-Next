@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import BaseDialog from './BaseDialog.vue';
 
 // 错误弹窗：在通用弹窗之上提供错误图标、描述以及可展开的堆栈日志框。
@@ -33,19 +33,35 @@ const emit = defineEmits<{
 
 // 日志框默认折叠，避免长堆栈抢占弹窗视觉重心。
 const expanded = ref(false);
+const logboxExpanded = ref(false);
 
-// 每次打开时复位展开状态，保证多次复用时的初始体验一致。
+const collapsedLogHeight = computed(() => Math.max(0, props.collapsedHeight));
+const expandedLogHeight = computed(() =>
+  Math.max(collapsedLogHeight.value, props.expandedHeight),
+);
+const logRevealDistance = computed(
+  () => expandedLogHeight.value - collapsedLogHeight.value,
+);
+
+// 每次打开时复位语义状态和布局状态，保证多次复用时的初始体验一致。
 watch(
   () => props.open,
   (open) => {
-    if (open) expanded.value = false;
+    if (open) {
+      expanded.value = false;
+      logboxExpanded.value = false;
+    }
   },
 );
 
-// 折叠态下若日志过长则尾部淡出，提示用户可展开查看更多。
 const logboxStyle = computed(() => ({
-  height: expanded.value ? `${props.expandedHeight}px` : `${props.collapsedHeight}px`,
+  height: `${logboxExpanded.value ? expandedLogHeight.value : collapsedLogHeight.value}px`,
+  '--error-log-reveal-distance': `${logRevealDistance.value}px`,
 }));
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 // 同步复制堆栈文本到剪贴板，失败时静默忽略以保证流程不中断。
 async function copyStack(): Promise<void> {
@@ -57,8 +73,35 @@ async function copyStack(): Promise<void> {
   }
 }
 
-function toggleExpanded(): void {
-  expanded.value = !expanded.value;
+async function toggleExpanded(): Promise<void> {
+  if (prefersReducedMotion()) {
+    expanded.value = !expanded.value;
+    logboxExpanded.value = expanded.value;
+    return;
+  }
+
+  if (expanded.value) {
+    expanded.value = false;
+    return;
+  }
+
+  if (logboxExpanded.value) {
+    // 收起动画尚未结束时反向展开；CSS transition 从当前裁剪位置继续。
+    expanded.value = true;
+    return;
+  }
+
+  // 先离散同步布局高度，再等浏览器提交一帧，避免高度变化吞掉 reveal 起点。
+  logboxExpanded.value = true;
+  await nextTick();
+  requestAnimationFrame(() => {
+    if (logboxExpanded.value) expanded.value = true;
+  });
+}
+
+function onLogboxTransitionEnd(event: globalThis.TransitionEvent): void {
+  if (event.target !== event.currentTarget || event.propertyName !== 'clip-path') return;
+  if (!expanded.value) logboxExpanded.value = false;
 }
 
 function onClose(): void {
@@ -105,11 +148,20 @@ function onClose(): void {
           <span>复制</span>
         </button>
       </div>
-      <pre
-        class="error-dialog__logbox"
-        :class="{ 'error-dialog__logbox--collapsed': !expanded }"
+      <div
+        class="error-dialog__log-viewport"
+        :class="{
+          'error-dialog__log-viewport--layout-expanded': logboxExpanded,
+          'error-dialog__log-viewport--revealed': expanded,
+        }"
         :style="logboxStyle"
-      >{{ stack }}</pre>
+        @transitionend="onLogboxTransitionEnd"
+      >
+        <pre
+          class="error-dialog__logbox"
+          :class="{ 'error-dialog__logbox--collapsed': !expanded }"
+        >{{ stack }}</pre>
+      </div>
     </div>
 
     <template #actions>
@@ -183,11 +235,25 @@ function onClose(): void {
   font-size: 16px;
 }
 
-/* 等宽日志框：固定高度、内部滚动，折叠态保留底部淡出提示 */
+/* viewport 离散同步布局高度；可见揭示只动画 clip-path。 */
+.error-dialog__log-viewport {
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--md-sys-shape-corner-medium);
+  clip-path: inset(0 0 var(--error-log-reveal-distance) 0 round var(--md-sys-shape-corner-medium));
+  transition: clip-path 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.error-dialog__log-viewport--revealed {
+  clip-path: inset(0 0 0 0 round var(--md-sys-shape-corner-medium));
+}
+
 .error-dialog__logbox {
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 12px 16px;
-  border-radius: var(--md-sys-shape-corner-medium);
+  border-radius: inherit;
   background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
@@ -196,8 +262,6 @@ function onClose(): void {
   word-break: break-word;
   overflow: auto;
   position: relative;
-  transition: height var(--md-sys-motion-duration-medium2)
-    var(--md-sys-motion-easing-emphasized-decelerate);
 }
 
 .error-dialog__logbox--collapsed::after {
@@ -234,8 +298,9 @@ function onClose(): void {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .error-dialog__logbox {
+  .error-dialog__log-viewport {
     transition: none;
+    clip-path: none;
   }
 }
 </style>

@@ -6,6 +6,7 @@ import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
 import PageHeader from '@/components/PageHeader.vue';
 import InstanceCard from '@/components/InstanceCard.vue';
+import BaseDialog from '@/components/BaseDialog.vue';
 
 // 实例管理页提供搜索、状态筛选、操作分发及删除确认。
 type FilterKey = 'all' | 'running' | 'stopped' | 'error';
@@ -173,22 +174,24 @@ async function confirmRemove(): Promise<void> {
     </div>
 
     <!-- 删除操作必须经确认对话框后才提交到实例仓库 -->
-    <div v-if="pendingRemoveInstance" class="dialog-scrim" @click.self="cancelRemove">
-      <div class="dialog" role="alertdialog" aria-modal="true">
-        <h2 class="dialog__title">删除实例</h2>
-        <p class="dialog__body">
-          确定要删除实例「{{ pendingRemoveInstance.name }}」吗？此操作无法撤销。
-        </p>
-        <div class="dialog__actions">
-          <button class="btn btn--text state-layer" type="button" @click="cancelRemove">
-            取消
-          </button>
-          <button class="btn btn--error state-layer" type="button" @click="confirmRemove">
-            删除
-          </button>
-        </div>
-      </div>
-    </div>
+    <BaseDialog
+      :open="pendingRemoveInstance !== null"
+      title="删除实例"
+      :width="320"
+      @close="cancelRemove"
+    >
+      <p v-if="pendingRemoveInstance" class="remove-dialog__body">
+        确定要删除实例「{{ pendingRemoveInstance.name }}」吗？此操作无法撤销。
+      </p>
+      <template #actions>
+        <button class="btn btn--text state-layer" type="button" @click="cancelRemove">
+          取消
+        </button>
+        <button class="btn btn--error state-layer" type="button" @click="confirmRemove">
+          删除
+        </button>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -343,42 +346,7 @@ async function confirmRemove(): Promise<void> {
   cursor: pointer;
 }
 
-/* 删除确认对话框及遮罩层 */
-.dialog-scrim {
-  position: fixed;
-  inset: 0;
-  background: color-mix(in srgb, var(--md-sys-color-scrim) 32%, transparent);
-  display: grid;
-  place-items: center;
-  z-index: 20;
-}
-
-.dialog {
-  width: 320px;
-  padding: 24px;
-  border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-high);
-  box-shadow: var(--md-sys-elevation-level3);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.dialog__title {
+.remove-dialog__body {
   margin: 0;
-  font: var(--md-sys-typescale-headline-small);
-  color: var(--md-sys-color-on-surface);
-}
-
-.dialog__body {
-  margin: 0;
-  font: var(--md-sys-typescale-body-medium);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 </style>

@@ -458,13 +458,14 @@ v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue
   background: var(--md-sys-color-surface-container-high);
   padding: 0 4px;
   pointer-events: none;
-  transition: all var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  transition:
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .field__input:focus+.field__label,
 .field__input:not(:placeholder-shown)+.field__label {
-  top: 0;
-  transform: translateY(-50%) scale(.85);
+  transform: translateY(calc(-50% - 28px)) scale(.85);
 }
 
 .field__input:focus+.field__label {
@@ -566,6 +567,16 @@ v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue
 @keyframes dep-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+
+  .field__label {
+    transition: color 200ms cubic-bezier(0.23, 1, 0.32, 1);
   }
 }
 
