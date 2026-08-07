@@ -5,6 +5,7 @@ import type { LogEntry } from './domain/logger';
 import type { DownloadProgress } from './domain/download';
 import type {
   Instance,
+  InstancePathUpdate,
   InstanceProcessSource,
   InstanceStats,
   InstanceStatus,
@@ -39,6 +40,7 @@ export const IPC_INVOKE_CHANNELS = {
   restartInstance: 'instances:restart',
   removeInstance: 'instances:remove',
   openInstanceFolder: 'instances:open-folder',
+  updateInstancePaths: 'instances:update-paths',
   getInstanceLogBuffer: 'instances:log-buffer',
   clearInstanceLogBuffer: 'instances:log-clear',
   writeInstancePty: 'instances:pty-write',
@@ -103,6 +105,7 @@ export interface MofoxApi {
   restartInstance(instanceId: string): Promise<void>;
   removeInstance(instanceId: string): Promise<void>;
   openInstanceFolder(instanceId: string): Promise<void>;
+  updateInstancePaths(instanceId: string, update: InstancePathUpdate): Promise<Instance>;
   getInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<string>;
   clearInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<void>;
   writeInstancePty(instanceId: string, source: InstanceProcessSource, data: string): Promise<void>;

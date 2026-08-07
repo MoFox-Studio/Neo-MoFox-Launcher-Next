@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref } from 'vue';
-import type { Instance } from '@shared/domain/instance';
+import type { Instance, InstancePathUpdate } from '@shared/domain/instance';
 import { mofoxApi } from '@/services/mofox-api';
 
 // 实例仓库集中管理列表、进程状态事件和截断后的实时日志缓存。
@@ -61,6 +61,11 @@ export const useInstancesStore = defineStore('instances', () => {
     await refresh();
   }
 
+  async function updatePaths(id: string, update: InstancePathUpdate): Promise<void> {
+    await mofoxApi.updateInstancePaths(id, update);
+    await refresh();
+  }
+
   async function remove(id: string): Promise<void> {
     await mofoxApi.removeInstance(id);
     delete logs.value[`${id}:mofox`];
@@ -72,7 +77,7 @@ export const useInstancesStore = defineStore('instances', () => {
     logs.value[`${id}:${source}`] = '';
   }
 
-  return { instances, loading, logs, running, byId, refresh, start, stop, restart, remove, clearLog };
+  return { instances, loading, logs, running, byId, refresh, start, stop, restart, updatePaths, remove, clearLog };
 });
 
 function stripAnsi(value: string): string {

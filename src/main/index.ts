@@ -141,7 +141,7 @@ if (!hasSingleInstanceLock) {
     mainWindow.focus();
   });
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
     const dataDirectory = app.getPath('userData');
     let logger: Logger | undefined;
     /**
@@ -245,6 +245,15 @@ if (!hasSingleInstanceLock) {
       override: process.env.NEO_MOFOX_LEGACY_DATA,
     });
     const legacyMigration = new LegacyMigrationService(legacyDataDir, instances, report);
+    // 在窗口开放启动操作前纠正旧版迁移曾推测错误的平台目录。
+    try {
+      await legacyMigration.repairExistingInstances();
+    } catch (error) {
+      report(
+        'Unable to repair legacy instance platform paths',
+        error instanceof Error ? error : new Error(String(error)),
+      );
+    }
     registerMigrationIpc(ipcMain, legacyMigration);
     const oobeService = new OobeService(
       { settings, legacy: legacyMigration, mirrors, environment },

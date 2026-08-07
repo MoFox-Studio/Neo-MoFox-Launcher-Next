@@ -51,6 +51,8 @@ export interface LegacyInstancePreview {
   conflict: 'duplicate-id' | 'duplicate-path' | null;
   /** 解析实例名所用的来源字段，便于调试与展示。 */
   nameSource: 'name' | 'extra.displayName' | 'qqNickname' | 'id';
+  /** 平台路径是否来自旧启动器的明确字段，而非迁移时的兄弟目录回退。 */
+  platformPathSource?: 'explicit' | 'inferred';
 }
 
 /** 迁移预览：旧启动器信息 + 每条记录的规范化与冲突结果。 */

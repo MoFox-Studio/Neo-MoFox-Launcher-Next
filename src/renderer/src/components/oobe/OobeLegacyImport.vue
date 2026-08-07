@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { mofoxApi } from '@/services/mofox-api';
 import { MofoxError } from '@shared/domain/error';
-import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from '@shared/domain/instance';
+import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from '@shared/domain/migration';
 
 const emit = defineEmits<{ (e: 'next'): void; (e: 'skip'): void }>();
 

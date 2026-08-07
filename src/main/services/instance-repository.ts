@@ -18,9 +18,7 @@ export const DEFAULT_INSTANCE: Omit<Instance, 'id'> = {
   name: '',
   version: 'unknown',
   mofoxInstallDir: '',
-  platforms: {
-    platformId: '',
-  },
+  platforms: {},
   status: 'stopped',
   createdAt: 0,
   autoStart: false,
@@ -265,12 +263,17 @@ export function normalizeInstance(value: unknown): Instance {
     value.platformDir || value.napcatDir ? 'napcat' : undefined,
     '',
   );
-  // v2 platforms 字典优先；缺失时用 v1→v2 路径升级把兄弟目录烘焙为显式平台路径。
+  // v2 platforms 字典优先；旧启动器则优先沿用实际传给 getStartCommand 的 platformRoot，
+  // 再回退到安装目录 platformDir。仅在没有明确平台路径时才使用 v1 的兄弟目录启发式。
   const inheritedPlatforms = isRecord(value.platforms)
     ? (Object.fromEntries(
         Object.entries(value.platforms).filter((entry) => typeof entry[1] === 'string'),
       ) as PlatformPaths)
     : {};
+  const legacyPlatformPath = firstString(value.platformRoot, value.platformDir, value.napcatDir);
+  if (legacyPlatformId && legacyPlatformPath && !inheritedPlatforms[legacyPlatformId]) {
+    inheritedPlatforms[legacyPlatformId] = legacyPlatformPath;
+  }
   const { platforms } = upgradeInstancePathsToV2({
     mofoxInstallDir,
     platforms: inheritedPlatforms,

@@ -200,6 +200,13 @@ export const mockApi: MofoxApi = {
     if (idx >= 0) instances.splice(idx, 1);
   },
   async openInstanceFolder() {},
+  async updateInstancePaths(id, update) {
+    const ins = instances.find((instance) => instance.id === id);
+    if (!ins) throw new Error(`unknown instance ${id}`);
+    ins.mofoxInstallDir = update.mofoxInstallDir;
+    ins.platforms = { ...update.platforms };
+    return { ...ins, platforms: { ...ins.platforms } };
+  },
   async getInstanceLogBuffer(id, source) {
     return logBuffers.get(`${id}:${source}`) ?? '';
   },

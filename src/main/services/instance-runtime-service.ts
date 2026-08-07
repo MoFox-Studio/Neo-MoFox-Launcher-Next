@@ -2,6 +2,7 @@ import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   Instance,
+  InstancePathUpdate,
   InstanceProcessSource,
   InstanceStats,
   InstanceStatus,
@@ -172,6 +173,26 @@ export class InstanceRuntimeService {
   async openFolder(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
     await this.openPath(instance.mofoxInstallDir);
+  }
+
+  /** 更新已停止实例的 MoFox 与平台运行目录。 */
+  async updatePaths(instanceId: string, update: InstancePathUpdate): Promise<Instance> {
+    const instance = await this.find(instanceId);
+    if (this.hasActive(instanceId) || instance.status === 'running' || instance.status === 'starting' || instance.status === 'stopping') {
+      throw new MofoxError('CONFLICT', '请先停止实例，再修改运行目录');
+    }
+    const mofoxInstallDir = update.mofoxInstallDir.trim();
+    if (!mofoxInstallDir) throw new MofoxError('INVALID_ARGUMENT', 'MoFox 目录不能为空');
+    const platforms = Object.fromEntries(
+      Object.entries(update.platforms).map(([id, path]) => [id.trim(), path.trim()]),
+    );
+    const entries = Object.entries(platforms);
+    if (entries.length === 0 || entries.some(([id, path]) => !id || !path || !/^[a-z0-9-]+$/i.test(id))) {
+      throw new MofoxError('INVALID_ARGUMENT', '平台 ID 和平台目录不能为空');
+    }
+    const updated = { ...instance, mofoxInstallDir, platforms };
+    await this.repository.upsert(updated);
+    return updated;
   }
 
   /**

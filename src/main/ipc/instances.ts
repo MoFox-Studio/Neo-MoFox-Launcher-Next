@@ -1,6 +1,6 @@
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
-import type { InstanceProcessSource, InstanceStats } from '../../shared/domain/instance';
+import type { Instance, InstancePathUpdate, InstanceProcessSource, InstanceStats } from '../../shared/domain/instance';
 
 /** 实例控制 IPC 边界：渲染端只能操作明确的实例 ID、进程源和 PTY 参数，运行时细节留在服务层。 */
 interface InstanceActions {
@@ -9,6 +9,7 @@ interface InstanceActions {
   restart(instanceId: string): Promise<void>;
   remove(instanceId: string): Promise<void>;
   openFolder(instanceId: string): Promise<void>;
+  updatePaths(instanceId: string, update: InstancePathUpdate): Promise<Instance>;
   getLogBuffer(instanceId: string, source: InstanceProcessSource): string;
   clearLogBuffer(instanceId: string, source: InstanceProcessSource): void;
   writePty(instanceId: string, source: InstanceProcessSource, data: string): void;
@@ -35,6 +36,8 @@ export function registerInstanceIpc(ipcMain: IpcMainRegistrar, instances: Instan
   register(ipcMain, IPC_INVOKE_CHANNELS.restartInstance, (id) => instances.restart(requireId(id)));
   register(ipcMain, IPC_INVOKE_CHANNELS.removeInstance, (id) => instances.remove(requireId(id)));
   register(ipcMain, IPC_INVOKE_CHANNELS.openInstanceFolder, (id) => instances.openFolder(requireId(id)));
+  register(ipcMain, IPC_INVOKE_CHANNELS.updateInstancePaths, (id, update) =>
+    instances.updatePaths(requireId(id), requirePathUpdate(update)));
   register(ipcMain, IPC_INVOKE_CHANNELS.getInstanceLogBuffer, (id, source) =>
     instances.getLogBuffer(requireId(id), requireSource(source)));
   register(ipcMain, IPC_INVOKE_CHANNELS.clearInstanceLogBuffer, (id, source) =>
@@ -67,6 +70,19 @@ function requireId(value: unknown): string {
  * @param value - 未经类型约束的 IPC 参数。
  * @returns 通过校验的进程源标识（`mofox` 或 `platform`）。
  */
+function requirePathUpdate(value: unknown): InstancePathUpdate {
+  if (!isRecord(value) || typeof value.mofoxInstallDir !== 'string' || !isRecord(value.platforms)) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Invalid instance path update');
+  }
+  const platforms = Object.fromEntries(
+    Object.entries(value.platforms).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  );
+  if (Object.keys(platforms).length !== Object.keys(value.platforms).length) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Platform paths must be strings');
+  }
+  return { mofoxInstallDir: value.mofoxInstallDir, platforms };
+}
+
 function requireSource(value: unknown): InstanceProcessSource {
   // 进程源是日志、终端和状态同步的分区键，禁止任意字符串穿透到运行时 Map。
   if (value !== 'mofox' && value !== 'platform') {
@@ -108,6 +124,10 @@ function requireNumber(value: unknown, label: string): number {
  * @param channel - 需要监听的 IPC 通道名。
  * @param handler - 实际业务处理函数，参数来自渲染端 invoke 调用。
  */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function register(
   ipcMain: IpcMainRegistrar,
   channel: string,

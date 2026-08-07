@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import type { Instance } from '@shared/domain/instance';
 import StatusBadge from './StatusBadge.vue';
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const router = useRouter();
 
 // 将卡片操作上抛给实例列表，由上层统一处理进程和文件系统行为。
 const emit = defineEmits<{
@@ -34,6 +36,10 @@ function onPrimaryAction(): void {
   if (isBusy.value) return;
   if (isRunning.value) emit('stop', props.instance.id);
   else emit('start', props.instance.id);
+}
+
+function openPathConfiguration(): void {
+  void router.push(`/instances/${encodeURIComponent(props.instance.id)}/paths`);
 }
 </script>
 
@@ -103,6 +109,15 @@ function onPrimaryAction(): void {
         @click="emit('logs', instance.id)"
       >
         <span class="msr" aria-hidden="true">terminal</span>
+      </button>
+      <button
+        class="icon-btn state-layer"
+        type="button"
+        title="配置路径"
+        aria-label="配置路径"
+        @click.stop.prevent="openPathConfiguration"
+      >
+        <span class="msr" aria-hidden="true">settings</span>
       </button>
       <button
         class="icon-btn state-layer"
@@ -268,6 +283,11 @@ function onPrimaryAction(): void {
 .btn--tonal {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
+}
+
+.icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
 }
 
 .icon-btn {

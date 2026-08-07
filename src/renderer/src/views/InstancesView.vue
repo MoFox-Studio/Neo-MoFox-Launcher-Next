@@ -31,6 +31,15 @@ const instancesStore = useInstancesStore();
 const keyword = ref('');
 const activeFilter = ref<FilterKey>('all');
 const pendingRemoveInstance = ref<Instance | null>(null);
+const configuringInstance = ref<Instance | null>(null);
+const mofoxPath = ref('');
+const platformPaths = ref<Array<{ id: string; path: string }>>([]);
+const configurationBusy = ref(false);
+const configurationError = ref<string | null>(null);
+const configurationLocked = computed(() => {
+  const status = configuringInstance.value?.status;
+  return status === 'running' || status === 'starting' || status === 'stopping';
+});
 
 // 初始化列表，并兼容来自旧入口的日志查询参数跳转。
 onMounted(() => {
@@ -86,6 +95,54 @@ function onOpenFolder(id: string): void {
 
 function openLogs(id: string): void {
   void router.push({ name: 'instance-logs', params: { id } });
+}
+
+
+function closeConfiguration(): void {
+  if (configurationBusy.value) return;
+  configuringInstance.value = null;
+  configurationError.value = null;
+}
+
+async function chooseMofoxPath(): Promise<void> {
+  const selected = await mofoxApi.pickDirectory({ title: '选择 MoFox 目录', defaultPath: mofoxPath.value || undefined });
+  if (selected) mofoxPath.value = selected;
+}
+
+function addPlatformPath(): void {
+  platformPaths.value.push({ id: '', path: '' });
+}
+
+function removePlatformPath(index: number): void {
+  if (platformPaths.value.length <= 1) return;
+  platformPaths.value.splice(index, 1);
+}
+
+async function choosePlatformPath(index: number): Promise<void> {
+  const entry = platformPaths.value[index];
+  if (!entry) return;
+  const selected = await mofoxApi.pickDirectory({ title: `选择 ${entry.id} 目录`, defaultPath: entry.path || undefined });
+  if (selected) entry.path = selected;
+}
+
+async function saveConfiguration(): Promise<void> {
+  if (!configuringInstance.value || configurationLocked.value) return;
+  const trimmedMofoxPath = mofoxPath.value.trim();
+  const platforms = Object.fromEntries(platformPaths.value.map((entry) => [entry.id.trim(), entry.path.trim()]));
+  if (!trimmedMofoxPath || Object.keys(platforms).length === 0 || Object.entries(platforms).some(([id, path]) => !id || !path)) {
+    configurationError.value = 'MoFox 目录和平台目录不能为空';
+    return;
+  }
+  configurationBusy.value = true;
+  configurationError.value = null;
+  try {
+    await instancesStore.updatePaths(configuringInstance.value.id, { mofoxInstallDir: trimmedMofoxPath, platforms });
+    configuringInstance.value = null;
+  } catch (error) {
+    configurationError.value = error instanceof Error ? error.message : '保存路径失败';
+  } finally {
+    configurationBusy.value = false;
+  }
 }
 
 function requestRemove(id: string): void {
@@ -172,6 +229,57 @@ async function confirmRemove(): Promise<void> {
         />
       </div>
     </div>
+
+    <BaseDialog
+      :open="configuringInstance !== null"
+      title="配置实例路径"
+      :width="560"
+      @close="closeConfiguration"
+    >
+      <div class="path-dialog">
+        <p v-if="configurationLocked" class="path-dialog__notice">
+          当前实例正在运行。停止实例后才能保存路径修改。
+        </p>
+        <div class="path-field">
+          <label class="path-field__label" for="mofox-path">MoFox 目录</label>
+          <div class="path-field__control">
+            <input id="mofox-path" v-model="mofoxPath" class="path-field__input" type="text" :disabled="configurationLocked" />
+            <button class="icon-btn state-layer" type="button" title="选择目录" aria-label="选择 MoFox 目录" :disabled="configurationLocked" @click="chooseMofoxPath">
+              <span class="msr" aria-hidden="true">folder_open</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-for="(entry, index) in platformPaths" :key="index" class="platform-path-row">
+          <label class="path-field">
+            <span class="path-field__label">平台 ID</span>
+            <input v-model="entry.id" class="path-field__input" type="text" placeholder="snowluma" :disabled="configurationLocked" />
+          </label>
+          <div class="path-field">
+            <span class="path-field__label">平台目录</span>
+            <div class="path-field__control path-field__control--platform">
+              <input v-model="entry.path" class="path-field__input" type="text" :disabled="configurationLocked" />
+              <button class="icon-btn state-layer" type="button" title="选择目录" :aria-label="`选择 ${entry.id || '平台'} 目录`" :disabled="configurationLocked" @click="choosePlatformPath(index)">
+                <span class="msr" aria-hidden="true">folder_open</span>
+              </button>
+              <button class="icon-btn state-layer" type="button" title="移除平台" aria-label="移除平台" :disabled="configurationLocked || platformPaths.length <= 1" @click="removePlatformPath(index)">
+                <span class="msr" aria-hidden="true">remove_circle</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn--text path-dialog__add state-layer" type="button" :disabled="configurationLocked" @click="addPlatformPath">
+          <span class="msr" aria-hidden="true">add</span>
+          添加平台
+        </button>
+        <p v-if="configurationError" class="path-dialog__error">{{ configurationError }}</p>
+      </div>
+      <template #actions>
+        <button class="btn btn--text state-layer" type="button" :disabled="configurationBusy" @click="closeConfiguration">取消</button>
+        <button class="btn btn--filled state-layer" type="button" :disabled="configurationBusy || configurationLocked" @click="saveConfiguration">保存</button>
+      </template>
+    </BaseDialog>
 
     <!-- 删除操作必须经确认对话框后才提交到实例仓库 -->
     <BaseDialog
@@ -344,6 +452,99 @@ async function confirmRemove(): Promise<void> {
   display: grid;
   place-items: center;
   cursor: pointer;
+}
+
+.path-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.path-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.path-field__label {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-label-large);
+}
+
+.path-field__control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 8px;
+}
+
+.path-field__control--platform {
+  grid-template-columns: minmax(0, 1fr) 40px 40px;
+}
+
+.path-field__input {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  outline: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-medium);
+  font-family: var(--md-ref-typeface-mono);
+}
+
+.path-field__input:focus {
+  border: 2px solid var(--md-sys-color-primary);
+  padding: 0 13px;
+}
+
+.platform-path-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.path-dialog__add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 680px) {
+  .platform-path-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.path-dialog__notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.path-field__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.path-dialog__error {
+  margin: 0;
+  color: var(--md-sys-color-error);
+  font: var(--md-sys-typescale-body-small);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
 }
 
 .remove-dialog__body {
