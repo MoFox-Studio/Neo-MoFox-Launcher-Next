@@ -679,6 +679,19 @@ function goBack(): void {
   transform: translateX(-50%) translateY(8px);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active,
+  .toast-leave-active {
+    transition: opacity var(--md-sys-motion-duration-short2)
+      var(--md-sys-motion-easing-standard);
+  }
+
+  .toast-enter-from,
+  .toast-leave-to {
+    transform: translateX(-50%);
+  }
+}
+
 /* 进程操作按钮与图标按钮 */
 .btn {
   display: inline-flex;

@@ -21,6 +21,12 @@ function emit<K extends keyof MofoxEventMap>(event: K, payload: MofoxEventMap[K]
   listeners.get(event)?.forEach((l) => (l as Listener<K>)(payload));
 }
 
+/**
+ * 等待指定时长以模拟 IPC 或后台任务延迟。
+ *
+ * @param ms - 等待的毫秒数。
+ * @returns 延迟结束后兑现的 Promise。
+ */
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // 演示数据保持在内存中，API 对外返回副本以模拟 IPC 序列化边界。
@@ -207,6 +213,12 @@ export const mockApi: MofoxApi = {
   async resizeInstancePty() {},
   async getInstanceStats(id) {
     const startedAt = startTimes.get(id);
+    /**
+     * 根据实例启动时间生成指定进程的模拟运行统计。
+     *
+     * @param pidBase - 该进程的固定模拟 PID。
+     * @returns 进程运行状态、运行时长和 PID。
+     */
     const stats = (pidBase: number) =>
       startedAt === undefined
         ? { running: false, uptimeMs: null, pid: null }

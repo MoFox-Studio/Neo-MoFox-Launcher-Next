@@ -144,7 +144,12 @@ if (!hasSingleInstanceLock) {
   void app.whenReady().then(() => {
     const dataDirectory = app.getPath('userData');
     let logger: Logger | undefined;
-    // 初始化早期仍可能发生存储错误，日志器就绪前保留控制台诊断兜底。
+    /**
+     * 在日志器初始化前后报告启动期错误；未就绪时降级输出到控制台。
+     *
+     * @param message - 错误上下文说明。
+     * @param error - 需要记录的错误对象。
+     */
     const report = (message: string, error: Error) => {
       if (logger) void logger.log('launcher', 'error', `${message}: ${error.message}`);
       else console.error(message, error);
@@ -188,7 +193,12 @@ if (!hasSingleInstanceLock) {
       remove: () => wallpapers.remove(),
     });
     protocol.handle('mofox-wallpaper', createWallpaperProtocolHandler(wallpapers));
-    // 服务事件仅在有效窗口存在时转发，窗口重建期间丢弃过期 UI 通知。
+    /**
+     * 向当前有效的主窗口转发服务事件；窗口重建期间丢弃通知。
+     *
+     * @param channel - IPC 事件通道。
+     * @param payload - 发送给渲染进程的事件载荷。
+     */
     const send = (channel: string, payload: unknown) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
     };

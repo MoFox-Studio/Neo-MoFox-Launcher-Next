@@ -194,6 +194,23 @@ function isActive(item: NavItem): boolean {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .rail__item {
+    transition:
+      background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+      color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  }
+
+  .rail__primary {
+    transition: none;
+  }
+
+  .rail__item:active,
+  .rail__primary:active {
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .rail {
     background: var(--md-sys-color-surface-container);

@@ -391,35 +391,45 @@ onMounted(async () => {
                 }}</span>
                 安装日志
               </button>
-              <div v-show="logPanelOpen" ref="logPanelRef" class="log-panel__body">
-                <p v-for="(line, idx) in installStore.logLines" :key="idx" class="log-panel__line">
-                  {{ line }}
-                </p>
-              </div>
+              <Transition name="log-reveal">
+                <div v-show="logPanelOpen" class="log-panel__reveal">
+                  <div ref="logPanelRef" class="log-panel__body">
+                    <p v-for="(line, idx) in installStore.logLines" :key="idx" class="log-panel__line">
+                      {{ line }}
+                    </p>
+                  </div>
+                </div>
+              </Transition>
             </div>
 
-            <div class="execute-actions">
-              <template v-if="installStore.isFailed">
-                <button type="button" class="btn btn--text state-layer" @click="cancelInstall">
-                  取消
-                </button>
-                <button type="button" class="btn btn--filled state-layer" @click="retryInstall">
-                  重试
-                </button>
-              </template>
-              <template v-else-if="installStore.isDone">
-                <span class="msr msr--fill execute-actions__done-icon" aria-hidden="true"
-                  >check_circle</span
-                >
-                <button type="button" class="btn btn--filled state-layer" @click="goToInstances">
-                  查看实例
-                </button>
-              </template>
-              <template v-else>
-                <button type="button" class="btn btn--text state-layer" @click="cancelInstall">
-                  取消安装
-                </button>
-              </template>
+            <Transition name="execute-result">
+              <div
+                v-if="installStore.isFailed || installStore.isDone"
+                :key="installStore.isFailed ? 'failed' : 'done'"
+                class="execute-actions"
+              >
+                <template v-if="installStore.isFailed">
+                  <button type="button" class="btn btn--text state-layer" @click="cancelInstall">
+                    取消
+                  </button>
+                  <button type="button" class="btn btn--filled state-layer" @click="retryInstall">
+                    重试
+                  </button>
+                </template>
+                <template v-else>
+                  <span class="msr msr--fill execute-actions__done-icon" aria-hidden="true"
+                    >check_circle</span
+                  >
+                  <button type="button" class="btn btn--filled state-layer" @click="goToInstances">
+                    查看实例
+                  </button>
+                </template>
+              </div>
+            </Transition>
+            <div v-if="!installStore.isFailed && !installStore.isDone" class="execute-actions">
+              <button type="button" class="btn btn--text state-layer" @click="cancelInstall">
+                取消安装
+              </button>
             </div>
           </section>
         </div>
@@ -689,13 +699,14 @@ onMounted(async () => {
   background: var(--md-sys-color-surface);
   padding: 0 4px;
   pointer-events: none;
-  transition: all var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  transition:
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .field__input:focus + .field__label,
 .field__input:not(:placeholder-shown) + .field__label {
-  top: 0;
-  transform: translateY(-50%) scale(0.85);
+  transform: translateY(calc(-50% - 28px)) scale(0.85);
 }
 
 .field__input:focus + .field__label {
@@ -835,7 +846,33 @@ onMounted(async () => {
   cursor: pointer;
 }
 
+.log-panel__reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  clip-path: inset(0 0 0 0);
+  opacity: 1;
+}
+
+.log-reveal-enter-active,
+.log-reveal-leave-active {
+  transition:
+    grid-template-rows var(--md-sys-motion-duration-short4)
+      var(--md-sys-motion-easing-emphasized-decelerate),
+    clip-path var(--md-sys-motion-duration-short4)
+      var(--md-sys-motion-easing-emphasized-decelerate),
+    opacity var(--md-sys-motion-duration-short4)
+      var(--md-sys-motion-easing-emphasized-decelerate);
+}
+
+.log-reveal-enter-from,
+.log-reveal-leave-to {
+  grid-template-rows: 0fr;
+  clip-path: inset(0 0 100% 0);
+  opacity: 0;
+}
+
 .log-panel__body {
+  min-height: 0;
   max-height: 240px;
   overflow-y: auto;
   background: var(--md-sys-color-surface-container-highest);
@@ -859,6 +896,19 @@ onMounted(async () => {
 .execute-actions__done-icon {
   color: var(--md-sys-color-tertiary);
   font-size: 28px;
+}
+
+.execute-result-enter-active {
+  transition:
+    opacity var(--md-sys-motion-duration-short4)
+      var(--md-sys-motion-easing-emphasized-decelerate),
+    transform var(--md-sys-motion-duration-short4)
+      var(--md-sys-motion-easing-emphasized-decelerate);
+}
+
+.execute-result-enter-from {
+  opacity: 0;
+  transform: scale(0.97);
 }
 
 /* 向导操作按钮与加载指示器 */
@@ -960,6 +1010,26 @@ onMounted(async () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .field__label {
+    transition: color 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .log-reveal-enter-active,
+  .log-reveal-leave-active,
+  .execute-result-enter-active {
+    transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  }
+
+  .log-reveal-enter-from,
+  .log-reveal-leave-to {
+    grid-template-rows: 1fr;
+    clip-path: none;
+  }
+
+  .execute-result-enter-from {
+    transform: none;
+  }
+
   .wizard-slide-enter-active,
   .wizard-slide-leave-active,
   .wizard-slide-forward-enter-active,

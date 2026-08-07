@@ -319,6 +319,13 @@ export class InstanceRuntimeService {
 
   // ── Process lifecycle ─────────────────────────────────────────────
 
+  /**
+   * 启动实例进程并接入 PTY 或子进程的输出、退出及错误事件。
+   *
+   * @param instanceId - 所属实例 ID。
+   * @param source - 进程来源，用于维护独立的运行状态与日志。
+   * @param command - 已解析的启动命令。
+   */
   private spawn(instanceId: string, source: InstanceProcessSource, command: StartCommand): void {
     const env = { ...process.env, ...command.env } as Record<string, string>;
     let resolveExited = () => undefined as void;

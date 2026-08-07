@@ -119,4 +119,15 @@ onUnmounted(() => unsubscribe?.());
   background: var(--md-sys-color-error);
   color: var(--md-sys-color-on-error);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .titlebar__btn {
+    transition: background-color var(--md-sys-motion-duration-short2)
+      var(--md-sys-motion-easing-standard);
+  }
+
+  .titlebar__btn:active {
+    transform: none;
+  }
+}
 </style>

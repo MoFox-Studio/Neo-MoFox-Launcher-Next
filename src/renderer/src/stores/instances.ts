@@ -11,6 +11,13 @@ export const useInstancesStore = defineStore('instances', () => {
   const logs = ref<Record<string, string>>({});
 
   const running = computed(() => instances.value.filter((i) => i.status === 'running'));
+
+  /**
+   * 从当前响应式实例列表中查找指定实例。
+   *
+   * @param id - 待查找的实例 ID。
+   * @returns 匹配的实例；不存在时为 `undefined`。
+   */
   const byId = (id: string) => instances.value.find((i) => i.id === id);
 
   // IPC 事件直接合并到当前列表，避免每条日志都触发全量刷新。

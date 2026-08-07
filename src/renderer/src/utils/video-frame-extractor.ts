@@ -15,6 +15,10 @@ export function extractFirstFrameFromVideo(videoFile: File, timeOffset = 0.1): P
       return;
     }
     const url = URL.createObjectURL(videoFile);
+
+    /**
+     * 释放临时对象 URL，并移除用于提帧的 DOM 元素。
+     */
     const cleanup = () => {
       URL.revokeObjectURL(url);
       video.remove();

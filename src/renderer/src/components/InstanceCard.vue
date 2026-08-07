@@ -48,7 +48,9 @@ function onPrimaryAction(): void {
     <!-- 平台、版本及安装位置等实例元数据 -->
     <div class="instance-card__meta">
       <span class="instance-card__chip">{{ platformId }}</span>
-      <span class="instance-card__version">v{{ instance.version }}</span>
+      <span class="instance-card__version" :title="`v${instance.version}`">
+        v{{ instance.version }}
+      </span>
     </div>
 
     <p class="instance-card__path" :title="installPath">{{ installPath }}</p>
@@ -140,13 +142,13 @@ function onPrimaryAction(): void {
   -webkit-backdrop-filter: var(--app-glass-filter);
   transition:
     background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.instance-card:hover {
-  box-shadow: var(--app-glass-card-shadow-hover);
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .instance-card:hover {
+    box-shadow: var(--app-glass-card-shadow-hover);
+  }
 }
 
 /* 标题与状态区 */
@@ -160,6 +162,7 @@ function onPrimaryAction(): void {
 .instance-card__name {
   margin: 0;
   font: var(--md-sys-typescale-title-medium);
+  min-width: 0;
   color: var(--md-sys-color-on-surface);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -181,12 +184,18 @@ function onPrimaryAction(): void {
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-surface-container-highest);
   color: var(--md-sys-color-on-surface-variant);
+  flex: none;
   font: var(--md-sys-typescale-label-small);
 }
 
 .instance-card__version {
-  font: var(--md-sys-typescale-body-small);
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
   color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .instance-card__path {
@@ -212,7 +221,7 @@ function onPrimaryAction(): void {
   height: 100%;
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-tertiary);
-  animation: instance-card-indeterminate 1.2s var(--md-sys-motion-easing-standard) infinite;
+  animation: instance-card-indeterminate 1.2s linear infinite;
 }
 
 @keyframes instance-card-indeterminate {
@@ -278,10 +287,6 @@ function onPrimaryAction(): void {
     transition:
       background-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
       box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-  }
-
-  .instance-card:hover {
-    transform: none;
   }
 
   .instance-card__progress-bar {
