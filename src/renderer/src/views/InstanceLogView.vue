@@ -165,12 +165,15 @@ onMounted(async () => {
     if (container) resizeObserver.observe(container);
   }
 
+  window.addEventListener('keydown', onWindowKeydown);
+
   statsTimer = setInterval(refreshStats, 1000);
   void refreshStats();
 });
 
 onBeforeUnmount(() => {
   // 释放 IPC 订阅、浏览器观察器、定时器和终端资源。
+  window.removeEventListener('keydown', onWindowKeydown);
   unsubscribePty?.();
   resizeObserver?.disconnect();
   if (statsTimer) clearInterval(statsTimer);
@@ -277,6 +280,14 @@ function onSearchKeydown(event: KeyboardEvent): void {
     else searchNext();
   } else if (event.key === 'Escape') {
     toggleSearch();
+  }
+}
+
+function onWindowKeydown(event: KeyboardEvent): void {
+  // Ctrl+Shift+C 复制日志。
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'C' || event.key === 'c')) {
+    event.preventDefault();
+    void copyLogs();
   }
 }
 
