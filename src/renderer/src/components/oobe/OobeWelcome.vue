@@ -7,7 +7,7 @@ const emit = defineEmits<{ (e: 'next'): void }>();
 <template>
   <section class="oobe-step oobe-step--welcome">
     <div class="oobe__hero">
-      <span class="msr msr--fill oobe__hero-icon" aria-hidden="true">pets</span>
+      <img class="oobe__hero-logo" src="/logo.png" alt="Neo-MoFox" />
     </div>
     <h1 class="oobe__title">欢迎使用 Neo-MoFox</h1>
     <p class="oobe__intro">
@@ -30,16 +30,15 @@ const emit = defineEmits<{ (e: 'next'): void }>();
 .oobe__hero {
   width: 160px;
   height: 160px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-primary-container);
   display: grid;
   place-items: center;
   margin-bottom: 32px;
 }
 
-.oobe__hero-icon {
-  font-size: 120px;
-  color: var(--md-sys-color-primary);
+.oobe__hero-logo {
+  width: 136px;
+  height: 136px;
+  object-fit: contain;
 }
 
 .oobe__title {

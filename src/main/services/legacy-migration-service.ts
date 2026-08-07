@@ -18,6 +18,14 @@ export interface LegacyDataDirResolution {
   override?: string;
 }
 
+/** 计算新版启动器的独立数据目录，禁止与旧启动器共用 instances.json。 */
+export function resolveNextLauncherDataDir(appDataDir: string): string {
+  const separator = appDataDir.includes('\\') ? '\\' : '/';
+  return appDataDir.endsWith(separator)
+    ? `${appDataDir}Neo-MoFox-Launcher-Next`
+    : `${appDataDir}${separator}Neo-MoFox-Launcher-Next`;
+}
+
 /**
  * 计算旧启动器默认数据目录。
  * 旧启动器在 `<appData>/Neo-MoFox-Launcher/` 下存放 instances.json，

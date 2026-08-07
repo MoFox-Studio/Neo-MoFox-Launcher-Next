@@ -114,7 +114,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--md-sys-color-surface);
+  background: transparent;
   padding: clamp(24px, 5vh, 56px) clamp(24px, 6vw, 96px);
   overflow-y: auto;
 }

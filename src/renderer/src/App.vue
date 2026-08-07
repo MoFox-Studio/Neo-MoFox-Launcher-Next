@@ -46,6 +46,12 @@ const bare = computed(() => route.meta.bare === true);
   -webkit-backdrop-filter: blur(24px) saturate(145%);
 }
 
+.shell--bare {
+  background: var(--app-glass-surface);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
+}
+
 .shell__foreground {
   position: relative;
   z-index: 2;
@@ -87,6 +93,15 @@ const bare = computed(() => route.meta.bare === true);
   opacity: 0;
 }
 
+
+@media (prefers-reduced-transparency: reduce) {
+  .shell,
+  .shell--bare {
+    background: var(--md-sys-color-surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .page-enter-active {

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   LegacyMigrationService,
   resolveLegacyLauncherDataDir,
+  resolveNextLauncherDataDir,
 } from '../../../src/main/services/legacy-migration-service';
 import { InstanceRepository } from '../../../src/main/services/instance-repository';
 import type { Instance } from '../../../src/shared/domain/instance';
@@ -34,6 +35,18 @@ function makeInstance(overrides: Partial<Instance>): Instance {
     ...overrides,
   };
 }
+
+describe('launcher data directory isolation', () => {
+  it('keeps next launcher data separate from the legacy directory', () => {
+    const appDataDir = 'C:\\Users\\tester\\AppData\\Roaming';
+    const legacy = resolveLegacyLauncherDataDir({ appDataDir });
+    const next = resolveNextLauncherDataDir(appDataDir);
+
+    expect(legacy).toBe('C:\\Users\\tester\\AppData\\Roaming\\Neo-MoFox-Launcher');
+    expect(next).toBe('C:\\Users\\tester\\AppData\\Roaming\\Neo-MoFox-Launcher-Next');
+    expect(next).not.toBe(legacy);
+  });
+});
 
 describe('resolveLegacyLauncherDataDir', () => {
   it('joins appDataDir with the legacy app name by default', () => {

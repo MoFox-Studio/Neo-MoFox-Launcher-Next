@@ -289,6 +289,7 @@ describe('InstanceRepository', () => {
     expect(list.map((i) => i.id).sort()).toEqual(['ins-a', 'ins-b']);
   });
 
+
   it('normalizeInstance maps legacy fields to canonical schema', () => {
     const normalized = normalizeInstance({
       id: 'bot-2',

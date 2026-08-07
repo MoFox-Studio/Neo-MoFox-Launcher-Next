@@ -20,6 +20,7 @@ import { pickDirectory, pickFile } from './services/filepicker-service';
 import {
   LegacyMigrationService,
   resolveLegacyLauncherDataDir,
+  resolveNextLauncherDataDir,
 } from './services/legacy-migration-service';
 import { MirrorService } from './services/mirror-service';
 import { PlatformMetadataService } from './services/platform-metadata-service';
@@ -121,6 +122,9 @@ function createMainWindow(): BrowserWindow {
 
   return window;
 }
+
+// 新旧启动器必须使用不同的 userData；迁移服务只读旧目录，避免新版 schema 覆盖旧 instances.json。
+app.setPath('userData', resolveNextLauncherDataDir(app.getPath('appData')));
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
