@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LauncherSettings } from '../../shared/domain/settings';
+import {
+  DEFAULT_WALLPAPER_BLUR,
+  DEFAULT_WALLPAPER_OPACITY,
+  type LauncherSettings,
+} from '../../shared/domain/settings';
 import { MofoxError } from '../../shared/domain/error';
 import { writeJsonAtomic } from '../utils/atomic-json';
 
@@ -17,8 +21,8 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   compressLogArchive: true,
   wallpaperType: 'none',
   wallpaperFileName: '',
-  wallpaperBlur: 0,
-  wallpaperOpacity: 0.88,
+  wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+  wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
   oobeCompleted: false,
 };
 

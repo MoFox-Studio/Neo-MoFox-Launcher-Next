@@ -8,7 +8,7 @@ const settingsStore = useSettingsStore();
 const { settings } = storeToRefs(settingsStore);
 const videoPlaybackFailed = ref(false);
 const prefersReducedMotion = ref(false);
-let motionQuery: MediaQueryList | undefined;
+let motionQuery: ReturnType<typeof window.matchMedia> | undefined;
 
 /** 当前有效壁纸必须同时拥有类型和受管媒体文件名。 */
 const hasWallpaper = computed(
@@ -22,8 +22,8 @@ const mediaUrl = computed(() => getWallpaperMediaUrl(settings.value.wallpaperFil
 const mediaStyle = computed(() => ({ filter: `blur(${settings.value.wallpaperBlur}px)` }));
 
 /**
- * 内容遮罩沿用 WebUI 语义：调节前景内容表面的不透明度，而非降低媒体 alpha。
- * 无壁纸时强制回到完整不透明表面，保持原有启动器视觉效果。
+ * 内容遮罩仅调节壁纸状态下的前景表面，不会降低媒体自身的透明度。
+ * 无壁纸时复位变量，避免切换状态后沿用旧的遮罩值。
  */
 watchEffect(() => {
   document.documentElement.style.setProperty(
@@ -65,7 +65,9 @@ onBeforeUnmount(() => {
       alt=""
     />
     <video
-      v-else-if="settings.wallpaperType === 'video' && !prefersReducedMotion && !videoPlaybackFailed"
+      v-else-if="
+        settings.wallpaperType === 'video' && !prefersReducedMotion && !videoPlaybackFailed
+      "
       class="wallpaper-layer__media"
       :src="mediaUrl"
       :style="mediaStyle"

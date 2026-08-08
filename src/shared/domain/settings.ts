@@ -3,6 +3,10 @@ import type { WallpaperType } from './wallpaper';
 /** 外观模式；`system` 跟随操作系统的颜色偏好。 */
 export type ThemeMode = 'system' | 'light' | 'dark';
 
+/** 壁纸显示参数的默认值，保留足够层次并让内容保持可读。 */
+export const DEFAULT_WALLPAPER_BLUR = 8;
+export const DEFAULT_WALLPAPER_OPACITY = 0.72;
+
 /** 启动器的持久化用户设置。 */
 export interface LauncherSettings {
   themeMode: ThemeMode;

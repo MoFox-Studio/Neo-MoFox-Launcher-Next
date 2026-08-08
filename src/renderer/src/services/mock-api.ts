@@ -4,7 +4,11 @@
  */
 import type { MofoxApi, MofoxEventMap, Unsubscribe } from '@shared/ipc';
 import type { Instance } from '@shared/domain/instance';
-import type { LauncherSettings } from '@shared/domain/settings';
+import {
+  DEFAULT_WALLPAPER_BLUR,
+  DEFAULT_WALLPAPER_OPACITY,
+  type LauncherSettings,
+} from '@shared/domain/settings';
 import type {
   LegacyLauncherInfo,
   MigrationPreview,
@@ -77,8 +81,8 @@ let settings: LauncherSettings = {
   compressLogArchive: true,
   wallpaperType: 'none',
   wallpaperFileName: '',
-  wallpaperBlur: 0,
-  wallpaperOpacity: 0.88,
+  wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+  wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
   oobeCompleted: false,
 };
 
@@ -442,8 +446,8 @@ export const mockApi: MofoxApi = {
       ...settings,
       wallpaperType: 'none',
       wallpaperFileName: '',
-      wallpaperBlur: 0,
-      wallpaperOpacity: 0.88,
+      wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+      wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     };
     return { ...settings };
   },

@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import type { LauncherSettings } from '@shared/domain/settings';
+import {
+  DEFAULT_WALLPAPER_BLUR,
+  DEFAULT_WALLPAPER_OPACITY,
+  type LauncherSettings,
+} from '@shared/domain/settings';
 import { mofoxApi } from '@/services/mofox-api';
 import { applyTheme } from '@/services/theme';
 
@@ -21,8 +25,8 @@ export const useSettingsStore = defineStore('settings', () => {
     compressLogArchive: true,
     wallpaperType: 'none',
     wallpaperFileName: '',
-    wallpaperBlur: 0,
-    wallpaperOpacity: 0.88,
+    wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+    wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     oobeCompleted: false,
   });
   const loaded = ref(false);

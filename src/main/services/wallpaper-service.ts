@@ -1,7 +1,11 @@
 import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { LauncherSettings } from '../../shared/domain/settings';
+import {
+  DEFAULT_WALLPAPER_BLUR,
+  DEFAULT_WALLPAPER_OPACITY,
+  type LauncherSettings,
+} from '../../shared/domain/settings';
 import type { WallpaperAsset, WallpaperType } from '../../shared/domain/wallpaper';
 import { MofoxError } from '../../shared/domain/error';
 
@@ -104,6 +108,12 @@ export class WallpaperService {
       const updated = await this.settings.update({
         wallpaperType: staged.type,
         wallpaperFileName: fileName,
+        ...(current.wallpaperType === 'none'
+          ? {
+              wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+              wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
+            }
+          : {}),
       });
       this.staged.delete(id);
       if (current.wallpaperFileName && current.wallpaperFileName !== fileName) {
@@ -139,8 +149,8 @@ export class WallpaperService {
     const updated = await this.settings.update({
       wallpaperType: 'none',
       wallpaperFileName: '',
-      wallpaperBlur: 0,
-      wallpaperOpacity: 0.88,
+      wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+      wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     });
     if (current.wallpaperFileName) await this.removeManagedFile(current.wallpaperFileName);
     return updated;

@@ -66,8 +66,8 @@ onUnmounted(() => unsubscribe?.());
   padding-left: 16px;
   -webkit-app-region: drag;
   color: var(--md-sys-color-on-surface-variant);
-  /* 透明：直接透出 body 的系统材质，保留模糊以维持品牌与控件可读性。 */
-  background: transparent;
+  /* 与侧栏共用半透明表面，既透出系统材质也保证品牌与控件可读性。 */
+  background: var(--app-glass-surface);
   border-bottom: 1px solid var(--app-glass-border);
   backdrop-filter: var(--app-glass-filter);
   -webkit-backdrop-filter: var(--app-glass-filter);
