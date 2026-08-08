@@ -64,10 +64,6 @@ function onRefresh(): void {
   instancesStore.refresh();
 }
 
-function goInstall(): void {
-  router.push({ name: 'install' });
-}
-
 function onStart(id: string): void {
   instancesStore.start(id);
 }
@@ -110,7 +106,6 @@ async function confirmRemove(): Promise<void> {
       <button class="icon-btn state-layer" type="button" title="刷新" aria-label="刷新" @click="onRefresh">
         <span class="msr" aria-hidden="true">refresh</span>
       </button>
-      <button class="btn btn--filled state-layer" type="button" @click="goInstall">新建实例</button>
     </PageHeader>
 
     <div class="instances-view__body">
@@ -147,10 +142,7 @@ async function confirmRemove(): Promise<void> {
 
       <div v-if="!hasInstances" class="empty-state">
         <span class="msr empty-state__icon" aria-hidden="true">deployed_code</span>
-        <p class="empty-state__text">还没有任何实例，安装一个即可开始使用</p>
-        <button class="btn btn--filled state-layer" type="button" @click="goInstall">
-          去安装
-        </button>
+        <p class="empty-state__text">还没有任何实例，请使用左上角加号添加实例</p>
       </div>
 
       <div v-else-if="!hasResults" class="empty-state">

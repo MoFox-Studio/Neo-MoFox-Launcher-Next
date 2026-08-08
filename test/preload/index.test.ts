@@ -13,7 +13,7 @@ describe('createMofoxApi', () => {
   /** 覆盖所有请求方法与通道表的一一映射，防止新增 API 绕过白名单。 */
   it('forwards every invoke method to its allowlisted channel', async () => {
     const ipcRenderer = {
-      invoke: vi.fn(async () => undefined),
+      invoke: vi.fn(async (_channel: string, ..._args: unknown[]) => undefined),
       on: vi.fn(),
       removeListener: vi.fn(),
     };
@@ -43,6 +43,10 @@ describe('createMofoxApi', () => {
     });
     await api.retryInstall('task-1');
     await api.cancelInstall('task-1');
+    await api.manualImportInstance({
+      instanceName: 'Existing instance',
+      mofoxInstallDir: 'C:\\MoFox\\existing',
+    });
     await api.detectSystemEnv();
     await api.listBotPlatforms();
     await api.getSettings();
@@ -51,11 +55,16 @@ describe('createMofoxApi', () => {
     await api.previewLegacyMigration();
     await api.importLegacyMigration();
     await api.oobeVerifySudo('password');
+    await api.oobeInspectDependencies();
     await api.oobeInstallDependencies();
     await api.oobeCancelInstall();
     await api.oobeComplete();
     await api.pickFile();
     await api.pickDirectory();
+    await api.selectWallpaper();
+    await api.commitWallpaper('asset-1');
+    await api.discardWallpaper('asset-1');
+    await api.removeWallpaper();
 
     expect(ipcRenderer.invoke.mock.calls.map(([channel]) => channel)).toEqual(
       Object.values(IPC_INVOKE_CHANNELS),

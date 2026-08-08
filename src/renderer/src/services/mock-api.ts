@@ -286,6 +286,23 @@ export const mockApi: MofoxApi = {
   },
   async retryInstall() {},
   async cancelInstall() {},
+  async manualImportInstance(request) {
+    await delay(160);
+    const instanceId = `ins-${Date.now()}`;
+    instances.push({
+      id: instanceId,
+      name: request.instanceName,
+      version: request.version?.trim() || 'unknown',
+      mofoxInstallDir: request.mofoxInstallDir,
+      platforms: request.platformId && request.platformDir
+        ? { [request.platformId]: request.platformDir }
+        : {},
+      status: 'stopped',
+      createdAt: Date.now(),
+      autoStart: false,
+    });
+    return { instanceId };
+  },
 
   async detectSystemEnv() {
     await delay(350);

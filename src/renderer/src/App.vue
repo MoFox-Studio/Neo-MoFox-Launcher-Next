@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import AppTitleBar from '@/components/AppTitleBar.vue';
+import AddInstanceDialog from '@/components/AddInstanceDialog.vue';
 import NavRail from '@/components/NavRail.vue';
 import WallpaperLayer from '@/components/WallpaperLayer.vue';
 import { useSettingsStore } from '@/stores/settings';
@@ -35,6 +36,7 @@ const hasWallpaper = computed(
         </main>
       </div>
     </div>
+    <AddInstanceDialog v-if="!bare" />
   </div>
 </template>
 
@@ -89,7 +91,7 @@ const hasWallpaper = computed(
 }
 
 /*
- * 仅淡入路由页面。此前的 translateY 会为 SettingsView 和 InstallWizardView
+ * 仅淡入路由页面。此前的 translateY 会为 SettingsView 和 InstallWizard
  * 创建变换祖先，Chromium 会在入场动画结束后才稳定合成其 backdrop-filter。
  */
 .page-enter-active {

@@ -125,7 +125,9 @@ describe('InstanceRuntimeService', () => {
     const repository = createRepository(instance);
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
     const pty = createPty();
-    const writeExport = vi.fn(async (fileName: string) => `D:\\exports\\${fileName}`);
+    const writeExport = vi.fn(
+      async (fileName: string, _content: string) => `D:\\exports\\${fileName}`,
+    );
     const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, vi.fn(() => pty), undefined, undefined, writeExport, FAST_TIMINGS);
 
     await service.start(instance.id);

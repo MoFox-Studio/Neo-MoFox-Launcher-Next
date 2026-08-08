@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useSettingsStore } from '@/stores/settings';
 import { useInstallStore } from '@/stores/install';
 import { mofoxApi } from '@/services/mofox-api';
@@ -25,9 +24,12 @@ const STEP_LABELS: Record<InstallStepId, string> = {
   finalize: '完成',
 };
 
-const router = useRouter();
 const settingsStore = useSettingsStore();
 const installStore = useInstallStore();
+const emit = defineEmits<{
+  close: [];
+  complete: [];
+}>();
 
 // 当前步骤与各步骤的局部输入共同控制校验和页面跳转。
 const currentStep = ref(1);
@@ -89,13 +91,23 @@ watch(
     const base = settingsStore.settings.defaultInstallDir;
     const name = instanceName.value.trim();
     if (!base || !name) return;
-    const sep = base.endsWith('\\') || base.endsWith('/') ? '' : '\\';
+    const sep = base.endsWith('\\') || base.endsWith('/') ? '' : base.includes('\\') ? '\\' : '/';
     targetDir.value = `${base}${sep}${name}`;
   },
   { immediate: true },
 );
 
 function onTargetDirInput(): void {
+  targetDirTouched.value = true;
+}
+
+async function chooseTargetDir(): Promise<void> {
+  const selected = await mofoxApi.pickDirectory({
+    title: '选择安装目录',
+    defaultPath: targetDir.value || settingsStore.settings.defaultInstallDir || undefined,
+  });
+  if (!selected) return;
+  targetDir.value = selected;
   targetDirTouched.value = true;
 }
 
@@ -169,10 +181,11 @@ async function retryInstall(): Promise<void> {
 
 async function cancelInstall(): Promise<void> {
   await installStore.cancel();
+  emit('close');
 }
 
 function goToInstances(): void {
-  router.push({ name: 'instances' });
+  emit('complete');
 }
 
 onMounted(async () => {
@@ -283,6 +296,8 @@ onMounted(async () => {
               :value="versionChoice"
               @change="onVersionChoiceChange"
             >
+              <!-- Material Web Components 使用原生具名插槽，而不是 Vue 模板插槽。 -->
+              <!-- eslint-disable vue/no-deprecated-slot-attribute -->
               <md-select-option value="latest" :disabled="!selectedPlatform?.latestVersion">
                 <div slot="headline">
                   {{
@@ -295,6 +310,7 @@ onMounted(async () => {
               <md-select-option value="custom">
                 <div slot="headline">自定义</div>
               </md-select-option>
+              <!-- eslint-enable vue/no-deprecated-slot-attribute -->
             </md-outlined-select>
 
             <label v-if="versionChoice === 'custom'" class="field">
@@ -317,7 +333,7 @@ onMounted(async () => {
                 />
                 <span class="field__label">目标目录</span>
               </label>
-              <button type="button" class="btn btn--tonal state-layer">
+              <button type="button" class="btn btn--tonal state-layer" @click="chooseTargetDir">
                 <span class="msr" aria-hidden="true">folder_open</span>
                 浏览
               </button>
@@ -394,7 +410,11 @@ onMounted(async () => {
               <Transition name="log-reveal">
                 <div v-show="logPanelOpen" class="log-panel__reveal">
                   <div ref="logPanelRef" class="log-panel__body">
-                    <p v-for="(line, idx) in installStore.logLines" :key="idx" class="log-panel__line">
+                    <p
+                      v-for="(line, idx) in installStore.logLines"
+                      :key="idx"
+                      class="log-panel__line"
+                    >
                       {{ line }}
                     </p>
                   </div>
@@ -861,10 +881,8 @@ onMounted(async () => {
   transition:
     grid-template-rows var(--md-sys-motion-duration-short4)
       var(--md-sys-motion-easing-emphasized-decelerate),
-    clip-path var(--md-sys-motion-duration-short4)
-      var(--md-sys-motion-easing-emphasized-decelerate),
-    opacity var(--md-sys-motion-duration-short4)
-      var(--md-sys-motion-easing-emphasized-decelerate);
+    clip-path var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate),
+    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate);
 }
 
 .log-reveal-enter-from,
@@ -903,10 +921,8 @@ onMounted(async () => {
 
 .execute-result-enter-active {
   transition:
-    opacity var(--md-sys-motion-duration-short4)
-      var(--md-sys-motion-easing-emphasized-decelerate),
-    transform var(--md-sys-motion-duration-short4)
-      var(--md-sys-motion-easing-emphasized-decelerate);
+    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate),
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate);
 }
 
 .execute-result-enter-from {
@@ -1058,6 +1074,52 @@ onMounted(async () => {
 
   .progress-track__bar--indeterminate {
     transform: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .wizard {
+    flex-direction: column;
+  }
+
+  .wizard__rail {
+    width: 100%;
+    flex: 0 0 auto;
+    padding: 16px 20px;
+    border-right: none;
+    border-bottom: 1px solid var(--app-glass-border);
+  }
+
+  .stepper {
+    display: flex;
+    overflow-x: auto;
+    gap: 16px;
+  }
+
+  .stepper__item {
+    flex: 0 0 auto;
+    align-items: center;
+    padding: 0;
+  }
+
+  .stepper__title {
+    padding-top: 0;
+  }
+
+  .stepper__line {
+    display: none;
+  }
+
+  .wizard__panel {
+    padding: 24px 20px;
+  }
+
+  .dir-row {
+    flex-direction: column;
+  }
+
+  .dir-row .btn {
+    align-self: flex-end;
   }
 }
 </style>

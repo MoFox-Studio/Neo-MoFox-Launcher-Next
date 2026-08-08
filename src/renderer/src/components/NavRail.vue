@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router';
-import { useInstallStore } from '@/stores/install';
+import { useAddInstanceStore } from '@/stores/add-instance';
 
-// 主导航：路由驱动选中态，并显示后台安装任务提示。
+// 主导航：路由驱动选中态；新建实例统一收敛到顶部快捷入口。
 interface NavItem {
   name: string;
   label: string;
@@ -12,14 +12,13 @@ interface NavItem {
 const items: NavItem[] = [
   { name: 'dashboard', label: '概览', icon: 'space_dashboard' },
   { name: 'instances', label: '实例', icon: 'deployed_code' },
-  { name: 'install', label: '安装', icon: 'download' },
   { name: 'settings', label: '设置', icon: 'settings' },
 ];
 
-// 当前路由和安装仓库共同决定导航的动态视觉状态。
+// 当前路由决定导航项的选中状态。
 const route = useRoute();
 const router = useRouter();
-const install = useInstallStore();
+const addInstanceStore = useAddInstanceStore();
 
 function isActive(item: NavItem): boolean {
   return route.name === item.name;
@@ -32,13 +31,13 @@ function isActive(item: NavItem): boolean {
     <button
       class="rail__fab state-layer"
       type="button"
-      title="新建实例"
-      @click="router.push({ name: 'install' })"
+      title="添加实例"
+      @click="addInstanceStore.show()"
     >
       <span class="msr" aria-hidden="true">add</span>
     </button>
 
-    <!-- 路由导航项与安装中徽标 -->
+    <!-- 路由导航项 -->
     <ul class="rail__list">
       <li v-for="item in items" :key="item.name">
         <button
@@ -52,11 +51,6 @@ function isActive(item: NavItem): boolean {
             <span class="msr" :class="{ 'msr--fill': isActive(item) }" aria-hidden="true">
               {{ item.icon }}
             </span>
-            <span
-              v-if="item.name === 'install' && install.isInstalling"
-              class="rail__badge"
-              aria-label="正在安装"
-            ></span>
           </span>
           <span class="rail__label">{{ item.label }}</span>
         </button>
@@ -176,16 +170,6 @@ function isActive(item: NavItem): boolean {
 
 .rail__item--active::before {
   transform: translateY(-50%) scaleY(1);
-}
-
-.rail__badge {
-  position: absolute;
-  top: 0;
-  right: 10px;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-error);
 }
 
 .rail__label {

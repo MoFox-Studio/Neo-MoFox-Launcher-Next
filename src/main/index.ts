@@ -7,6 +7,7 @@ import { registerCommonIpc } from './ipc/common';
 import { registerCoreIpc } from './ipc/core';
 import { registerInstallIpc } from './ipc/install';
 import { registerMigrationIpc } from './ipc/migration';
+import { registerManualImportIpc } from './ipc/manual-import';
 import { registerOobeIpc } from './ipc/oobe';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerWindowIpc } from './ipc/window';
@@ -22,6 +23,7 @@ import {
   resolveLegacyLauncherDataDir,
 } from './services/legacy-migration-service';
 import { MirrorService } from './services/mirror-service';
+import { ManualImportService } from './services/manual-import-service';
 import { PlatformMetadataService } from './services/platform-metadata-service';
 import { SettingsService } from './services/settings-service';
 import { WallpaperService } from './services/wallpaper-service';
@@ -238,6 +240,7 @@ if (!hasSingleInstanceLock) {
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
     registerInstallIpc(ipcMain, installTasks);
+    registerManualImportIpc(ipcMain, new ManualImportService(instances));
     // 旧启动器迁移：默认指向与当前 userData 同级的 Neo-MoFox-Launcher 目录。
     const legacyDataDir = resolveLegacyLauncherDataDir({
       appDataDir: app.getPath('appData'),

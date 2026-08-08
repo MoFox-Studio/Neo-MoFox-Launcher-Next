@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
 import { MofoxError } from '@shared/domain/error';
-import type { ThemeMode } from '@shared/domain/instance';
+import type { ThemeMode } from '@shared/domain/settings';
 import { extractColorsFromImage, clearWallpaperColors, loadWallpaperColors, saveWallpaperColors } from '@/utils/wallpaper-color-manager';
 import { extractFirstFrameAsFile } from '@/utils/video-frame-extractor';
 import { getWallpaperMediaUrl, loadWallpaperFile } from '@/utils/wallpaper-media';
