@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
 import { MofoxError } from '@shared/domain/error';
-import type { ThemeMode } from '@shared/domain/settings';
+import type { ThemeMode } from '@shared/domain/instance';
 import { extractColorsFromImage, clearWallpaperColors, loadWallpaperColors, saveWallpaperColors } from '@/utils/wallpaper-color-manager';
 import { extractFirstFrameAsFile } from '@/utils/video-frame-extractor';
 import { getWallpaperMediaUrl, loadWallpaperFile } from '@/utils/wallpaper-media';
@@ -397,14 +397,13 @@ function applyWallpaperColor(color: string): void {
   background: var(--md-sys-color-surface);
   padding: 0 4px;
   pointer-events: none;
-  transition:
-    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: all var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
 .field__input:focus + .field__label,
 .field__input:not(:placeholder-shown) + .field__label {
-  transform: translateY(calc(-50% - 28px)) scale(0.85);
+  top: 0;
+  transform: translateY(-50%) scale(0.85);
 }
 
 .field__input:focus + .field__label {
@@ -587,16 +586,6 @@ function applyWallpaperColor(color: string): void {
 @keyframes spinner-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
-  }
-
-  .field__label {
-    transition: color 200ms cubic-bezier(0.23, 1, 0.32, 1);
   }
 }
 </style>

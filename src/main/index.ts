@@ -11,19 +11,15 @@ import { registerOobeIpc } from './ipc/oobe';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
-import { registerPackIpc } from './ipc/pack';
 import { PlatformRegistry } from './platforms/registry';
-import { ManualAddService } from './services/manual-add-service';
 import { OobeService } from './services/oobe-service';
 import { InstallTaskService } from './services/install-task-service';
-import { PackService } from './services/pack-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
 import { pickDirectory, pickFile } from './services/filepicker-service';
 import {
   LegacyMigrationService,
   resolveLegacyLauncherDataDir,
-  resolveNextLauncherDataDir,
 } from './services/legacy-migration-service';
 import { MirrorService } from './services/mirror-service';
 import { PlatformMetadataService } from './services/platform-metadata-service';
@@ -75,6 +71,7 @@ function emitMaximizeState(window: BrowserWindow): void {
  * @returns 初始化完成的 BrowserWindow。
  */
 function createMainWindow(): BrowserWindow {
+  const isMac = process.platform === 'darwin';
   const isWindows = process.platform === 'win32';
 
   const window = new BrowserWindow({
@@ -82,15 +79,13 @@ function createMainWindow(): BrowserWindow {
     height: 760,
     minWidth: 900,
     minHeight: 620,
-    icon: app.isPackaged
-      ? join(process.resourcesPath, 'icon.ico')
-      : join(__dirname, '../../assets/images/icon.ico'),
     frame: false,
     show: false,
-    // Acrylic 必须使用普通 DWM 窗口；layered transparent 窗口不会获得 Windows 11 原生圆角。
-    transparent: !isWindows,
-    backgroundColor: '#00000000',
-    backgroundMaterial: isWindows ? 'acrylic' : 'none',
+    transparent: true, // 开启透明
+    // 系统原生材质：无壁纸时由 shell 玻璃层透出桌面，提供微微模糊的桌面感。
+    backgroundMaterial: isMac ? 'none' : isWindows ? 'mica' : 'none',
+    visualEffectState: 'active',
+    vibrancy: isMac ? 'under-window' : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -126,9 +121,6 @@ function createMainWindow(): BrowserWindow {
   return window;
 }
 
-// 新旧启动器必须使用不同的 userData；迁移服务只读旧目录，避免新版 schema 覆盖旧 instances.json。
-app.setPath('userData', resolveNextLauncherDataDir(app.getPath('appData')));
-
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!hasSingleInstanceLock) {
@@ -148,15 +140,10 @@ if (!hasSingleInstanceLock) {
     mainWindow.focus();
   });
 
-  void app.whenReady().then(async () => {
+  void app.whenReady().then(() => {
     const dataDirectory = app.getPath('userData');
     let logger: Logger | undefined;
-    /**
-     * 在日志器初始化前后报告启动期错误；未就绪时降级输出到控制台。
-     *
-     * @param message - 错误上下文说明。
-     * @param error - 需要记录的错误对象。
-     */
+    // 初始化早期仍可能发生存储错误，日志器就绪前保留控制台诊断兜底。
     const report = (message: string, error: Error) => {
       if (logger) void logger.log('launcher', 'error', `${message}: ${error.message}`);
       else console.error(message, error);
@@ -200,12 +187,7 @@ if (!hasSingleInstanceLock) {
       remove: () => wallpapers.remove(),
     });
     protocol.handle('mofox-wallpaper', createWallpaperProtocolHandler(wallpapers));
-    /**
-     * 向当前有效的主窗口转发服务事件；窗口重建期间丢弃通知。
-     *
-     * @param channel - IPC 事件通道。
-     * @param payload - 发送给渲染进程的事件载荷。
-     */
+    // 服务事件仅在有效窗口存在时转发，窗口重建期间丢弃过期 UI 通知。
     const send = (channel: string, payload: unknown) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
     };
@@ -246,34 +228,12 @@ if (!hasSingleInstanceLock) {
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
     registerInstallIpc(ipcMain, installTasks);
-    const packService = new PackService(instances, {
-      progress: (event) => send(IPC_EVENT_CHANNELS['pack-progress'], event),
-    });
-    const manualAddService = new ManualAddService(instances);
-    registerPackIpc(ipcMain, {
-      scanPlugins: (id) => packService.scanInstancePlugins(id),
-      scanPluginConfigs: (id) => packService.scanInstancePluginConfigs(id),
-      exportPack: (id, options, destPath) =>
-        packService.exportIntegrationPack(id, options, destPath),
-      validatePack: (path) => packService.validateIntegrationPack(path),
-      importPack: (request) => packService.importIntegrationPack(request),
-      manualAdd: (request) => manualAddService.add(request),
-    });
     // 旧启动器迁移：默认指向与当前 userData 同级的 Neo-MoFox-Launcher 目录。
     const legacyDataDir = resolveLegacyLauncherDataDir({
       appDataDir: app.getPath('appData'),
       override: process.env.NEO_MOFOX_LEGACY_DATA,
     });
     const legacyMigration = new LegacyMigrationService(legacyDataDir, instances, report);
-    // 在窗口开放启动操作前纠正旧版迁移曾推测错误的平台目录。
-    try {
-      await legacyMigration.repairExistingInstances();
-    } catch (error) {
-      report(
-        'Unable to repair legacy instance platform paths',
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    }
     registerMigrationIpc(ipcMain, legacyMigration);
     const oobeService = new OobeService(
       { settings, legacy: legacyMigration, mirrors, environment },

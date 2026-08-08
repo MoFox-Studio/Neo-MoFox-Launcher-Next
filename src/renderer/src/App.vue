@@ -4,61 +4,44 @@ import { useRoute } from 'vue-router';
 import AppTitleBar from '@/components/AppTitleBar.vue';
 import NavRail from '@/components/NavRail.vue';
 import WallpaperLayer from '@/components/WallpaperLayer.vue';
-import AddInstanceDialog from '@/components/AddInstanceDialog.vue';
 
 const route = useRoute();
 // 根据路由元数据切换首次引导的沉浸式布局。
 const bare = computed(() => route.meta.bare === true);
-// 日志页面隐去底部导航栏，避免悬浮 Dock 遮住日志内容。
-const hideNavRail = computed(() => route.name === 'instance-logs');
 </script>
 
 <template>
-  <div class="shell" :class="{ 'shell--bare': bare }">
+  <div class="shell">
     <WallpaperLayer />
     <div class="shell__foreground">
+      <!-- 应用窗体栏与主导航框架始终位于壁纸层上方。 -->
       <AppTitleBar />
       <div class="shell__body">
+        <NavRail v-if="!bare" />
         <main class="shell__content">
           <router-view v-slot="{ Component }">
-            <transition name="page">
+            <transition name="page" mode="out-in">
               <component :is="Component" />
             </transition>
           </router-view>
         </main>
-        <NavRail v-if="!bare && !hideNavRail" />
       </div>
     </div>
-    <AddInstanceDialog v-if="!bare" />
   </div>
 </template>
 
 <style scoped>
 .shell {
-  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
-  border-radius: var(--app-window-radius);
-  background: var(--app-glass-surface);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.24),
-    0 18px 48px rgb(20 18 24 / 0.16);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
-}
-
-.shell--bare {
-  background: var(--app-glass-surface);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  /* 透明：让标题栏与导航栏所在列露出系统材质或壁纸。 */
+  background: transparent;
 }
 
 .shell__foreground {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -66,22 +49,24 @@ const hideNavRail = computed(() => route.name === 'instance-logs');
 }
 
 .shell__body {
-  position: relative;
   flex: 1;
   display: flex;
   min-height: 0;
-  flex-direction: column;
   background: transparent;
 }
 
+/* 主内容画布保持直角，避免内嵌侧栏右上角出现不连续的圆角。 */
 .shell__content {
   flex: 1;
   min-width: 0;
-  min-height: 0;
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-surface) calc(var(--app-wallpaper-content-opacity) * 100%),
+    transparent
+  );
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: transparent;
 }
 
 /*
@@ -89,27 +74,28 @@ const hideNavRail = computed(() => route.name === 'instance-logs');
  * 创建变换祖先，Chromium 会在入场动画结束后才稳定合成其 backdrop-filter。
  */
 .page-enter-active {
-  transition: opacity var(--md-sys-motion-duration-short4)
+  transition: opacity var(--md-sys-motion-duration-medium2)
     var(--md-sys-motion-easing-emphasized-decelerate);
+}
+
+.page-leave-active {
+  transition: opacity var(--md-sys-motion-duration-short2)
+    var(--md-sys-motion-easing-emphasized-accelerate);
 }
 
 .page-enter-from {
   opacity: 0;
 }
 
-
-@media (prefers-reduced-transparency: reduce) {
-  .shell,
-  .shell--bare {
-    background: var(--md-sys-color-surface);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
+.page-leave-to {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-enter-active {
+  .page-enter-active,
+  .page-leave-active {
     transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
+
 }
 </style>

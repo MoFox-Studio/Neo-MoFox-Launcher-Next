@@ -55,12 +55,6 @@ export function runOneShot(
     let settled = false;
     let child: ChildProcess;
 
-    /**
-     * 以首个进程终态结算执行结果，并清理超时定时器。
-     *
-     * @param exitCode - 子进程退出码；未能启动时为 `null`。
-     * @param signal - 终止子进程的可选信号。
-     */
     const finish = (exitCode: number | null, signal?: NodeJS.Signals) => {
       // spawn error、close 和超时终止可能交错发生，只允许第一个终态结算结果。
       if (settled) return;

@@ -92,10 +92,4 @@ const isTransitioning = computed(() => props.status === 'starting' || props.stat
     opacity: 0.3;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .status-badge--pulsing .status-badge__dot {
-    animation: none;
-  }
-}
 </style>

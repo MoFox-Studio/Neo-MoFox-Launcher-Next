@@ -16,12 +16,6 @@ export type InstanceStatus = 'running' | 'stopped' | 'starting' | 'stopping' | '
  */
 export type PlatformPaths = Record<string, string>;
 
-/** 用户手动修改实例运行目录时允许提交的字段。 */
-export interface InstancePathUpdate {
-  mofoxInstallDir: string;
-  platforms: PlatformPaths;
-}
-
 /** 持久化的机器人实例及其运行状态摘要。 */
 export interface Instance {
   id: string;

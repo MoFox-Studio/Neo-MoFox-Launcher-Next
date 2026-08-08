@@ -3,7 +3,6 @@ import { createPinia } from 'pinia';
 import 'material-symbols/rounded.css';
 import '@material/web/select/outlined-select.js';
 import '@material/web/select/select-option.js';
-import '@material/web/checkbox/checkbox.js';
 import '@/styles/tokens.css';
 import '@/styles/base.css';
 import App from '@/App.vue';

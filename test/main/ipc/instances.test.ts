@@ -10,7 +10,6 @@ function createService() {
     restart: vi.fn(),
     remove: vi.fn(),
     openFolder: vi.fn(),
-    updatePaths: vi.fn(async (_id, update) => ({ id: 'one', name: 'One', version: '1', status: 'stopped', createdAt: 1, autoStart: false, ...update })),
     getLogBuffer: vi.fn(() => 'buffered'),
     clearLogBuffer: vi.fn(),
     writePty: vi.fn(),
@@ -35,10 +34,6 @@ describe('registerInstanceIpc', () => {
     await handlers.get(IPC_INVOKE_CHANNELS.restartInstance)?.({}, 'one');
     await handlers.get(IPC_INVOKE_CHANNELS.removeInstance)?.({}, 'one');
     await handlers.get(IPC_INVOKE_CHANNELS.openInstanceFolder)?.({}, 'one');
-    await handlers.get(IPC_INVOKE_CHANNELS.updateInstancePaths)?.({}, 'one', {
-      mofoxInstallDir: 'D:\\MoFox',
-      platforms: { snowluma: 'E:\\SnowLuma' },
-    });
     const buffer = await handlers.get(IPC_INVOKE_CHANNELS.getInstanceLogBuffer)?.({}, 'one', 'mofox');
     await handlers.get(IPC_INVOKE_CHANNELS.clearInstanceLogBuffer)?.({}, 'one', 'platform');
     await handlers.get(IPC_INVOKE_CHANNELS.writeInstancePty)?.({}, 'one', 'mofox', 'input');
@@ -52,7 +47,6 @@ describe('registerInstanceIpc', () => {
       IPC_INVOKE_CHANNELS.restartInstance,
       IPC_INVOKE_CHANNELS.removeInstance,
       IPC_INVOKE_CHANNELS.openInstanceFolder,
-      IPC_INVOKE_CHANNELS.updateInstancePaths,
       IPC_INVOKE_CHANNELS.getInstanceLogBuffer,
       IPC_INVOKE_CHANNELS.clearInstanceLogBuffer,
       IPC_INVOKE_CHANNELS.writeInstancePty,
@@ -65,10 +59,6 @@ describe('registerInstanceIpc', () => {
     expect(service.restart).toHaveBeenCalledWith('one');
     expect(service.remove).toHaveBeenCalledWith('one');
     expect(service.openFolder).toHaveBeenCalledWith('one');
-    expect(service.updatePaths).toHaveBeenCalledWith('one', {
-      mofoxInstallDir: 'D:\\MoFox',
-      platforms: { snowluma: 'E:\\SnowLuma' },
-    });
     expect(buffer).toBe('buffered');
     expect(service.getLogBuffer).toHaveBeenCalledWith('one', 'mofox');
     expect(service.clearLogBuffer).toHaveBeenCalledWith('one', 'platform');
@@ -89,20 +79,6 @@ describe('registerInstanceIpc', () => {
 
     await expect(handlers.get(IPC_INVOKE_CHANNELS.startInstance)?.({}, ' ')).rejects.toThrow('MOFOX_ERROR:');
     expect(service.start).not.toHaveBeenCalled();
-  });
-
-  it('rejects invalid instance path updates', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>();
-    const ipcMain = { handle: (channel: string, handler: (...args: unknown[]) => unknown) => handlers.set(channel, handler) };
-    const service = createService();
-    registerInstanceIpc(ipcMain, service);
-
-    await expect(handlers.get(IPC_INVOKE_CHANNELS.updateInstancePaths)?.({}, 'one', {
-      mofoxInstallDir: 'D:\\MoFox',
-      platforms: { snowluma: 42 },
-      status: 'running',
-    })).rejects.toThrow('MOFOX_ERROR:');
-    expect(service.updatePaths).not.toHaveBeenCalled();
   });
 
   it('rejects invalid pty arguments and unknown sources', async () => {

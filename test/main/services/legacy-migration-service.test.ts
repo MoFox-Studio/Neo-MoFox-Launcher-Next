@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   LegacyMigrationService,
   resolveLegacyLauncherDataDir,
-  resolveNextLauncherDataDir,
 } from '../../../src/main/services/legacy-migration-service';
 import { InstanceRepository } from '../../../src/main/services/instance-repository';
 import type { Instance } from '../../../src/shared/domain/instance';
@@ -35,18 +34,6 @@ function makeInstance(overrides: Partial<Instance>): Instance {
     ...overrides,
   };
 }
-
-describe('launcher data directory isolation', () => {
-  it('keeps next launcher data separate from the legacy directory', () => {
-    const appDataDir = 'C:\\Users\\tester\\AppData\\Roaming';
-    const legacy = resolveLegacyLauncherDataDir({ appDataDir });
-    const next = resolveNextLauncherDataDir(appDataDir);
-
-    expect(legacy).toBe('C:\\Users\\tester\\AppData\\Roaming\\Neo-MoFox-Launcher');
-    expect(next).toBe('C:\\Users\\tester\\AppData\\Roaming\\Neo-MoFox-Launcher-Next');
-    expect(next).not.toBe(legacy);
-  });
-});
 
 describe('resolveLegacyLauncherDataDir', () => {
   it('joins appDataDir with the legacy app name by default', () => {
@@ -144,31 +131,6 @@ describe('LegacyMigrationService', () => {
     expect(preview.previews.every((p) => p.conflict === null)).toBe(true);
   });
 
-  it('preview preserves the legacy SnowLuma runtime root instead of guessing a sibling path', async () => {
-    const legacyDir = await createTempDirectory();
-    await writeLegacyInstances(legacyDir, {
-      version: 4,
-      instances: [
-        {
-          id: 'snow-1',
-          name: 'SnowLuma 实例',
-          neomofoxDir: 'D:\\MOFOX22\\bot-3548642985',
-          platform: 'snowluma',
-          platformDir: 'E:\\Adapters\\SnowLuma-package',
-          platformRoot: 'E:\\Adapters\\SnowLuma-package\\SnowLuma',
-        },
-      ],
-    });
-    const repository = new InstanceRepository(await createTempDirectory());
-    const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
-
-    const preview = await service.preview();
-    expect(preview.previews[0].instance.mofoxInstallDir).toBe('D:\\MOFOX22\\bot-3548642985');
-    expect(preview.previews[0].instance.platforms).toEqual({
-      snowluma: 'E:\\Adapters\\SnowLuma-package\\SnowLuma',
-    });
-  });
-
   it('preview flags duplicate-id and duplicate-path conflicts against existing repo', async () => {
     const legacyDir = await createTempDirectory();
     await writeLegacyInstances(legacyDir, {
@@ -238,114 +200,6 @@ describe('LegacyMigrationService', () => {
     expect(result).toEqual({ imported: 2, skipped: 0, total: 2 });
     const list = await repository.list();
     expect(list.map((i) => i.id).sort()).toEqual(['new-1', 'new-2']);
-  });
-
-  it('repairExistingInstances silently does nothing when legacy data is missing', async () => {
-    const repository = new InstanceRepository(await createTempDirectory());
-    const service = new LegacyMigrationService(await createTempDirectory(), repository, vi.fn());
-
-    await expect(service.repairExistingInstances()).resolves.toBe(0);
-  });
-
-  it('repairExistingInstances repairs equivalent Windows MoFox paths without importing new records', async () => {
-    const legacyDir = await createTempDirectory();
-    await writeLegacyInstances(legacyDir, {
-      version: 4,
-      instances: [
-        {
-          id: 'existing',
-          neomofoxDir: 'd:/MOFOX22/bot-3548642985/',
-          platform: 'snowluma',
-          platformRoot: 'E:\\SnowLuma\\runtime',
-        },
-        {
-          id: 'legacy-only',
-          neomofoxDir: 'D:\\MOFOX22\\legacy-only',
-          platform: 'snowluma',
-          platformRoot: 'E:\\SnowLuma\\legacy-only',
-        },
-      ],
-    });
-    const repository = new InstanceRepository(await createTempDirectory());
-    await repository.upsert(
-      makeInstance({
-        id: 'existing',
-        mofoxInstallDir: 'D:\\mofox22\\bot-3548642985',
-        platforms: { snowluma: 'D:\\MOFOX22\\snowluma' },
-      }),
-    );
-    const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
-
-    await expect(service.repairExistingInstances()).resolves.toBe(1);
-    const list = await repository.list();
-    expect(list).toHaveLength(1);
-    expect(list[0].platforms).toEqual({ snowluma: 'E:\\SnowLuma\\runtime' });
-  });
-
-  it('importInstances repairs an already imported instance with the legacy platform root', async () => {
-    const legacyDir = await createTempDirectory();
-    await writeLegacyInstances(legacyDir, {
-      version: 4,
-      instances: [
-        {
-          id: 'snow-existing',
-          name: '旧名称',
-          neomofoxDir: 'D:\\MOFOX22\\bot-3548642985',
-          platform: 'snowluma',
-          platformDir: 'E:\\SnowLuma-package',
-          platformRoot: 'E:\\SnowLuma-package\\SnowLuma',
-        },
-      ],
-    });
-    const repository = new InstanceRepository(await createTempDirectory());
-    await repository.upsert(
-      makeInstance({
-        id: 'snow-existing',
-        name: '新版名称',
-        mofoxInstallDir: 'D:\\MOFOX22\\bot-3548642985',
-        platforms: { snowluma: 'D:\\MOFOX22\\snowluma' },
-        autoStart: true,
-      }),
-    );
-    const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
-
-    await expect(service.importInstances()).resolves.toEqual({ imported: 1, skipped: 0, total: 1 });
-    await expect(repository.list()).resolves.toEqual([
-      expect.objectContaining({
-        id: 'snow-existing',
-        name: '新版名称',
-        autoStart: true,
-        platforms: { snowluma: 'E:\\SnowLuma-package\\SnowLuma' },
-      }),
-    ]);
-  });
-
-  it('importInstances does not repair a duplicate ID that points to another MoFox directory', async () => {
-    const legacyDir = await createTempDirectory();
-    await writeLegacyInstances(legacyDir, {
-      version: 4,
-      instances: [
-        {
-          id: 'same-id',
-          neomofoxDir: 'D:\\Old\\MoFox',
-          platform: 'snowluma',
-          platformRoot: 'E:\\Old\\SnowLuma',
-        },
-      ],
-    });
-    const repository = new InstanceRepository(await createTempDirectory());
-    await repository.upsert(
-      makeInstance({
-        id: 'same-id',
-        mofoxInstallDir: 'D:\\Current\\MoFox',
-        platforms: { snowluma: 'E:\\Current\\SnowLuma' },
-      }),
-    );
-    const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
-
-    await expect(service.importInstances()).resolves.toEqual({ imported: 0, skipped: 1, total: 1 });
-    const [instance] = await repository.list();
-    expect(instance.platforms).toEqual({ snowluma: 'E:\\Current\\SnowLuma' });
   });
 
   it('importInstances skips conflicting records and reports the count', async () => {

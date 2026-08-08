@@ -776,7 +776,10 @@ onMounted(() => {
   min-height: 0;
   padding: 24px 12px 16px;
   border-right: 1px solid var(--app-glass-border);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 24%, transparent);
+  background: var(--md-sys-color-surface);
+  background: var(--app-glass-surface);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
 }
 
 .settings-sidebar__nav {
@@ -852,7 +855,7 @@ onMounted(() => {
   width: 100%;
   min-width: 0;
   margin: 0 auto;
-  padding: 20px 32px 104px;
+  padding: 20px 32px 64px;
   overflow-y: auto;
 }
 
@@ -1332,13 +1335,6 @@ onMounted(() => {
   border-radius: var(--md-sys-shape-corner-full);
   padding: 2px 8px;
   white-space: nowrap;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .md-switch__thumb {
-    transition: background-color var(--md-sys-motion-duration-short4)
-      var(--md-sys-motion-easing-standard);
-  }
 }
 
 @media (max-width: 900px) {

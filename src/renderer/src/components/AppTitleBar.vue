@@ -21,8 +21,8 @@ onUnmounted(() => unsubscribe?.());
   <header class="titlebar">
     <!-- 品牌区与原生窗口控制按钮 -->
     <div class="titlebar__brand">
-      <img class="titlebar__logo" src="/logo.png" alt="" />
-      <span class="titlebar__name">Neo-MoFox</span>
+      <span class="msr msr--fill titlebar__logo" aria-hidden="true">pets</span>
+      <span class="titlebar__name">Neo-MoFox Launcher</span>
     </div>
 
     <div class="titlebar__controls">
@@ -63,28 +63,30 @@ onUnmounted(() => unsubscribe?.());
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-left: 24px;
+  padding-left: 16px;
   -webkit-app-region: drag;
   color: var(--md-sys-color-on-surface-variant);
+  /* 透明：直接透出 body 的系统材质，保留模糊以维持品牌与控件可读性。 */
   background: transparent;
+  border-bottom: 1px solid var(--app-glass-border);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
 }
 
 .titlebar__brand {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 .titlebar__logo {
-  width: 24px;
-  height: 24px;
-  flex: none;
-  object-fit: contain;
+  font-size: 18px;
+  color: var(--md-sys-color-primary);
 }
 
 .titlebar__name {
-  font: var(--md-sys-typescale-label-large);
-  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-label-medium);
+  letter-spacing: 0.04em;
 }
 
 .titlebar__controls {
@@ -94,7 +96,7 @@ onUnmounted(() => unsubscribe?.());
 }
 
 .titlebar__btn {
-  width: 44px;
+  width: 46px;
   height: 100%;
   display: grid;
   place-items: center;
@@ -102,13 +104,6 @@ onUnmounted(() => unsubscribe?.());
   background: transparent;
   color: inherit;
   cursor: default;
-  transition:
-    background-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
-    transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.titlebar__btn:active {
-  transform: scale(0.94);
 }
 
 .titlebar__btn .msr {
@@ -118,16 +113,5 @@ onUnmounted(() => unsubscribe?.());
 .titlebar__btn--close:hover {
   background: var(--md-sys-color-error);
   color: var(--md-sys-color-on-error);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .titlebar__btn {
-    transition: background-color var(--md-sys-motion-duration-short2)
-      var(--md-sys-motion-easing-standard);
-  }
-
-  .titlebar__btn:active {
-    transform: none;
-  }
 }
 </style>

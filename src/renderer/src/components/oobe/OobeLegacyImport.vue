@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { mofoxApi } from '@/services/mofox-api';
 import { MofoxError } from '@shared/domain/error';
-import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from '@shared/domain/migration';
+import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from '@shared/domain/instance';
 
 const emit = defineEmits<{ (e: 'next'): void; (e: 'skip'): void }>();
 
@@ -317,12 +317,6 @@ onMounted(async () => {
 @keyframes spinner-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
   }
 }
 </style>

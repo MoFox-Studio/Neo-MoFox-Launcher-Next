@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router';
-import { useAddInstanceStore } from '@/stores/add-instance';
+import { useInstallStore } from '@/stores/install';
 
-// 主导航：路由驱动选中态。
+// 主导航：路由驱动选中态，并显示后台安装任务提示。
 interface NavItem {
   name: string;
   label: string;
@@ -12,13 +12,14 @@ interface NavItem {
 const items: NavItem[] = [
   { name: 'dashboard', label: '概览', icon: 'space_dashboard' },
   { name: 'instances', label: '实例', icon: 'deployed_code' },
+  { name: 'install', label: '安装', icon: 'download' },
   { name: 'settings', label: '设置', icon: 'settings' },
 ];
 
-// 当前路由决定导航的动态视觉状态。
+// 当前路由和安装仓库共同决定导航的动态视觉状态。
 const route = useRoute();
 const router = useRouter();
-const addInstanceStore = useAddInstanceStore();
+const install = useInstallStore();
 
 function isActive(item: NavItem): boolean {
   return route.name === item.name;
@@ -27,178 +28,167 @@ function isActive(item: NavItem): boolean {
 
 <template>
   <nav class="rail" aria-label="主导航">
+    <!-- 快捷创建入口 -->
+    <button
+      class="rail__fab state-layer"
+      type="button"
+      title="新建实例"
+      @click="router.push({ name: 'install' })"
+    >
+      <span class="msr" aria-hidden="true">add</span>
+    </button>
+
+    <!-- 路由导航项与安装中徽标 -->
     <ul class="rail__list">
       <li v-for="item in items" :key="item.name">
         <button
-          class="rail__item state-layer"
+          class="rail__item"
           type="button"
           :class="{ 'rail__item--active': isActive(item) }"
           :aria-current="isActive(item) ? 'page' : undefined"
           @click="router.push({ name: item.name })"
         >
-          <span class="msr rail__icon" :class="{ 'msr--fill': isActive(item) }" aria-hidden="true">
-            {{ item.icon }}
+          <span class="rail__indicator state-layer">
+            <span class="msr" :class="{ 'msr--fill': isActive(item) }" aria-hidden="true">
+              {{ item.icon }}
+            </span>
+            <span
+              v-if="item.name === 'install' && install.isInstalling"
+              class="rail__badge"
+              aria-label="正在安装"
+            ></span>
           </span>
           <span class="rail__label">{{ item.label }}</span>
         </button>
       </li>
     </ul>
-
-    <button
-      class="rail__primary state-layer"
-      type="button"
-      @click="addInstanceStore.show()"
-    >
-      <span class="msr" aria-hidden="true">add_circle</span>
-      <span>新建实例</span>
-    </button>
   </nav>
 </template>
 
 <style scoped>
-/* 窗口内悬浮 Dock，不占据主内容布局高度。 */
+/* 导航栏、快捷入口和选中态 */
 .rail {
-  position: absolute;
-  left: 50%;
-  bottom: 18px;
-  z-index: 5;
-  width: max-content;
-  max-width: calc(100% - 32px);
-  min-height: var(--app-navbar-height);
+  width: var(--app-navrail-width);
+  flex: 0 0 var(--app-navrail-width);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 8px;
-  border: 1px solid var(--app-glass-highlight);
+  gap: 20px;
+  padding: 8px 0 20px;
+  border-right: 1px solid var(--app-glass-border);
+  background: var(--md-sys-color-surface);
+  background: var(--app-glass-surface);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
+  z-index: 5;
+}
+
+.rail__fab {
+  width: 56px;
+  height: 56px;
+  border: none;
   border-radius: var(--md-sys-shape-corner-large);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 68%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.3),
-    0 10px 30px rgb(20 18 24 / 0.16);
-  backdrop-filter: blur(18px) saturate(145%);
-  -webkit-backdrop-filter: blur(18px) saturate(145%);
-  transform: translateX(-50%);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-primary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.rail__fab:hover {
+  background: var(--md-sys-color-primary-container);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+  transform: scale(1.02);
+}
+
+.rail__fab:active {
+  transform: scale(0.98);
 }
 
 .rail__list {
-  min-width: 0;
+  width: 100%;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 8px;
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .rail__item {
   position: relative;
-  min-width: 68px;
-  height: 38px;
+  width: 100%;
+  min-height: 56px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  gap: 7px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--md-sys-shape-corner-small);
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-large);
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
+  overflow: hidden;
   transition:
     background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.rail__item:active,
-.rail__primary:active {
-  transform: scale(0.97);
+.rail__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 32px;
+  border-radius: 0 2px 2px 0;
+  background: var(--md-sys-color-primary);
+  transform: translateY(-50%) scaleY(0);
+  transform-origin: center;
+  transition: transform var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
+}
+
+.rail__item:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.rail__indicator {
+  position: relative;
+  width: 56px;
+  height: 24px;
+  border-radius: var(--md-sys-shape-corner-full);
+  display: grid;
+  place-items: center;
 }
 
 .rail__item--active {
-  background: color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent);
-  color: var(--md-sys-color-primary);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.42),
-    0 1px 5px rgb(20 18 24 / 0.06);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
 }
 
-.rail__icon {
-  font-size: 18px;
+.rail__item--active::before {
+  transform: translateY(-50%) scaleY(1);
 }
 
-.rail__label,
-.rail__primary {
-  font: var(--md-sys-typescale-label-large);
-}
-
-.rail__primary {
-  height: 38px;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 16px;
-  border: 0;
+.rail__badge {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-  cursor: pointer;
-  transition: transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  background: var(--md-sys-color-error);
 }
 
-.rail__primary .msr {
-  font-size: 18px;
-}
-
-@media (max-width: 960px) {
-  .rail {
-    gap: 6px;
-    padding-inline: 8px;
-  }
-
-  .rail__item {
-    min-width: 44px;
-    padding-inline: 11px;
-  }
-
-  .rail__item:not(.rail__item--active) .rail__label {
-    display: none;
-  }
-
-  .rail__primary span:last-child {
-    display: none;
-  }
-
-  .rail__primary {
-    width: 38px;
-    padding: 0;
-    justify-content: center;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .rail__item {
-    transition:
-      background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-      color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-  }
-
-  .rail__primary {
-    transition: none;
-  }
-
-  .rail__item:active,
-  .rail__primary:active {
-    transform: none;
-  }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .rail {
-    background: var(--md-sys-color-surface-container);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
+.rail__label {
+  font: var(--md-sys-typescale-label-medium);
 }
 </style>

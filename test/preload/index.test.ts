@@ -13,7 +13,7 @@ describe('createMofoxApi', () => {
   /** 覆盖所有请求方法与通道表的一一映射，防止新增 API 绕过白名单。 */
   it('forwards every invoke method to its allowlisted channel', async () => {
     const ipcRenderer = {
-      invoke: vi.fn(async (..._args: unknown[]) => undefined),
+      invoke: vi.fn(async () => undefined),
       on: vi.fn(),
       removeListener: vi.fn(),
     };
@@ -29,10 +29,6 @@ describe('createMofoxApi', () => {
     await api.restartInstance('instance-1');
     await api.removeInstance('instance-1');
     await api.openInstanceFolder('instance-1');
-    await api.updateInstancePaths('instance-1', {
-      mofoxInstallDir: 'D:\\MoFox',
-      platforms: { snowluma: 'E:\\SnowLuma' },
-    });
     await api.getInstanceLogBuffer('instance-1', 'mofox');
     await api.clearInstanceLogBuffer('instance-1', 'platform');
     await api.writeInstancePty('instance-1', 'mofox', 'help\r');
@@ -47,31 +43,6 @@ describe('createMofoxApi', () => {
     });
     await api.retryInstall('task-1');
     await api.cancelInstall('task-1');
-    await api.scanInstancePlugins('instance-1');
-    await api.scanInstancePluginConfigs('instance-1');
-    await api.exportIntegrationPack('instance-1', {
-      packName: 'Test',
-      packVersion: '1.0.0',
-      packAuthor: '',
-      packDescription: '',
-      includeMofox: true,
-      includeConfig: true,
-      includePlugins: true,
-      selectedPlugins: [],
-      includePluginConfigs: false,
-      selectedPluginConfigs: [],
-      includeData: false,
-    }, 'C:\\MoFox\\test.mfpack');
-    await api.validateIntegrationPack('C:\\MoFox\\test.mfpack');
-    await api.importIntegrationPack({
-      packPath: 'C:\\MoFox\\test.mfpack',
-      instanceName: 'Test',
-      targetDir: 'C:\\MoFox',
-    });
-    await api.manualAddInstance({
-      mofoxInstallDir: 'C:\\MoFox',
-      displayName: 'Test',
-    });
     await api.detectSystemEnv();
     await api.listBotPlatforms();
     await api.getSettings();
@@ -80,18 +51,13 @@ describe('createMofoxApi', () => {
     await api.previewLegacyMigration();
     await api.importLegacyMigration();
     await api.oobeVerifySudo('password');
-    await api.oobeInspectDependencies();
     await api.oobeInstallDependencies();
     await api.oobeCancelInstall();
     await api.oobeComplete();
     await api.pickFile();
     await api.pickDirectory();
-    await api.selectWallpaper();
-    await api.commitWallpaper('wallpaper-1');
-    await api.discardWallpaper('wallpaper-1');
-    await api.removeWallpaper();
 
-    expect(ipcRenderer.invoke.mock.calls.map((call) => call[0])).toEqual(
+    expect(ipcRenderer.invoke.mock.calls.map(([channel]) => channel)).toEqual(
       Object.values(IPC_INVOKE_CHANNELS),
     );
   });

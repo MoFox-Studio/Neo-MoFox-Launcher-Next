@@ -10,7 +10,6 @@ import { useSettingsStore } from '@/stores/settings';
 
 // 首次引导编排：欢迎 → 依赖安装（仅 Linux 在确认安装后索取 sudo 密码）→ 旧版导入（仅检测到时）→ 偏好设置 → 总结
 type StepId = 'welcome' | 'dependencies' | 'legacy' | 'preferences' | 'summary';
-type TransitionDirection = 'forward' | 'backward';
 
 interface Step {
   id: StepId;
@@ -32,22 +31,19 @@ const showLegacyStep = ref(true);
 
 // 当前步骤索引（基于全部 StepId，不跳过隐藏步骤）；导航时根据 visible 决定是否停留。
 const currentStepId = ref<StepId>('welcome');
-const transitionDirection = ref<TransitionDirection>('forward');
 
 const visibleSteps = computed(() => steps.value.filter((s) => s.visible));
 const currentVisibleIndex = computed(() =>
   visibleSteps.value.findIndex((s) => s.id === currentStepId.value),
 );
 
-function goToStep(id: StepId, direction: TransitionDirection): void {
-  transitionDirection.value = direction;
+function goToStep(id: StepId): void {
   currentStepId.value = id;
 }
 
 function goNextVisible(): void {
   const idx = currentVisibleIndex.value;
   if (idx < 0 || idx >= visibleSteps.value.length - 1) return;
-  transitionDirection.value = 'forward';
   currentStepId.value = visibleSteps.value[idx + 1].id;
 }
 
@@ -55,7 +51,7 @@ function skipLegacyStep(): void {
   // 先解除对 legacy 的停留再隐藏，否则 currentStepId 仍指向 legacy，
   // goNextVisible 会因 findIndex 返回 -1 而中止，导致用户卡在已隐藏的步骤上。
   showLegacyStep.value = false;
-  goToStep('preferences', 'forward');
+  goToStep('preferences');
 }
 
 onMounted(async () => {
@@ -70,35 +66,29 @@ onMounted(async () => {
     <OobeStepper :steps="steps" :current="currentVisibleIndex + 1" />
 
     <div class="oobe__stage">
-      <transition :name="`oobe-slide-${transitionDirection}`" mode="out-in">
-        <OobeWelcome
-          v-if="currentStepId === 'welcome'"
-          key="welcome"
-          @next="goToStep('dependencies', 'forward')"
-        />
+      <transition name="oobe-slide" mode="out-in">
+        <OobeWelcome v-if="currentStepId === 'welcome'" key="welcome" @next="goToStep('dependencies')" />
 
         <OobeDependencyInstall
           v-else-if="currentStepId === 'dependencies'"
           key="dependencies"
           @next="goNextVisible()"
-          @back="goToStep('welcome', 'backward')"
+          @back="goToStep('welcome')"
           @skip="goNextVisible()"
         />
 
         <OobeLegacyImport
           v-else-if="currentStepId === 'legacy'"
           key="legacy"
-          @next="goToStep('preferences', 'forward')"
+          @next="goToStep('preferences')"
           @skip="skipLegacyStep()"
         />
 
         <OobePreferences
           v-else-if="currentStepId === 'preferences'"
           key="preferences"
-          @next="goToStep('summary', 'forward')"
-          @back="showLegacyStep
-            ? goToStep('legacy', 'backward')
-            : goToStep('dependencies', 'backward')"
+          @next="goToStep('summary')"
+          @back="showLegacyStep ? goToStep('legacy') : goToStep('dependencies')"
         />
 
         <OobeSummary v-else key="summary" />
@@ -114,7 +104,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: transparent;
+  background: var(--md-sys-color-surface);
   padding: clamp(24px, 5vh, 56px) clamp(24px, 6vw, 96px);
   overflow-y: auto;
 }
@@ -140,39 +130,31 @@ onMounted(async () => {
 }
 
 /* 步骤切换动画 */
-.oobe-slide-forward-enter-active,
-.oobe-slide-forward-leave-active,
-.oobe-slide-backward-enter-active,
-.oobe-slide-backward-leave-active {
+.oobe-slide-enter-active,
+.oobe-slide-leave-active {
   transition:
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
+    opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized),
+    transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized);
 }
 
-.oobe-slide-forward-enter-from,
-.oobe-slide-backward-leave-to {
+.oobe-slide-enter-from {
   opacity: 0;
   transform: translateX(24px);
 }
 
-.oobe-slide-forward-leave-to,
-.oobe-slide-backward-enter-from {
+.oobe-slide-leave-to {
   opacity: 0;
   transform: translateX(-24px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .oobe-slide-forward-enter-active,
-  .oobe-slide-forward-leave-active,
-  .oobe-slide-backward-enter-active,
-  .oobe-slide-backward-leave-active {
+  .oobe-slide-enter-active,
+  .oobe-slide-leave-active {
     transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
 
-  .oobe-slide-forward-enter-from,
-  .oobe-slide-forward-leave-to,
-  .oobe-slide-backward-enter-from,
-  .oobe-slide-backward-leave-to {
+  .oobe-slide-enter-from,
+  .oobe-slide-leave-to {
     transform: none;
   }
 }

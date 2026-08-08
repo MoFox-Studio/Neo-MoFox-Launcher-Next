@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "Neo-MoFox Launcher — Electron + Vue 3 + TypeScript rewrite",
   "author": "Neo-MoFox",
-  "license": "AGPL-3.0-only",
   "private": true,
   "main": "dist/main/index.js",
   "type": "commonjs",
@@ -32,15 +31,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@iarna/toml": "^2.2.5",
     "@material/material-color-utilities": "^0.3.0",
     "@material/web": "^2.2.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0",
-    "adm-zip": "^0.6.0",
-    "archiver": "^8.0.0",
     "extract-zip": "^2.0.1",
     "material-symbols": "^0.27.0",
     "node-pty": "^1.1.0",
@@ -52,7 +48,6 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
     "@eslint/js": "^10.0.1",
-    "@types/archiver": "^8.0.0",
     "@types/node": "^22.20.1",
     "@vitejs/plugin-vue": "^5.2.1",
     "concurrently": "^9.1.2",

@@ -73,28 +73,6 @@ describe('InstanceRuntimeService', () => {
     await service.stop(instance.id);
   });
 
-  it('updates paths only while the instance is stopped', async () => {
-    const instance = createInstance();
-    const repository = createRepository(instance);
-    const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, vi.fn(() => createPty()), undefined, undefined, undefined, FAST_TIMINGS);
-
-    await expect(service.updatePaths(instance.id, {
-      mofoxInstallDir: 'D:\\MoFox',
-      platforms: { snowluma: 'E:\\SnowLuma' },
-    })).resolves.toMatchObject({
-      mofoxInstallDir: 'D:\\MoFox',
-      platforms: { snowluma: 'E:\\SnowLuma' },
-    });
-    expect(repository.current.mofoxInstallDir).toBe('D:\\MoFox');
-
-    repository.current.status = 'running';
-    await expect(service.updatePaths(instance.id, {
-      mofoxInstallDir: 'D:\\Other',
-      platforms: { snowluma: 'E:\\Other' },
-    })).rejects.toMatchObject({ code: 'CONFLICT' });
-  });
-
   it('keeps per-source log buffers and clears them independently', async () => {
     const instance = createInstance();
     const repository = createRepository(instance);
@@ -147,7 +125,7 @@ describe('InstanceRuntimeService', () => {
     const repository = createRepository(instance);
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
     const pty = createPty();
-    const writeExport = vi.fn(async (fileName: string, _content: string) => `D:\\exports\\${fileName}`);
+    const writeExport = vi.fn(async (fileName: string) => `D:\\exports\\${fileName}`);
     const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, vi.fn(() => pty), undefined, undefined, writeExport, FAST_TIMINGS);
 
     await service.start(instance.id);
@@ -155,7 +133,7 @@ describe('InstanceRuntimeService', () => {
     const path = await service.exportLogs(instance.id, 'platform');
 
     expect(path).toMatch(/^D:\\exports\\/);
-    const content = writeExport.mock.calls[0]?.[1] ?? '';
+    const content = writeExport.mock.calls[0]?.[1] as string;
     expect(content).toContain('colored output');
     expect(content).not.toContain('\x1b');
   });

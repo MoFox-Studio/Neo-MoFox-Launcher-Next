@@ -106,60 +106,39 @@ onBeforeUnmount(() => {
 .dialog-scrim {
   position: fixed;
   inset: 0;
+  background: color-mix(in srgb, var(--md-sys-color-scrim) 32%, transparent);
   display: grid;
   place-items: center;
-  padding: 16px;
-  background: color-mix(in srgb, var(--md-sys-color-scrim) 38%, transparent);
-  backdrop-filter: blur(6px) saturate(110%);
-  -webkit-backdrop-filter: blur(6px) saturate(110%);
   z-index: 1000;
 }
 
 /* MD3 基础弹窗容器：高对比表面、超大圆角与三级阴影 */
 .dialog {
+  max-width: calc(100vw - 48px);
+  padding: 24px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--md-sys-elevation-level3);
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 100%;
-  max-height: calc(100dvh - 32px);
-  padding: 24px;
-  overflow: hidden;
-  border: 1px solid var(--app-glass-highlight);
-  border-radius: var(--md-sys-shape-corner-extra-large);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 78%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.24),
-    0 24px 64px rgb(20 18 24 / 0.28);
-  backdrop-filter: blur(32px) saturate(165%);
-  -webkit-backdrop-filter: blur(32px) saturate(165%);
 }
 
 .dialog__title {
-  flex: none;
   margin: 0;
   font: var(--md-sys-typescale-headline-small);
   color: var(--md-sys-color-on-surface);
 }
 
 .dialog__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin-inline: -8px;
-  padding-inline: 8px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   font: var(--md-sys-typescale-body-medium);
   color: var(--md-sys-color-on-surface-variant);
 }
 
 .dialog__actions {
-  flex: none;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding-top: 4px;
 }
 
 /* 与其他视图保持一致的按钮样式 */
@@ -219,38 +198,6 @@ onBeforeUnmount(() => {
 .dialog-leave-to .dialog {
   opacity: 0;
   transform: scale(0.9);
-}
-
-@media (max-width: 520px), (max-height: 560px) {
-  .dialog-scrim {
-    padding: 10px;
-  }
-
-  .dialog {
-    max-height: calc(100dvh - 20px);
-    padding: 20px;
-    border-radius: var(--md-sys-shape-corner-large);
-  }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .dialog-scrim {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  .dialog {
-    background: var(--md-sys-color-surface-container-high);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-}
-
-@media (prefers-contrast: more) {
-  .dialog {
-    border-color: var(--md-sys-color-outline);
-    background: var(--md-sys-color-surface);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

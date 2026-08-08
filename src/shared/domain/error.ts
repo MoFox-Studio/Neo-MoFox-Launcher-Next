@@ -37,23 +37,14 @@ const IPC_ERROR_PREFIX = 'MOFOX_ERROR:';
  * @param error - 主进程抛出的任意异常。
  * @returns 携带 `MOFOX_ERROR:` 前缀 JSON 载荷的 Error 实例。
  */
-export function serializeIpcError(error: unknown): string {
+export function serializeIpcError(error: unknown): Error {
   const errorCode = getErrorCode(error);
   const payload: MofoxErrorPayload = {
     code: isMofoxErrorCode(errorCode) ? errorCode : 'INTERNAL',
     message: error instanceof Error ? error.message : 'Unexpected launcher error',
   };
-  if (error instanceof MofoxError && error.details) {
-    // IPC 只能传输结构化可克隆数据；异常 details 可能包含路径对象、Error 或其他运行时值。
-    try {
-      const clonedDetails = structuredClone(error.details);
-      payload.details = clonedDetails;
-      JSON.stringify(payload);
-    } catch {
-      // 保留错误码和消息，丢弃不可克隆的诊断上下文，避免二次 IPC 错误。
-    }
-  }
-  return `${IPC_ERROR_PREFIX}${JSON.stringify(payload)}`;
+  if (error instanceof MofoxError && error.details) payload.details = error.details;
+  return new Error(`${IPC_ERROR_PREFIX}${JSON.stringify(payload)}`);
 }
 
 /**

@@ -59,11 +59,18 @@
   --md-sys-motion-duration-long2: 500ms;
 
   /* 应用玻璃表面：沿用动态主题色，不引入额外装饰色。 */
-  --app-glass-surface: color-mix(in srgb, var(--md-sys-color-surface) 58%, transparent);
-  --app-glass-card: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
-  --app-glass-border: color-mix(in srgb, var(--md-sys-color-outline-variant) 48%, transparent);
-  --app-glass-highlight: color-mix(in srgb, white 45%, var(--app-glass-border));
-  --app-glass-filter: blur(24px) saturate(155%);
+  --app-glass-surface: color-mix(in srgb, var(--md-sys-color-surface) 75%, transparent);
+  --app-glass-card: color-mix(
+    in srgb,
+    var(--md-sys-color-surface-container) 88%,
+    transparent
+  );
+  --app-glass-border: color-mix(
+    in srgb,
+    var(--md-sys-color-outline-variant) 72%,
+    transparent
+  );
+  --app-glass-filter: blur(12px);
   --app-glass-card-shadow: 0 4px 16px rgb(24 28 32 / 0.04);
   --app-glass-card-shadow-hover: 0 6px 20px rgb(24 28 32 / 0.08);
 
@@ -71,7 +78,6 @@
   --app-wallpaper-content-opacity: 1;
 
   /* 应用固定布局尺寸 */
-  --app-titlebar-height: 48px;
-  --app-navbar-height: 56px;
-  --app-window-radius: 10px;
+  --app-titlebar-height: 40px;
+  --app-navrail-width: 88px;
 }

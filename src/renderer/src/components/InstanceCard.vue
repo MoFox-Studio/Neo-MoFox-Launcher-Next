@@ -1,17 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed } from 'vue';
 import type { Instance } from '@shared/domain/instance';
 import StatusBadge from './StatusBadge.vue';
-import ExportPackDialog from './ExportPackDialog.vue';
 
 interface Props {
   instance: Instance;
 }
 
 const props = defineProps<Props>();
-const router = useRouter();
-const exportOpen = ref(false);
 
 // 将卡片操作上抛给实例列表，由上层统一处理进程和文件系统行为。
 const emit = defineEmits<{
@@ -39,10 +35,6 @@ function onPrimaryAction(): void {
   if (isRunning.value) emit('stop', props.instance.id);
   else emit('start', props.instance.id);
 }
-
-function openPathConfiguration(): void {
-  void router.push(`/instances/${encodeURIComponent(props.instance.id)}/paths`);
-}
 </script>
 
 <template>
@@ -56,9 +48,7 @@ function openPathConfiguration(): void {
     <!-- 平台、版本及安装位置等实例元数据 -->
     <div class="instance-card__meta">
       <span class="instance-card__chip">{{ platformId }}</span>
-      <span class="instance-card__version" :title="`v${instance.version}`">
-        v{{ instance.version }}
-      </span>
+      <span class="instance-card__version">v{{ instance.version }}</span>
     </div>
 
     <p class="instance-card__path" :title="installPath">{{ installPath }}</p>
@@ -115,29 +105,11 @@ function openPathConfiguration(): void {
       <button
         class="icon-btn state-layer"
         type="button"
-        title="配置路径"
-        aria-label="配置路径"
-        @click.stop.prevent="openPathConfiguration"
-      >
-        <span class="msr" aria-hidden="true">settings</span>
-      </button>
-      <button
-        class="icon-btn state-layer"
-        type="button"
         title="打开目录"
         aria-label="打开目录"
         @click="emit('open-folder', instance.id)"
       >
         <span class="msr" aria-hidden="true">folder_open</span>
-      </button>
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="导出整合包"
-        aria-label="导出整合包"
-        @click="exportOpen = true"
-      >
-        <span class="msr" aria-hidden="true">archive</span>
       </button>
       <button
         class="icon-btn state-layer"
@@ -150,8 +122,6 @@ function openPathConfiguration(): void {
       </button>
     </div>
   </article>
-
-  <ExportPackDialog :instance="instance" :open="exportOpen" @close="exportOpen = false" />
 </template>
 
 <style scoped>
@@ -170,13 +140,13 @@ function openPathConfiguration(): void {
   -webkit-backdrop-filter: var(--app-glass-filter);
   transition:
     background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .instance-card:hover {
-    box-shadow: var(--app-glass-card-shadow-hover);
-  }
+.instance-card:hover {
+  box-shadow: var(--app-glass-card-shadow-hover);
+  transform: translateY(-2px);
 }
 
 /* 标题与状态区 */
@@ -190,7 +160,6 @@ function openPathConfiguration(): void {
 .instance-card__name {
   margin: 0;
   font: var(--md-sys-typescale-title-medium);
-  min-width: 0;
   color: var(--md-sys-color-on-surface);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -212,18 +181,12 @@ function openPathConfiguration(): void {
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-surface-container-highest);
   color: var(--md-sys-color-on-surface-variant);
-  flex: none;
   font: var(--md-sys-typescale-label-small);
 }
 
 .instance-card__version {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .instance-card__path {
@@ -249,7 +212,7 @@ function openPathConfiguration(): void {
   height: 100%;
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-tertiary);
-  animation: instance-card-indeterminate 1.2s linear infinite;
+  animation: instance-card-indeterminate 1.2s var(--md-sys-motion-easing-standard) infinite;
 }
 
 @keyframes instance-card-indeterminate {
@@ -298,11 +261,6 @@ function openPathConfiguration(): void {
   color: var(--md-sys-color-on-secondary-container);
 }
 
-.icon-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.38;
-}
-
 .icon-btn {
   width: 40px;
   height: 40px;
@@ -320,6 +278,10 @@ function openPathConfiguration(): void {
     transition:
       background-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
       box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  }
+
+  .instance-card:hover {
+    transform: none;
   }
 
   .instance-card__progress-bar {
