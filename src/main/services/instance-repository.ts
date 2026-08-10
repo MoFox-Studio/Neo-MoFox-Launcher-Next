@@ -175,10 +175,10 @@ export function normalizeRepositoryFile(
 }
 
 /**
- * 升级仓库文件；需要变换字段语义的版本在此添加专用迁移。
+ * 将已规范化的实例集合标记为当前仓库版本。
  *
- * v1 → v4：把 `installPath` + `platformId` 拆分为 `mofoxInstallDir` + `platforms` 字典，
- * 并将平台版本收敛到对应平台描述中。归一化阶段会丢弃已废弃的 MoFox 版本字段。
+ * 字段兼容与迁移均在 `normalizeInstance()` 中完成：旧安装路径会拆为实例和平台目录，
+ * 旧顶层平台版本会移入对应平台描述，已废弃的 MoFox 版本会被丢弃。
  */
 function upgradeRepositoryFile(file: InstanceRepositoryFile): InstanceRepositoryFile {
   return { version: INSTANCES_VERSION, instances: file.instances.map(cloneInstance) };
@@ -246,12 +246,18 @@ export function normalizeInstance(value: unknown): Instance {
   // v2 曾混用顶层 version：手动导入写入 MoFox 版本，平台安装写入平台版本。
   // 仅平台目录独立存在的记录可无歧义保留其安装器写入的平台版本。
   const isPlatformOnlyRecord = !firstString(value.mofoxInstallDir, value.neomofoxDir, value.installPath);
+  const platformVersion = firstString(value.platformVersion);
+  const napcatVersion = firstString(value.napcatVersion);
   const legacyPlatformVersion = firstString(
-    value.platformVersion,
-    value.napcatVersion,
+    platformVersion,
+    napcatVersion,
     isPlatformOnlyRecord ? value.version : undefined,
   );
-  setPlatformVersion(platforms, legacyPlatformId, legacyPlatformVersion);
+  setPlatformVersion(
+    platforms,
+    napcatVersion && !platformVersion ? 'napcat' : legacyPlatformId,
+    legacyPlatformVersion,
+  );
   const createdAt = normalizeTimestamp(value.createdAt);
   return {
     ...DEFAULT_INSTANCE,

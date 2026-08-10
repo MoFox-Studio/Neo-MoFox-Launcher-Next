@@ -168,9 +168,8 @@ function createInstance(installPath = 'D:\\Bot'): Instance {
   return {
     id: 'one',
     name: 'One',
-    platformVersion: '1',
     mofoxInstallDir: installPath,
-    platforms: { test: installPath },
+    platforms: { test: { installDir: installPath, version: '1' } },
     status: 'stopped',
     createdAt: 1,
     autoStart: false,

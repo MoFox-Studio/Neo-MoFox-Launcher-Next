@@ -1,12 +1,12 @@
 import type { InstalledPlatforms } from '../../shared/domain/instance';
 
-// ─── v1 → v2 repository migration ────────────────────────────────────────
+// ─── Legacy instance path migration ───────────────────────────────────────
 
 /**
  * 把 v1 实例记录（仍含 `installPath` + `platformId` 单字段）升级为当前结构。
  *
  * v1 的 `installPath` 同时承担 MoFox 本体目录与平台目录两重语义，运行时通过
- * `dirname(installPath)/<platformId>` 兄弟目录回退来定位平台。v2 把二者拆开：
+ * `dirname(installPath)/<platformId>` 兄弟目录回退来定位平台。当前结构把二者拆开：
  * `mofoxInstallDir` 指向 MoFox 本体，`platforms[platformId]` 显式记录平台安装信息。
  * 迁移时沿用旧的兄弟目录启发式，把平台路径烘焙为显式值，旧实例无需重新配置即可启动。
  *
@@ -30,7 +30,7 @@ export function upgradeInstancePathsToV2(record: {
     platforms[id] = { ...platform };
   }
   if (platformId && !platforms[platformId] && mofoxInstallDir) {
-    // v1 靠 dirname(installPath)/<platformId> 兄弟目录回退定位平台；当前版本把它烘焙为显式路径。
+    // v1 靠 dirname(installPath)/<platformId> 兄弟目录回退定位平台；当前结构把它烘焙为显式路径。
     platforms[platformId] = { installDir: joinPath(parentDir(mofoxInstallDir), platformId) };
   }
   return { mofoxInstallDir, platforms };

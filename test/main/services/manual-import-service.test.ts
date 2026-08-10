@@ -54,7 +54,7 @@ describe('ManualImportService', () => {
         id: result.instanceId,
         name: '已有实例',
         mofoxInstallDir: resolve(mofoxDirectory),
-        platforms: { napcat: resolve(platformDirectory) },
+        platforms: { napcat: { installDir: resolve(platformDirectory) } },
       }),
     );
   });

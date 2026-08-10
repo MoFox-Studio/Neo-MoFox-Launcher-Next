@@ -55,10 +55,9 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-10001',
         name: 'Primary bot',
-        platformVersion: '4.2.0',
-        // v1 installPath 升级为 v2 的 mofoxInstallDir；platformId 收敛为 platforms 字典。
+        // v1 installPath 升级为当前的 mofoxInstallDir；platformId 收敛为 platforms 字典。
         mofoxInstallDir: 'D:\\Bots\\10001',
-        platforms: { napcat: 'D:\\Bots\\napcat' },
+        platforms: { napcat: { installDir: 'D:\\Bots\\napcat', version: '4.2.0' } },
         status: 'stopped',
       }),
     ]);
@@ -93,9 +92,8 @@ describe('InstanceRepository', () => {
     const instance = {
       id: 'instance-1',
       name: 'Test',
-      platformVersion: '1.0.0',
       mofoxInstallDir: 'D:\\Bots\\Test',
-      platforms: { snowluma: 'D:\\Bots\\Test\\snowluma' },
+      platforms: { snowluma: { installDir: 'D:\\Bots\\Test\\snowluma', version: '1.0.0' } },
       status: 'stopped' as const,
       createdAt: 123,
       autoStart: false,
@@ -110,7 +108,7 @@ describe('InstanceRepository', () => {
 
   // ─── 版本升级与合并 ──────────────────────────────────────────────────
 
-  it('eagerly upgrades a legacy versioned file on load and persists version 2', async () => {
+  it('eagerly upgrades a legacy versioned file on load and persists the current version', async () => {
     const directory = await createTempDirectory();
     const instancesPath = join(directory, 'instances.json');
     await writeFile(
@@ -137,9 +135,9 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-1',
         name: '主号',
-        // v1 的 installPath/platformId 拆分为 v2 的 mofoxInstallDir + platforms 字典。
+        // v1 的 installPath/platformId 拆分为当前的 mofoxInstallDir + platforms 字典。
         mofoxInstallDir: 'D:\\Bots\\1',
-        platforms: { napcat: 'D:\\Bots\\napcat' },
+        platforms: { napcat: { installDir: 'D:\\Bots\\napcat', version: '4.2.0' } },
       }),
     ]);
 
@@ -243,9 +241,8 @@ describe('InstanceRepository', () => {
     const existing = {
       id: 'ins-a',
       name: 'A',
-      platformVersion: '1.0.0',
       mofoxInstallDir: 'D:\\Bots\\a',
-      platforms: { napcat: 'D:\\Bots\\a\\napcat' },
+      platforms: { napcat: { installDir: 'D:\\Bots\\a\\napcat', version: '1.0.0' } },
       status: 'stopped' as const,
       createdAt: 1,
       autoStart: false,
@@ -261,7 +258,6 @@ describe('InstanceRepository', () => {
       {
         id: '',
         name: '',
-        platformVersion: '1',
         mofoxInstallDir: '',
         platforms: {},
         status: 'stopped' as const,
@@ -272,9 +268,8 @@ describe('InstanceRepository', () => {
       {
         id: 'ins-b',
         name: 'B',
-        platformVersion: '2.0.0',
         mofoxInstallDir: 'D:\\Bots\\b',
-        platforms: { snowluma: 'D:\\Bots\\b\\snowluma' },
+        platforms: { snowluma: { installDir: 'D:\\Bots\\b\\snowluma', version: '2.0.0' } },
         status: 'stopped' as const,
         createdAt: 3,
         autoStart: true,
@@ -306,10 +301,9 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-2',
         name: '展示名',
-        // v1 的 installPath/platformId 收敛为 v2 的 mofoxInstallDir + platforms 字典。
+        // v1 的 installPath/platformId 收敛为当前的 mofoxInstallDir + platforms 字典。
         mofoxInstallDir: '/bots/2',
-        platforms: { napcat: '/bots/napcat' },
-        platformVersion: '4.1.0',
+        platforms: { napcat: { installDir: '/bots/napcat', version: '4.1.0' } },
         status: 'stopped',
         autoStart: true,
       }),
@@ -328,8 +322,7 @@ describe('InstanceRepository', () => {
 
     expect(normalized).toMatchObject({
       id: 'bot-3',
-      platformVersion: '4.2.19',
-      platforms: { napcat: '/bots/napcat' },
+      platforms: { napcat: { installDir: '/bots/napcat', version: '4.2.19' } },
     });
     expect(normalized).not.toHaveProperty('version');
   });
@@ -359,7 +352,7 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-v2',
         mofoxInstallDir: '/bots/mofox',
-        platforms: { napcat: '/bots/napcat' },
+        platforms: { napcat: { installDir: '/bots/napcat' } },
       }),
     ]);
 
@@ -391,12 +384,53 @@ describe('InstanceRepository', () => {
 
     const repository = new InstanceRepository(directory, vi.fn());
     await expect(repository.list()).resolves.toEqual([
-      expect.objectContaining({ id: 'bot-v2-install', platformVersion: '4.2.19' }),
+      expect.objectContaining({
+        id: 'bot-v2-install',
+        platforms: { napcat: { installDir: '/bots/napcat', version: '4.2.19' } },
+      }),
     ]);
 
     const persisted = JSON.parse(await readFile(instancesPath, 'utf8'));
-    expect(persisted.instances[0]).toMatchObject({ platformVersion: '4.2.19' });
+    expect(persisted.instances[0]).toMatchObject({
+      platforms: { napcat: { installDir: '/bots/napcat', version: '4.2.19' } },
+    });
     expect(persisted.instances[0].version).toBeUndefined();
+  });
+
+  it('moves the v3 platform version into its platform entry on load', async () => {
+    const directory = await createTempDirectory();
+    const instancesPath = join(directory, 'instances.json');
+    await writeFile(
+      instancesPath,
+      JSON.stringify({
+        version: 3,
+        instances: [
+          {
+            id: 'bot-v3',
+            name: '旧平台版本实例',
+            platformVersion: '4.2.19',
+            mofoxInstallDir: '/bots/mofox',
+            platforms: { napcat: '/bots/napcat' },
+            createdAt: 123,
+          },
+        ],
+      }),
+    );
+
+    const repository = new InstanceRepository(directory, vi.fn());
+    await expect(repository.list()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'bot-v3',
+        platforms: { napcat: { installDir: '/bots/napcat', version: '4.2.19' } },
+      }),
+    ]);
+
+    const persisted = JSON.parse(await readFile(instancesPath, 'utf8'));
+    expect(persisted.version).toBe(INSTANCES_VERSION);
+    expect(persisted.instances[0].platformVersion).toBeUndefined();
+    expect(persisted.instances[0].platforms).toEqual({
+      napcat: { installDir: '/bots/napcat', version: '4.2.19' },
+    });
   });
 
   it('keeps the platform directory separate from the MoFox directory during legacy migration', () => {
@@ -411,8 +445,26 @@ describe('InstanceRepository', () => {
 
     expect(normalized).toMatchObject({
       mofoxInstallDir: '/bots/4/mofox',
-      platforms: { napcat: '/bots/4/napcat' },
-      platformVersion: '4.2.19',
+      platforms: { napcat: { installDir: '/bots/4/napcat', version: '4.2.19' } },
+    });
+  });
+
+  it('assigns a legacy NapCat version to its NapCat entry', () => {
+    const normalized = normalizeInstance({
+      id: 'bot-5',
+      name: 'NapCat 版本实例',
+      neomofoxDir: '/bots/5/mofox',
+      platform: 'snowluma',
+      platforms: {
+        napcat: '/bots/5/napcat',
+        snowluma: '/bots/5/snowluma',
+      },
+      napcatVersion: '4.2.19',
+    });
+
+    expect(normalized.platforms).toEqual({
+      napcat: { installDir: '/bots/5/napcat', version: '4.2.19' },
+      snowluma: { installDir: '/bots/5/snowluma' },
     });
   });
 });
