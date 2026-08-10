@@ -336,7 +336,9 @@ onMounted(async () => {
   flex: 0 0 230px;
   padding: 40px 24px;
   border-right: 1px solid var(--app-glass-border);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 88%, transparent);
+  background: var(--app-subrail-surface);
+  backdrop-filter: var(--app-subrail-filter);
+  -webkit-backdrop-filter: var(--app-subrail-filter);
 }
 
 .stepper {
@@ -414,6 +416,9 @@ onMounted(async () => {
   flex: 1;
   flex-direction: column;
   padding: 40px 48px;
+  background: var(--app-current-content-surface);
+  backdrop-filter: var(--app-current-content-filter);
+  -webkit-backdrop-filter: var(--app-current-content-filter);
   overflow: hidden;
 }
 

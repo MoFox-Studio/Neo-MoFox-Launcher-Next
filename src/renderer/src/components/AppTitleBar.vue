@@ -66,8 +66,8 @@ onUnmounted(() => unsubscribe?.());
   padding-left: 16px;
   -webkit-app-region: drag;
   color: var(--md-sys-color-on-surface-variant);
-  /* 与侧栏共用半透明表面，既透出系统材质也保证品牌与控件可读性。 */
-  background: var(--app-glass-surface);
+  /* 壁纸层从标题栏下方开始，因此这里始终以固定透明度透出桌面材质。 */
+  background: var(--app-shell-chrome-surface);
   border-bottom: 1px solid var(--app-glass-border);
   backdrop-filter: var(--app-glass-filter);
   -webkit-backdrop-filter: var(--app-glass-filter);

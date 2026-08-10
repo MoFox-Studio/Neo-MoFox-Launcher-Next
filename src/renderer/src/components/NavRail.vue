@@ -70,8 +70,8 @@ function isActive(item: NavItem): boolean {
   gap: 20px;
   padding: 8px 0 20px;
   border-right: 1px solid var(--app-glass-border);
-  background: var(--md-sys-color-surface);
-  background: var(--app-glass-surface);
+  /* 固定透明度：无壁纸时轻微透桌面，有壁纸时以相同比例透出壁纸。 */
+  background: var(--app-shell-chrome-surface);
   backdrop-filter: var(--app-glass-filter);
   -webkit-backdrop-filter: var(--app-glass-filter);
   z-index: 5;
@@ -146,8 +146,7 @@ function isActive(item: NavItem): boolean {
   background: var(--md-sys-color-primary);
   transform: translateY(-50%) scaleY(0);
   transform-origin: center;
-  transition: transform var(--md-sys-motion-duration-short4)
-    var(--md-sys-motion-easing-standard);
+  transition: transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
 .rail__item:hover {

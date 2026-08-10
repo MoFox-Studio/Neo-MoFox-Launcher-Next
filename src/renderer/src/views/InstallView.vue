@@ -56,7 +56,9 @@ function leave(): void {
   gap: 20px;
   padding: 12px 28px;
   border-bottom: 1px solid var(--app-glass-border);
-  background: color-mix(in srgb, var(--md-sys-color-surface) 80%, transparent);
+  background: var(--app-current-content-surface);
+  backdrop-filter: var(--app-current-content-filter);
+  -webkit-backdrop-filter: var(--app-current-content-filter);
 }
 
 .back-btn {

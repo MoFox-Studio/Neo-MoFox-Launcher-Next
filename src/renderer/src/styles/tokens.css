@@ -66,6 +66,18 @@
   --app-glass-card-shadow: 0 4px 16px rgb(24 28 32 / 0.04);
   --app-glass-card-shadow-hover: 0 6px 20px rgb(24 28 32 / 0.08);
 
+  /* 窗口框架只轻微露出桌面；标题栏和导航栏在有无壁纸时保持同一透明度。 */
+  --app-shell-content-surface: color-mix(in srgb, var(--md-sys-color-surface) 92%, transparent);
+  --app-shell-chrome-surface: color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent);
+
+  /* 内嵌侧栏比右侧画布更深、更不透明，同时保留少量底层纹理。 */
+  --app-subrail-surface: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--md-sys-color-surface-dim) 94%, var(--md-sys-color-shadow)) 95%,
+    transparent
+  );
+  --app-subrail-filter: blur(8px);
+
   /* 启用壁纸时由 WallpaperLayer 写入；无壁纸时复位为 1。 */
   --app-wallpaper-content-opacity: 1;
 

@@ -18,8 +18,12 @@ const hasWallpaper = computed(
 /** 媒体 URL 仅由主进程生成的受管文件名构造。 */
 const mediaUrl = computed(() => getWallpaperMediaUrl(settings.value.wallpaperFileName));
 
-/** 模糊会产生边缘，组件样式通过 24px 扩展媒体画布隐藏这些边缘。 */
-const mediaStyle = computed(() => ({ filter: `blur(${settings.value.wallpaperBlur}px)` }));
+/** 默认不添加滤镜；用户主动设置模糊后才为媒体创建滤镜层。 */
+const mediaStyle = computed(() =>
+  settings.value.wallpaperBlur > 0
+    ? { filter: `blur(${settings.value.wallpaperBlur}px)` }
+    : undefined,
+);
 
 /**
  * 内容遮罩仅调节壁纸状态下的前景表面，不会降低媒体自身的透明度。
@@ -84,7 +88,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .wallpaper-layer {
   position: fixed;
-  inset: 0;
+  top: var(--app-titlebar-height);
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;

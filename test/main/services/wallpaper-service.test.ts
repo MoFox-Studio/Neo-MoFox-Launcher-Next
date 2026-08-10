@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WallpaperService } from '../../../src/main/services/wallpaper-service';
 import {
-  DEFAULT_WALLPAPER_BLUR,
   DEFAULT_WALLPAPER_OPACITY,
   type LauncherSettings,
 } from '../../../src/shared/domain/settings';
@@ -42,7 +41,7 @@ describe('WallpaperService', () => {
     await writeFile(source, 'test image');
     const settings = createSettingsStore({
       ...DEFAULT_SETTINGS,
-      wallpaperBlur: 0,
+      wallpaperBlur: 7,
       wallpaperOpacity: 0.88,
     });
     const service = new WallpaperService(directory, settings);
@@ -52,7 +51,7 @@ describe('WallpaperService', () => {
 
     expect(updated).toMatchObject({
       wallpaperType: 'image',
-      wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+      wallpaperBlur: 0,
       wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     });
   });

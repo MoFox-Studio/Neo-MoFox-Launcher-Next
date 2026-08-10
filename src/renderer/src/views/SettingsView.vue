@@ -734,11 +734,33 @@ onMounted(() => {
 <style scoped>
 /* 设置页滚动布局与分组卡片 */
 .settings-view {
+  --settings-sidebar-width: 240px;
+
+  position: relative;
   height: 100%;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: var(--settings-sidebar-width) minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
+}
+
+/* 只为右侧内容铺设主画布，让侧栏能直接模糊桌面材质或应用壁纸。 */
+.settings-view::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 0 var(--settings-sidebar-width);
+  background: var(--app-current-content-surface);
+  backdrop-filter: var(--app-current-content-filter);
+  -webkit-backdrop-filter: var(--app-current-content-filter);
+  content: '';
+  pointer-events: none;
+}
+
+.settings-sidebar,
+.settings-view__header,
+.settings-view__content {
+  position: relative;
+  z-index: 1;
 }
 
 .settings-view__header {
@@ -768,7 +790,7 @@ onMounted(() => {
   color: var(--md-sys-color-on-surface-variant);
 }
 
-/* 贴边导航抽屉与全局导航共用同一层玻璃表面。 */
+/* 贴边导航抽屉使用较轻的内嵌玻璃层。 */
 .settings-sidebar {
   grid-row: 1 / -1;
   display: flex;
@@ -776,10 +798,9 @@ onMounted(() => {
   min-height: 0;
   padding: 24px 12px 16px;
   border-right: 1px solid var(--app-glass-border);
-  background: var(--md-sys-color-surface);
-  background: var(--app-glass-surface);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  background: var(--app-subrail-surface);
+  backdrop-filter: var(--app-subrail-filter);
+  -webkit-backdrop-filter: var(--app-subrail-filter);
 }
 
 .settings-sidebar__nav {
@@ -1346,7 +1367,7 @@ onMounted(() => {
 
 @media (max-width: 900px) {
   .settings-view {
-    grid-template-columns: 200px minmax(0, 1fr);
+    --settings-sidebar-width: 200px;
   }
 
   .settings-sidebar__description {
@@ -1356,8 +1377,14 @@ onMounted(() => {
 
 @media (max-width: 680px) {
   .settings-view {
+    --settings-sidebar-width: 0px;
+
     display: flex;
     flex-direction: column;
+  }
+
+  .settings-view::before {
+    top: 61px;
   }
 
   .settings-view__header {

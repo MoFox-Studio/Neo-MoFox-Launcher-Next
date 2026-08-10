@@ -13,6 +13,8 @@ const settingsStore = useSettingsStore();
 const { settings } = storeToRefs(settingsStore);
 // 根据路由元数据切换首次引导的沉浸式布局。
 const bare = computed(() => route.meta.bare === true);
+// 设置与安装页自行分隔侧栏和内容画布，避免外层玻璃抹平侧栏背后的纹理。
+const splitGlass = computed(() => route.meta.splitGlass === true);
 // 仅有效的受管壁纸启用主内容遮罩，避免文件缺失时出现透明内容区。
 const hasWallpaper = computed(
   () => settings.value.wallpaperType !== 'none' && settings.value.wallpaperFileName !== '',
@@ -27,7 +29,7 @@ const hasWallpaper = computed(
       <AppTitleBar />
       <div class="shell__body">
         <NavRail v-if="!bare" />
-        <main class="shell__content">
+        <main class="shell__content" :class="{ 'shell__content--split': splitGlass }">
           <router-view v-slot="{ Component }">
             <transition name="page">
               <component :is="Component" />
@@ -42,6 +44,9 @@ const hasWallpaper = computed(
 
 <style scoped>
 .shell {
+  --app-current-content-surface: var(--app-shell-content-surface);
+  --app-current-content-filter: blur(6px);
+
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -69,23 +74,29 @@ const hasWallpaper = computed(
 .shell__content {
   flex: 1;
   min-width: 0;
-  /* 无壁纸时保持较轻的底层玻璃，让内层设置侧栏等材质仍可分辨。 */
-  background: color-mix(in srgb, var(--md-sys-color-surface) 52%, transparent);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* 无壁纸时仅轻微露出桌面，避免主画布、标题栏和侧栏显得过透。 */
+  background: var(--app-current-content-surface);
+  backdrop-filter: var(--app-current-content-filter);
+  -webkit-backdrop-filter: var(--app-current-content-filter);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.shell--has-wallpaper .shell__content {
+.shell--has-wallpaper {
   /* 0 时完全透出壁纸；非零时混入主题容器色，让内容区更有承托感。 */
-  background: color-mix(
+  --app-current-content-surface: color-mix(
     in srgb,
     color-mix(in srgb, var(--md-sys-color-surface-container) 72%, var(--md-sys-color-background))
       calc(var(--app-wallpaper-content-opacity) * 100%),
     transparent
   );
+  --app-current-content-filter: none;
+}
+
+/* 分栏页面将玻璃层分别放到侧栏与右侧画布，确保两者读取真实的底层纹理。 */
+.shell__content--split {
+  background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
