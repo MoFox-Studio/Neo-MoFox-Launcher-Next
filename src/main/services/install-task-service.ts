@@ -266,10 +266,9 @@ export class InstallTaskService {
     await this.dependencies.repository.upsert({
       id: task.id,
       name: task.request.instanceName,
-      version: result.version,
       // 安装向导只下载平台适配器；MoFox 本体目录暂留空，后续安装流程再回填。
       mofoxInstallDir: '',
-      platforms: { [task.request.platformId]: target },
+      platforms: { [task.request.platformId]: { installDir: target, version: result.version } },
       status: 'stopped',
       createdAt: this.dependencies.now?.() ?? Date.now(),
       autoStart: false,

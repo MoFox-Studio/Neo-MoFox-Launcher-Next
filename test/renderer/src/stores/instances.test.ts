@@ -29,9 +29,9 @@ describe('instances store', () => {
       {
         id: 'instance-1',
         name: 'Test',
-        version: '1.0.0',
-        platformId: 'napcat',
-        installPath: 'D:\\Bots\\Test',
+        platformVersion: '4.2.19',
+        mofoxInstallDir: 'D:\\Bots\\Test',
+        platforms: { napcat: 'D:\\Bots\\Test\\napcat' },
         status: 'stopped',
         createdAt: 1,
         autoStart: false,

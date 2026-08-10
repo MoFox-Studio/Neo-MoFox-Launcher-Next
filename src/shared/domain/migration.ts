@@ -12,6 +12,7 @@ export interface LegacyInstanceRecord {
   qqNickname?: string;
   qqNumber?: string;
   neomofoxDir?: string;
+  platformRoot?: string;
   platformDir?: string;
   napcatDir?: string;
   platform?: string;

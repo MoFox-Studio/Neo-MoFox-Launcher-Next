@@ -41,11 +41,14 @@ function requireRequest(value: unknown): ManualImportRequest {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new MofoxError('INVALID_ARGUMENT', 'Manual import request must be an object');
   }
-  const request = value as Partial<ManualImportRequest>;
+  const request = value as Partial<ManualImportRequest> & Record<string, unknown>;
   if (typeof request.instanceName !== 'string' || typeof request.mofoxInstallDir !== 'string') {
     throw new MofoxError('INVALID_ARGUMENT', 'Instance name and Neo-MoFox directory are required');
   }
-  for (const field of ['version', 'platformId', 'platformDir'] as const) {
+  if (request.version !== undefined) {
+    throw new MofoxError('INVALID_ARGUMENT', 'MoFox version is no longer supported');
+  }
+  for (const field of ['platformId', 'platformDir'] as const) {
     if (request[field] !== undefined && typeof request[field] !== 'string') {
       throw new MofoxError('INVALID_ARGUMENT', `${field} must be a string`);
     }

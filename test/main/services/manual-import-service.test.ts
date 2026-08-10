@@ -44,7 +44,6 @@ describe('ManualImportService', () => {
     const result = await service.importInstance({
       instanceName: '已有实例',
       mofoxInstallDir: mofoxDirectory,
-      version: '0.9.5',
       platformId: 'napcat',
       platformDir: platformDirectory,
     });
@@ -54,7 +53,6 @@ describe('ManualImportService', () => {
       expect.objectContaining({
         id: result.instanceId,
         name: '已有实例',
-        version: '0.9.5',
         mofoxInstallDir: resolve(mofoxDirectory),
         platforms: { napcat: resolve(platformDirectory) },
       }),
@@ -80,7 +78,6 @@ describe('ManualImportService', () => {
         {
           id: 'existing',
           name: '已有实例',
-          version: 'unknown',
           mofoxInstallDir: resolve(mofoxDirectory),
           platforms: {},
           status: 'stopped' as const,

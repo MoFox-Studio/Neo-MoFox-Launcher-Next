@@ -267,8 +267,8 @@ export class InstanceRuntimeService {
    * 解析实例的启动命令集合。
    *
    * MoFox 本体进程：当 `mofoxInstallDir/main.py` 存在时启动（venv python 优先，uv 回退）。
-   * 平台进程：遍历 `platforms` 字典，逐个用 `platformPath` 调用对应平台的 `getStartCommand`。
-   * v2 起平台路径完全来自 `platforms` 字典，不再回退到兄弟目录。
+   * 平台进程：遍历 `platforms` 字典，逐个用平台安装目录调用对应平台的 `getStartCommand`。
+   * v4 起平台路径和版本均来自 `platforms` 描述对象，不再回退到兄弟目录。
    *
    * @param instance - 待启动的实例。
    * @returns 进程源到启动命令的映射；无可用入口时为空集合。
@@ -295,13 +295,15 @@ export class InstanceRuntimeService {
     }
 
     // 平台路径的唯一来源是 platforms 字典；当前业务为单平台，取第一项即可。
-    const platformEntries = Object.entries(instance.platforms).filter(([, path]) => path?.trim());
+    const platformEntries = Object.entries(instance.platforms).filter(([, platform]) =>
+      platform.installDir.trim(),
+    );
     if (platformEntries.length > 0) {
-      const [platformId, platformPath] = platformEntries[0];
+      const [platformId, platform] = platformEntries[0];
       try {
         const platformCommand = await this.registry
           .get(platformId)
-          .getStartCommand(platformPath, instance.id);
+          .getStartCommand(platform.installDir, instance.id);
         commands.set('platform', platformCommand);
       } catch (error) {
         // 平台缺失不是致命错误：当 MoFox 本体能独立启动时允许仅启动 MoFox。

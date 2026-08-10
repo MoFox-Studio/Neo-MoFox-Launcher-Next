@@ -292,7 +292,7 @@ onMounted(async () => {
 
             <md-outlined-select
               class="version-select"
-              label="版本"
+              label="平台版本"
               :value="versionChoice"
               @change="onVersionChoiceChange"
             >
@@ -315,7 +315,7 @@ onMounted(async () => {
 
             <label v-if="versionChoice === 'custom'" class="field">
               <input v-model="customVersion" class="field__input" type="text" placeholder=" " />
-              <span class="field__label">自定义版本号</span>
+              <span class="field__label">自定义平台版本</span>
             </label>
           </section>
 
@@ -359,7 +359,7 @@ onMounted(async () => {
                 <dd>{{ instanceName || '-' }}</dd>
               </div>
               <div class="summary__row">
-                <dt>版本</dt>
+                <dt>平台版本</dt>
                 <dd>{{ resolvedVersion || '-' }}</dd>
               </div>
               <div class="summary__row">

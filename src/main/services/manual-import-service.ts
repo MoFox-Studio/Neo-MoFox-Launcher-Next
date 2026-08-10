@@ -60,9 +60,11 @@ export class ManualImportService {
     const instance: Instance = {
       id: generateInstanceId(),
       name: instanceName,
-      version: request.version?.trim() || 'unknown',
       mofoxInstallDir,
-      platforms: platformId && resolvedPlatformDir ? { [platformId]: resolvedPlatformDir } : {},
+      platforms:
+        platformId && resolvedPlatformDir
+          ? { [platformId]: { installDir: resolvedPlatformDir } }
+          : {},
       status: 'stopped',
       createdAt: Date.now(),
       autoStart: false,

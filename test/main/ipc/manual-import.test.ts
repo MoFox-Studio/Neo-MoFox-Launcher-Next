@@ -29,7 +29,6 @@ describe('registerManualImportIpc', () => {
     const request = {
       instanceName: '已有实例',
       mofoxInstallDir: '/bots/neo-mofox',
-      version: '0.9.5',
       platformId: 'napcat',
       platformDir: '/bots/napcat',
     };
@@ -38,6 +37,20 @@ describe('registerManualImportIpc', () => {
     expect([...handlers.keys()]).toEqual([IPC_INVOKE_CHANNELS.manualImportInstance]);
     expect(actions.importInstance).toHaveBeenCalledWith(request);
     expect(result).toEqual({ instanceId: 'mofox-new' });
+  });
+
+  it('rejects the removed MoFox version field before calling the service', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = { importInstance: vi.fn() };
+    registerManualImportIpc(ipcMain, actions);
+
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.manualImportInstance)?.(
+        {},
+        { instanceName: '已有实例', mofoxInstallDir: '/bots/neo-mofox', version: '0.9.5' },
+      ),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    expect(actions.importInstance).not.toHaveBeenCalled();
   });
 
   it('rejects malformed or extra manual-import arguments before calling the service', async () => {

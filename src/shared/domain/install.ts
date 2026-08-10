@@ -9,8 +9,9 @@ export type InstallTaskStatus = 'pending' | 'running' | 'failed' | 'cancelled' |
 export interface InstallRequest {
   instanceName: string;
   platformId: string;
+  /** 要安装的平台适配器版本。 */
   version: string;
-  /** 平台适配器的最终安装目录绝对路径；安装完成后写入 `platforms[platformId]`。 */
+  /** 平台适配器的最终安装目录绝对路径；安装完成后写入 `platforms[platformId].installDir`。 */
   targetDir: string;
 }
 

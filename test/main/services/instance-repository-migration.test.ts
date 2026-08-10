@@ -152,7 +152,7 @@ describe('InstanceRepository v1 → v2 migration', () => {
         {
           id: 'bot-1',
           name: 'Bot 1',
-          version: '1.0.0',
+          platformVersion: '1.0.0',
           mofoxInstallDir: '/bots/mofox',
           platforms: { napcat: '/bots/napcat' },
           status: 'stopped',
@@ -165,7 +165,7 @@ describe('InstanceRepository v1 → v2 migration', () => {
     const repository = new InstanceRepository(directory, vi.fn());
 
     await repository.list();
-    // 已是 v2 规范结构的文件不应触发回写。
+    // 已是当前规范结构的文件不应触发回写。
     expect(JSON.parse(await readFile(instancesPath, 'utf8'))).toEqual(payload);
   });
 

@@ -4,8 +4,6 @@ export interface ManualImportRequest {
   instanceName: string;
   /** 已存在的 Neo-MoFox 安装目录绝对路径。 */
   mofoxInstallDir: string;
-  /** 已知的 Neo-MoFox 版本；留空时由服务端标记为 unknown。 */
-  version?: string;
   /** 已存在的平台适配器 ID；不配置平台时省略。 */
   platformId?: string;
   /** 与 platformId 对应的平台适配器目录；不配置平台时省略。 */

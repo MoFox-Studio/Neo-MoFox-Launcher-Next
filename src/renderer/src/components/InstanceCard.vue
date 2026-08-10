@@ -25,8 +25,10 @@ const isBusy = computed(
   () => props.instance.status === 'starting' || props.instance.status === 'stopping',
 );
 
-// v2 起平台信息存放在 platforms 字典中；卡片展示首个平台 ID 与 MoFox 本体安装目录。
-const platformId = computed(() => Object.keys(props.instance.platforms ?? {})[0] ?? '');
+// 平台信息存放在 platforms 字典中；卡片展示首个平台的名称和实际平台版本。
+const platform = computed(() => Object.entries(props.instance.platforms)[0]);
+const platformId = computed(() => platform.value?.[0] ?? '');
+const platformVersion = computed(() => platform.value?.[1].version ?? '');
 const installPath = computed(() => props.instance.mofoxInstallDir);
 
 // 启动和停止共用同一入口，保证状态切换期间不会重复派发操作。
@@ -45,11 +47,11 @@ function onPrimaryAction(): void {
       <StatusBadge :status="instance.status" />
     </header>
 
-    <!-- 平台、版本及安装位置等实例元数据 -->
+    <!-- 平台、平台版本及安装位置等实例元数据 -->
     <div class="instance-card__meta">
-      <span class="instance-card__chip">{{ platformId }}</span>
-      <span class="instance-card__version" :title="`v${instance.version}`">
-        v{{ instance.version }}
+      <span v-if="platformId" class="instance-card__chip">{{ platformId }}</span>
+      <span v-if="platformVersion" class="instance-card__version" :title="`v${platformVersion}`">
+        v{{ platformVersion }}
       </span>
     </div>
 

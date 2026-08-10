@@ -22,7 +22,6 @@ const currentStep = ref<Step>(1);
 const direction = ref<Direction>('forward');
 const instanceName = ref('');
 const mofoxInstallDir = ref('');
-const version = ref('');
 const platforms = ref<BotPlatformMetadata[]>([]);
 const platformsLoading = ref(false);
 const platformError = ref<string | null>(null);
@@ -89,7 +88,6 @@ async function submit(): Promise<void> {
     await mofoxApi.manualImportInstance({
       instanceName: instanceName.value.trim(),
       mofoxInstallDir: mofoxInstallDir.value.trim(),
-      version: version.value.trim() || undefined,
       ...(includePlatform.value
         ? { platformId: platformId.value, platformDir: platformDir.value.trim() }
         : {}),
@@ -187,11 +185,6 @@ onMounted(async () => {
               </button>
             </div>
             <p class="field__support">目录内需要包含 Neo-MoFox 的 <code>main.py</code> 文件。</p>
-
-            <label class="field">
-              <input v-model="version" class="field__input" type="text" placeholder=" " />
-              <span class="field__label">Neo-MoFox 版本（可选）</span>
-            </label>
           </template>
 
           <template v-else>

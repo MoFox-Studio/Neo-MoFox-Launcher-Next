@@ -25,7 +25,7 @@ function makeInstance(overrides: Partial<Instance>): Instance {
   return {
     id: 'ins-x',
     name: 'X',
-    version: '1.0.0',
+    platformVersion: '1.0.0',
     mofoxInstallDir: 'D:\\Bots\\x',
     platforms: { napcat: 'D:\\Bots\\napcat' },
     status: 'stopped',
