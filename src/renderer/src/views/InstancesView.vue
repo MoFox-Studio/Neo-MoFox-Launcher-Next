@@ -101,15 +101,15 @@ async function confirmRemove(): Promise<void> {
 
 <template>
   <div class="instances-view">
-    <!-- 标题操作、搜索与筛选工具栏 -->
-    <PageHeader title="实例">
-      <button class="icon-btn state-layer" type="button" title="刷新" aria-label="刷新" @click="onRefresh">
-        <span class="msr" aria-hidden="true">refresh</span>
-      </button>
-    </PageHeader>
+    <!-- 标题与搜索区共用带模糊背景和圆角的容器 -->
+    <section class="instances-view__panel">
+      <PageHeader title="实例">
+        <button class="icon-btn state-layer" type="button" title="刷新" aria-label="刷新" @click="onRefresh">
+          <span class="msr" aria-hidden="true">refresh</span>
+        </button>
+      </PageHeader>
 
-    <div class="instances-view__body">
-      <div class="toolbar">
+      <div class="instances-view__toolbar">
         <label class="search-box">
           <span class="msr search-box__icon" aria-hidden="true">search</span>
           <input
@@ -139,7 +139,9 @@ async function confirmRemove(): Promise<void> {
           </button>
         </div>
       </div>
+    </section>
 
+    <div class="instances-view__body">
       <div v-if="!hasInstances" class="empty-state">
         <span class="msr empty-state__icon" aria-hidden="true">deployed_code</span>
         <p class="empty-state__text">还没有任何实例，请使用左上角加号添加实例</p>
@@ -195,6 +197,21 @@ async function confirmRemove(): Promise<void> {
   position: relative;
 }
 
+/* 标题与搜索区共用的模糊容器：无圆角，整条覆盖顶部 */
+.instances-view__panel {
+  padding: 20px 32px 24px;
+  border-bottom: 1px solid var(--app-glass-border);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
+}
+
+/* 容器内的标题栏去掉自带内边距，由容器统一排版 */
+.instances-view__panel :deep(.page-header) {
+  padding: 0 0 16px;
+}
+
 .instances-view__body {
   display: flex;
   flex-direction: column;
@@ -202,12 +219,13 @@ async function confirmRemove(): Promise<void> {
   padding: 0 32px 32px;
 }
 
-.toolbar {
+.instances-view__toolbar {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
+/* 搜索框在模糊容器内使用实色底，避免嵌套玻璃造成重复模糊 */
 .search-box {
   display: flex;
   align-items: center;
@@ -216,11 +234,7 @@ async function confirmRemove(): Promise<void> {
   padding: 0 16px;
   border-radius: var(--md-sys-shape-corner-full);
   border: 1px solid var(--app-glass-border);
-  background: var(--md-sys-color-surface-container);
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .search-box__icon {
@@ -273,10 +287,20 @@ async function confirmRemove(): Promise<void> {
   color: var(--md-sys-color-on-secondary-container);
 }
 
+/* 卡片瀑布区仅在壁纸背景存在时铺约 25% 不透明平面（不做模糊）；
+   无壁纸时沿用外壳表面，不需要额外的透明度处理。 */
 .instances-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
+  padding: 20px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
+}
+
+:global(.shell--has-wallpaper) .instances-grid {
+  border: 1px solid var(--app-glass-border);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 25%, transparent);
+  box-shadow: var(--app-glass-card-shadow);
 }
 
 /* 空列表和无搜索结果提示 */

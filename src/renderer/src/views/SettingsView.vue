@@ -756,6 +756,17 @@ onMounted(() => {
   pointer-events: none;
 }
 
+/* 仅在壁纸背景存在时给右侧分组内容画布铺约 25% 不透明平面（不做模糊）；
+   无壁纸时沿用外壳默认表面，不需要额外的透明度处理。 */
+:global(.shell--has-wallpaper) .settings-view {
+  --app-current-content-surface: color-mix(
+    in srgb,
+    var(--md-sys-color-surface-container) 25%,
+    transparent
+  );
+  --app-current-content-filter: none;
+}
+
 .settings-sidebar,
 .settings-view__header,
 .settings-view__content {

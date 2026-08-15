@@ -5,7 +5,7 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 
 /** 壁纸默认保持原始清晰度，内容遮罩负责维持前景可读性。 */
 export const DEFAULT_WALLPAPER_BLUR = 0;
-export const DEFAULT_WALLPAPER_OPACITY = 0.72;
+export const DEFAULT_WALLPAPER_OPACITY = 0.6;
 
 /** 启动器的持久化用户设置。 */
 export interface LauncherSettings {
