@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InstanceRepository } from '../../../src/main/services/instance-repository';
 import { INSTANCES_VERSION } from '../../../src/shared/domain/instance';
-import { upgradeInstancePathsToV2 } from '../../../src/main/utils/instance-migration';
+import { upgradeInstancePathsToV2 } from '../../../src/main/utils/instance-migrations';
 
 /**
  * v1 到当前实例仓库结构的迁移端到端测试。
@@ -156,6 +156,7 @@ describe('InstanceRepository legacy migration', () => {
           platforms: { napcat: { installDir: '/bots/napcat', version: '1.0.0' } },
           status: 'stopped',
           createdAt: 123,
+          lastStartedAt: null,
           autoStart: false,
         },
       ],

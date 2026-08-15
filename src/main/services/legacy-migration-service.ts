@@ -8,7 +8,7 @@ import {
   type MigrationResult,
 } from '../../shared/domain/migration';
 import { MofoxError } from '../../shared/domain/error';
-import { normalizeInstance } from './instance-repository';
+import { normalizeInstance } from '../utils/instance-migrations';
 
 /** 旧启动器数据目录的默认解析入口；调用方注入平台相关的基础路径。 */
 export interface LegacyDataDirResolution {

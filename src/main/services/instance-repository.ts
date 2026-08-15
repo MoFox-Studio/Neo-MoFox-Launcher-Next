@@ -2,26 +2,24 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   INSTANCES_VERSION,
+  type CreateInstanceInput,
   type Instance,
   type InstanceRepositoryFile,
+  type InstanceStatus,
   type InstalledPlatforms,
+  type UpdateInstancePatch,
 } from '../../shared/domain/instance';
 import { MofoxError } from '../../shared/domain/error';
 import { writeJsonAtomic } from '../utils/atomic-json';
-import { upgradeInstancePathsToV2 } from '../utils/instance-migration';
+import { generateInstanceId } from '../utils/id-generator';
+import {
+  DEFAULT_INSTANCE,
+  normalizePlatforms,
+  normalizeRepositoryFile,
+} from '../utils/instance-migrations';
 
 /** 实例仓库负责把磁盘 JSON 规范化为领域记录，并通过串行原子写维持内存与持久化状态一致。 */
 type DiagnosticReporter = (message: string, error: Error) => void;
-
-/** 实例持久化结构的默认值；新增字段在无专用迁移时由此补齐。 */
-export const DEFAULT_INSTANCE: Omit<Instance, 'id'> = {
-  name: '',
-  mofoxInstallDir: '',
-  platforms: {},
-  status: 'stopped',
-  createdAt: 0,
-  autoStart: false,
-};
 
 export class InstanceRepository {
   private readonly path: string;
@@ -48,19 +46,70 @@ export class InstanceRepository {
   }
 
   /**
-   * 新增或更新实例记录。
+   * 新增实例记录：由仓库在内部用默认值补齐完整结构后追加。
    *
-   * 同 ID 存在则替换，否则追加。变更通过串行队列与原子写入持久化。
+   * 调用方只需提供业务字段；ID、状态、创建时间等由仓库构建。重复 ID 视为冲突并拒绝。
    *
-   * @param instance - 待写入的实例对象。
+   * @param input - 新增实例的业务字段。
+   * @returns 已持久化的实例对象（浅拷贝）。
+   * @throws {MofoxError} 名称为空或 ID 已存在时抛出 `INVALID_ARGUMENT`/`CONFLICT`。
    */
-  async upsert(instance: Instance): Promise<void> {
-    validateInstance(instance);
-    await this.mutate((instances) => {
-      const index = instances.findIndex((candidate) => candidate.id === instance.id);
-      if (index >= 0) instances[index] = cloneInstance(instance);
-      else instances.push(cloneInstance(instance));
+  async create(input: CreateInstanceInput): Promise<Instance> {
+    const name = requireText(input.name, '实例名称不能为空');
+    const instance = buildInstance({
+      id: input.id?.trim() || generateInstanceId(),
+      name,
+      mofoxInstallDir: input.mofoxInstallDir?.trim() ?? '',
+      platforms: normalizePlatforms(input.platforms),
+      status: 'stopped',
+      createdAt: Date.now(),
+      autoStart: input.autoStart === true,
     });
+    await this.mutate((instances) => {
+      if (instances.some((candidate) => candidate.id === instance.id)) {
+        throw new MofoxError('CONFLICT', `实例 ID 已存在: ${instance.id}`);
+      }
+      instances.push(cloneInstance(instance));
+    });
+    return cloneInstance(instance);
+  }
+
+  /**
+   * 更新实例记录：加载现有记录后原地合并补丁，未提供的字段保持原值。
+   *
+   * 变更通过串行队列与原子写入持久化。
+   *
+   * @param instanceId - 待更新的实例 ID。
+   * @param patch - 需要更新的字段；省略的字段保持不变。
+   * @returns 更新后的实例对象（浅拷贝）。
+   * @throws {MofoxError} ID 为空抛 `INVALID_ARGUMENT`；实例不存在抛 `NOT_FOUND`。
+   */
+  async update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance> {
+    requireId(instanceId);
+    if (patch.name !== undefined && !patch.name.trim()) {
+      throw new MofoxError('INVALID_ARGUMENT', '实例名称不能为空');
+    }
+    let updated: Instance | undefined;
+    await this.mutate((instances) => {
+      const index = instances.findIndex((candidate) => candidate.id === instanceId);
+      if (index < 0) throw new MofoxError('NOT_FOUND', `未知实例: ${instanceId}`);
+      const current = instances[index];
+      updated = buildInstance({
+        ...current,
+        ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+        ...(patch.mofoxInstallDir !== undefined
+          ? { mofoxInstallDir: patch.mofoxInstallDir.trim() }
+          : {}),
+        ...(patch.platforms !== undefined
+          ? { platforms: normalizePlatforms(patch.platforms) }
+          : {}),
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.lastStartedAt !== undefined ? { lastStartedAt: patch.lastStartedAt } : {}),
+        ...(patch.autoStart !== undefined ? { autoStart: patch.autoStart } : {}),
+      });
+      instances[index] = cloneInstance(updated);
+    });
+    return cloneInstance(updated!);
   }
 
   /**
@@ -89,9 +138,7 @@ export class InstanceRepository {
     await this.mutate((instances) => {
       const byId = new Set(instances.map((instance) => instance.id));
       const byPath = new Set(
-        instances
-          .map((instance) => instance.mofoxInstallDir)
-          .filter((value) => value.trim()),
+        instances.map((instance) => instance.mofoxInstallDir).filter((value) => value.trim()),
       );
       for (const candidate of incoming) {
         try {
@@ -129,14 +176,13 @@ export class InstanceRepository {
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown;
       const file = normalizeRepositoryFile(parsed, this.report);
-      const canonical = file.version === INSTANCES_VERSION ? file : upgradeRepositoryFile(file);
-      // 文件版本升级或结构偏离默认 schema 时立即回写，既补齐新增字段也移除已废弃字段。
-      if (!isCanonicalRepositoryFile(parsed, canonical)) {
-        await writeJsonAtomic(this.path, canonical).catch((error) => {
+      // 版本升级或结构偏离默认 schema 时立即回写，既补齐新增字段也移除已废弃字段。
+      if (!isCanonicalRepositoryFile(parsed, file)) {
+        await writeJsonAtomic(this.path, file).catch((error) => {
           this.report('Unable to persist normalized instance repository', toError(error));
         });
       }
-      return canonical.instances;
+      return file.instances;
     } catch (error) {
       // 文件不存在和损坏文件都以空集合恢复，且不在读取阶段覆盖用户原文件。
       if (!isRecord(error) || error.code !== 'ENOENT') {
@@ -148,40 +194,24 @@ export class InstanceRepository {
 }
 
 /**
- * 把任意磁盘 JSON 规范化为仓库文件结构；单条记录异常不阻断其余实例恢复。
- * 导出供迁移器复用同一套字段映射逻辑；可选 reporter 收集坏记录诊断。
- */
-export function normalizeRepositoryFile(
-  value: unknown,
-  report: (message: string, error: Error) => void = () => undefined,
-): InstanceRepositoryFile {
-  const records = Array.isArray(value)
-    ? value
-    : isRecord(value) && Array.isArray(value.instances)
-      ? value.instances
-      : [];
-  const instances: Instance[] = [];
-  for (const record of records) {
-    try {
-      instances.push(normalizeInstance(record));
-    } catch (error) {
-      report('Skipped invalid instance record', toError(error));
-    }
-  }
-  return {
-    version: extractVersion(isRecord(value) ? value.version : undefined),
-    instances,
-  };
-}
-
-/**
- * 将已规范化的实例集合标记为当前仓库版本。
+ * 在内部构建完整的实例记录：以默认结构为基底，用调用方提供的字段覆盖。
  *
- * 字段兼容与迁移均在 `normalizeInstance()` 中完成：旧安装路径会拆为实例和平台目录，
- * 旧顶层平台版本会移入对应平台描述，已废弃的 MoFox 版本会被丢弃。
+ * 调用方无需拼装完整 JSON，缺失字段一律落到 {@link DEFAULT_INSTANCE} 的默认值。
+ *
+ * @param seed - 部分字段；ID 必填，其余可选。
+ * @returns 覆盖了全部字段的 {@link Instance}。
  */
-function upgradeRepositoryFile(file: InstanceRepositoryFile): InstanceRepositoryFile {
-  return { version: INSTANCES_VERSION, instances: file.instances.map(cloneInstance) };
+function buildInstance(seed: {
+  id: string;
+  name?: string;
+  mofoxInstallDir?: string;
+  platforms?: InstalledPlatforms;
+  status?: InstanceStatus;
+  createdAt?: number;
+  lastStartedAt?: number | null;
+  autoStart?: boolean;
+}): Instance {
+  return { ...DEFAULT_INSTANCE, ...seed };
 }
 
 /** 判断磁盘原始值是否已完全符合当前仓库与实例结构，避免无变化时重复写入。 */
@@ -203,110 +233,6 @@ function isCanonicalInstance(value: unknown, instance: Instance | undefined): bo
   return Boolean(instance && isRecord(value) && JSON.stringify(value) === JSON.stringify(instance));
 }
 
-/**
- * 从磁盘 JSON 中提取版本号；非法值回退为 1。
- *
- * @param value - 待提取的版本字段。
- * @returns 有限数字版本号，或 1。
- */
-function extractVersion(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 1;
-}
-
-/**
- * 规范化单条实例记录；导出供迁移器在预览阶段复用。
- * 历史字段（napcatDir、qqNickname、installPath、platformId 等）在此被收敛到当前 v4 schema。
- */
-export function normalizeInstance(value: unknown): Instance {
-  if (!isRecord(value) || typeof value.id !== 'string' || !value.id.trim()) {
-    throw new MofoxError('INVALID_ARGUMENT', 'Invalid instance: ID is required');
-  }
-  const extra = isRecord(value.extra) ? value.extra : {};
-  const name = firstString(value.name, extra.displayName, value.qqNickname, value.id);
-  // v1 installPath 同时承担 MoFox 本体与平台目录语义；优先采用 v2 字段，回退到 v1 字段。
-  const legacyInstallPath = firstString(value.installPath, value.neomofoxDir, '');
-  const mofoxInstallDir = firstString(value.mofoxInstallDir, legacyInstallPath);
-  const legacyPlatformId = firstString(
-    value.platformId,
-    value.platform,
-    value.platformDir || value.napcatDir ? 'napcat' : undefined,
-    '',
-  );
-  // 兼容 v2/v3 的字符串平台路径，并将其收敛为当前平台描述对象。
-  const inheritedPlatforms = normalizePlatforms(value.platforms);
-  const legacyPlatformPath = firstString(value.platformRoot, value.platformDir, value.napcatDir);
-  if (legacyPlatformId && legacyPlatformPath && !inheritedPlatforms[legacyPlatformId]) {
-    inheritedPlatforms[legacyPlatformId] = { installDir: legacyPlatformPath };
-  }
-  const { platforms } = upgradeInstancePathsToV2({
-    mofoxInstallDir,
-    platforms: inheritedPlatforms,
-    platformId: legacyPlatformId,
-  });
-  // v2 曾混用顶层 version：手动导入写入 MoFox 版本，平台安装写入平台版本。
-  // 仅平台目录独立存在的记录可无歧义保留其安装器写入的平台版本。
-  const isPlatformOnlyRecord = !firstString(value.mofoxInstallDir, value.neomofoxDir, value.installPath);
-  const platformVersion = firstString(value.platformVersion);
-  const napcatVersion = firstString(value.napcatVersion);
-  const legacyPlatformVersion = firstString(
-    platformVersion,
-    napcatVersion,
-    isPlatformOnlyRecord ? value.version : undefined,
-  );
-  setPlatformVersion(
-    platforms,
-    napcatVersion && !platformVersion ? 'napcat' : legacyPlatformId,
-    legacyPlatformVersion,
-  );
-  const createdAt = normalizeTimestamp(value.createdAt);
-  return {
-    ...DEFAULT_INSTANCE,
-    id: value.id,
-    name,
-    mofoxInstallDir,
-    platforms,
-    status: value.status === 'error' ? 'error' : 'stopped',
-    createdAt,
-    ...(typeof value.lastStartedAt === 'number' ? { lastStartedAt: value.lastStartedAt } : {}),
-    autoStart: value.autoStart === true,
-  };
-}
-
-/** 规范化旧路径字典与当前平台描述字典。 */
-function normalizePlatforms(value: unknown): InstalledPlatforms {
-  if (!isRecord(value)) return {};
-  const platforms: InstalledPlatforms = {};
-  for (const [id, rawPlatform] of Object.entries(value)) {
-    if (!id.trim()) continue;
-    if (typeof rawPlatform === 'string' && rawPlatform.trim()) {
-      platforms[id] = { installDir: rawPlatform };
-      continue;
-    }
-    if (!isRecord(rawPlatform)) continue;
-    const installDir = firstString(rawPlatform.installDir);
-    if (!installDir) continue;
-    const version = firstString(rawPlatform.version);
-    platforms[id] = { installDir, ...(version ? { version } : {}) };
-  }
-  return platforms;
-}
-
-/** 将遗留平台版本放入对应平台；缺少平台 ID 时仅在单平台记录中保留。 */
-function setPlatformVersion(
-  platforms: InstalledPlatforms,
-  preferredPlatformId: string,
-  version: string,
-): void {
-  if (!version) return;
-  const platformId = platforms[preferredPlatformId]
-    ? preferredPlatformId
-    : Object.keys(platforms).length === 1
-      ? Object.keys(platforms)[0]
-      : '';
-  const platform = platformId ? platforms[platformId] : undefined;
-  if (platform && !platform.version) platforms[platformId] = { ...platform, version };
-}
-
 /** 复制平台字典和平台描述，避免调用方修改返回值后污染仓库缓存。 */
 function cloneInstance(instance: Instance): Instance {
   const platforms: InstalledPlatforms = {};
@@ -320,41 +246,25 @@ function cloneInstance(instance: Instance): Instance {
  * 校验实例记录的关键字段是否非空。
  *
  * @param instance - 待校验的实例对象。
- * @throws {MofoxError} ID、名称或 MoFox 安装目录为空时抛出 `INVALID_ARGUMENT`。
+ * @throws {MofoxError} ID 或名称为空时抛出 `INVALID_ARGUMENT`。
  */
 function validateInstance(instance: Instance): void {
-  if (!instance.id.trim() || !instance.name.trim() || !instance.mofoxInstallDir.trim()) {
-    throw new MofoxError('INVALID_ARGUMENT', 'Instance ID, name and mofoxInstallDir are required');
+  if (!instance.id.trim() || !instance.name.trim()) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Instance ID and name are required');
   }
 }
 
-/**
- * 从候选值列表中返回首个非空字符串，全部缺失时返回空串。
- *
- * @param values - 候选值数组。
- * @returns 首个非空白字符串，或空字符串。
- */
-function firstString(...values: unknown[]): string {
-  return (
-    (values.find((value) => typeof value === 'string' && value.trim()) as string | undefined) ?? ''
-  );
+/** 校验实例 ID 字符串并返回，空值抛出 `INVALID_ARGUMENT`。 */
+function requireId(value: string): string {
+  if (!value.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Instance ID is required');
+  return value;
 }
 
-/**
- * 将任意输入归一化为有限时间戳。
- *
- * 接受数字（毫秒）或可解析的日期字符串；非法值回退为当前时间。
- *
- * @param value - 待归一化的时间戳。
- * @returns 毫秒级 Unix 时间戳。
- */
-function normalizeTimestamp(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return Date.now();
+/** 校验必填文本在进入持久化层前已经去除首尾空白。 */
+function requireText(value: string, message: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) throw new MofoxError('INVALID_ARGUMENT', message);
+  return trimmed;
 }
 
 /**

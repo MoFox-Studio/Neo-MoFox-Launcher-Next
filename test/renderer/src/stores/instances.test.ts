@@ -33,6 +33,7 @@ describe('instances store', () => {
         platforms: { napcat: { installDir: 'D:\\Bots\\Test\\napcat', version: '4.2.19' } },
         status: 'stopped',
         createdAt: 1,
+        lastStartedAt: null,
         autoStart: false,
       },
     ]);

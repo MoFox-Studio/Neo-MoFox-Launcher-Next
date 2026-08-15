@@ -3,7 +3,7 @@ import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { InstallContext, InstallResult } from '../../shared/domain/bot-platform';
-import type { Instance } from '../../shared/domain/instance';
+import type { CreateInstanceInput } from '../../shared/domain/instance';
 import type {
   InstallProgressEvent,
   InstallRequest,
@@ -44,9 +44,8 @@ export interface InstallTaskEvents {
 }
 
 export interface InstallTaskDependencies {
-  repository: { upsert(instance: Instance): Promise<void> };
+  repository: { create(input: CreateInstanceInput): Promise<unknown> };
   mirrors: { list(): MirrorSource[] };
-  now?: () => number;
   tempRoot?: string;
 }
 
@@ -263,15 +262,11 @@ export class InstallTaskService {
       await rm(result.installPath, { recursive: true, force: true });
     }
     await access(target, constants.F_OK);
-    await this.dependencies.repository.upsert({
+    // 安装向导只下载平台适配器；MoFox 本体目录留空，由仓库默认值补齐，后续安装流程再回填。
+    await this.dependencies.repository.create({
       id: task.id,
       name: task.request.instanceName,
-      // 安装向导只下载平台适配器；MoFox 本体目录暂留空，后续安装流程再回填。
-      mofoxInstallDir: '',
       platforms: { [task.request.platformId]: { installDir: target, version: result.version } },
-      status: 'stopped',
-      createdAt: this.dependencies.now?.() ?? Date.now(),
-      autoStart: false,
     });
   }
 

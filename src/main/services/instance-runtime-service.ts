@@ -13,6 +13,7 @@ import type { ChildProcess } from 'node:child_process';
 import type { PlatformRegistry } from '../platforms/registry';
 import { spawnProcess } from '../utils/process-service';
 import { findVenvPython } from '../utils/platform-helper';
+import type { UpdateInstancePatch } from '../../shared/domain/instance';
 
 /**
  * 协调实例进程的启动、停止、日志和状态持久化；运行态只保留在内存，状态变化通过 events 同步给渲染进程。
@@ -61,7 +62,7 @@ export class InstanceRuntimeService {
   constructor(
     private readonly repository: {
       list(): Promise<Instance[]>;
-      upsert(instance: Instance): Promise<void>;
+      update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance>;
       remove(instanceId: string): Promise<void>;
     },
     private readonly registry: PlatformRegistry,
@@ -502,8 +503,10 @@ export class InstanceRuntimeService {
    */
   private async saveStatus(instance: Instance, status: InstanceStatus): Promise<void> {
     // 先落库再发事件，确保渲染进程收到状态后重新读取也能得到一致结果。
-    const updated = { ...instance, status, ...(status === 'running' ? { lastStartedAt: Date.now() } : {}) };
-    await this.repository.upsert(updated);
+    await this.repository.update(instance.id, {
+      status,
+      ...(status === 'running' ? { lastStartedAt: Date.now() } : {}),
+    });
     this.events.statusChanged(instance.id, status);
   }
 }

@@ -25,7 +25,7 @@ describe('InstallTaskService', () => {
   it('installs in a temporary directory, finalizes, and persists only after success', async () => {
     const root = await createTempRoot();
     const target = join(root, 'installed');
-    const repository = { upsert: vi.fn(async () => undefined) };
+    const repository = { create: vi.fn(async () => undefined) };
     const platform = createPlatform(async (context) => {
       const payload = join(context.workDir, 'payload');
       await mkdir(payload, { recursive: true });
@@ -33,19 +33,18 @@ describe('InstallTaskService', () => {
       return { version: '2.0.0', installPath: payload };
     });
     const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository, mirrors: mirrorsProvider, tempRoot: root, now: () => 42 }, { progress });
+    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository, mirrors: mirrorsProvider, tempRoot: root }, { progress });
 
     const taskId = await service.start(request(target));
     await service.wait(taskId);
 
     expect(await readFile(join(target, 'ready.txt'), 'utf8')).toBe('ready');
-    // 安装向导只装平台，targetDir 与实际平台版本都会写入平台字典；mofoxInstallDir 暂留空。
-    expect(repository.upsert).toHaveBeenCalledWith(
+    // 安装向导只装平台：只传业务字段，mofoxInstallDir 等其余字段由仓库内部补齐。
+    expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         id: taskId,
-        mofoxInstallDir: '',
+        name: 'Test',
         platforms: { test: { installDir: target, version: '2.0.0' } },
-        createdAt: 42,
       }),
     );
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done', step: 'finalize' }));
@@ -62,7 +61,7 @@ describe('InstallTaskService', () => {
     const platform = createPlatform(install);
     platform.configure = vi.fn().mockRejectedValueOnce(new Error('config failed')).mockResolvedValue(undefined);
     const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { upsert: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root }, { progress });
+    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root }, { progress });
 
     const taskId = await service.start(request(join(root, 'installed')));
     await service.wait(taskId);
@@ -84,7 +83,7 @@ describe('InstallTaskService', () => {
       throw new Error('aborted');
     });
     const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { upsert: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root }, { progress });
+    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root }, { progress });
 
     const taskId = await service.start(request(join(root, 'installed')));
     await service.cancel(taskId);
@@ -106,7 +105,7 @@ describe('InstallTaskService', () => {
     const progress = vi.fn();
     const service = new InstallTaskService(
       new PlatformRegistry([platform]),
-      { repository: { upsert: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root },
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root },
       { progress },
     );
 

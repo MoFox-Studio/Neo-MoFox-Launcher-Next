@@ -2,6 +2,8 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ManualImportService } from '../../../src/main/services/manual-import-service';
+import type { CreateInstanceInput } from '../../../src/shared/domain/instance';
+import { DEFAULT_INSTANCE } from '../../../src/main/utils/instance-migrations';
 import type { Instance } from '../../../src/shared/domain/instance';
 
 /** 验证已有 Neo-MoFox 目录导入时的目录检查、平台配对和重复路径保护。 */
@@ -35,8 +37,15 @@ describe('ManualImportService', () => {
     const instances: Instance[] = [];
     const repository = {
       list: vi.fn(async () => [...instances]),
-      upsert: vi.fn(async (instance: Instance) => {
+      create: vi.fn(async (input: CreateInstanceInput) => {
+        const instance: Instance = {
+          ...DEFAULT_INSTANCE,
+          id: `mofox-${instances.length + 1}`,
+          ...input,
+          createdAt: Date.now(),
+        };
         instances.push(instance);
+        return instance;
       }),
     };
     const service = new ManualImportService(repository);
@@ -49,9 +58,8 @@ describe('ManualImportService', () => {
     });
 
     expect(result.instanceId).toMatch(/^mofox-/);
-    expect(repository.upsert).toHaveBeenCalledWith(
+    expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: result.instanceId,
         name: '已有实例',
         mofoxInstallDir: resolve(mofoxDirectory),
         platforms: { napcat: { installDir: resolve(platformDirectory) } },
@@ -61,13 +69,13 @@ describe('ManualImportService', () => {
 
   it('rejects a directory without the Neo-MoFox entry file', async () => {
     const root = await createTemporaryDirectory();
-    const repository = { list: vi.fn(async () => []), upsert: vi.fn() };
+    const repository = { list: vi.fn(async () => []), create: vi.fn() };
     const service = new ManualImportService(repository);
 
     await expect(
       service.importInstance({ instanceName: '无效实例', mofoxInstallDir: root }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(repository.upsert).not.toHaveBeenCalled();
+    expect(repository.create).not.toHaveBeenCalled();
   });
 
   it('rejects an already registered Neo-MoFox directory', async () => {
@@ -82,23 +90,24 @@ describe('ManualImportService', () => {
           platforms: {},
           status: 'stopped' as const,
           createdAt: 1,
+          lastStartedAt: null,
           autoStart: false,
         },
       ]),
-      upsert: vi.fn(),
+      create: vi.fn(),
     };
     const service = new ManualImportService(repository);
 
     await expect(
       service.importInstance({ instanceName: '重复实例', mofoxInstallDir: mofoxDirectory }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
-    expect(repository.upsert).not.toHaveBeenCalled();
+    expect(repository.create).not.toHaveBeenCalled();
   });
 
   it('requires the platform ID and directory to be provided together', async () => {
     const root = await createTemporaryDirectory();
     const mofoxDirectory = await createMofoxDirectory(root);
-    const repository = { list: vi.fn(async () => []), upsert: vi.fn() };
+    const repository = { list: vi.fn(async () => []), create: vi.fn() };
     const service = new ManualImportService(repository);
 
     await expect(
@@ -108,6 +117,6 @@ describe('ManualImportService', () => {
         platformId: 'napcat',
       }),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
-    expect(repository.upsert).not.toHaveBeenCalled();
+    expect(repository.create).not.toHaveBeenCalled();
   });
 });

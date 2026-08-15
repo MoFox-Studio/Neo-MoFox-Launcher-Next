@@ -1,11 +1,11 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { InstanceRepository } from '../../../src/main/services/instance-repository';
 import {
   DEFAULT_INSTANCE,
-  InstanceRepository,
   normalizeInstance,
-} from '../../../src/main/services/instance-repository';
+} from '../../../src/main/utils/instance-migrations';
 import { INSTANCES_VERSION, type Instance } from '../../../src/shared/domain/instance';
 
 /** 验证仓库首次加载、历史格式归一化、坏记录隔离及原子增删后的状态。 */
@@ -86,23 +86,32 @@ describe('InstanceRepository', () => {
     await expect(readFile(path, 'utf8')).resolves.toBe('not json');
   });
 
-  it('upserts and removes canonical records atomically', async () => {
+  it('creates and updates canonical records atomically, building the structure internally', async () => {
     const directory = await createTempDirectory();
     const repository = new InstanceRepository(directory);
-    const instance = {
+    const created = await repository.create({
       id: 'instance-1',
       name: 'Test',
       mofoxInstallDir: 'D:\\Bots\\Test',
       platforms: { snowluma: { installDir: 'D:\\Bots\\Test\\snowluma', version: '1.0.0' } },
-      status: 'stopped' as const,
-      createdAt: 123,
-      autoStart: false,
-    };
+    });
 
-    await repository.upsert(instance);
-    await repository.upsert({ ...instance, name: 'Updated' });
-    expect(await repository.list()).toEqual([{ ...instance, name: 'Updated' }]);
-    await repository.remove(instance.id);
+    // 调用方只提供业务字段，其余字段由仓库内部以默认值补齐。
+    expect(created).toEqual({
+      ...DEFAULT_INSTANCE,
+      id: 'instance-1',
+      name: 'Test',
+      mofoxInstallDir: 'D:\\Bots\\Test',
+      platforms: { snowluma: { installDir: 'D:\\Bots\\Test\\snowluma', version: '1.0.0' } },
+      status: 'stopped',
+      createdAt: expect.any(Number),
+      autoStart: false,
+    });
+    expect(await repository.list()).toEqual([created]);
+
+    await repository.update('instance-1', { name: 'Updated' });
+    expect(await repository.list()).toEqual([{ ...created, name: 'Updated' }]);
+    await repository.remove('instance-1');
     expect(await repository.list()).toEqual([]);
   });
 
@@ -238,16 +247,12 @@ describe('InstanceRepository', () => {
   it('mergeExternal imports non-conflicting instances and skips duplicates', async () => {
     const directory = await createTempDirectory();
     const repository = new InstanceRepository(directory);
-    const existing = {
+    const existing = await repository.create({
       id: 'ins-a',
       name: 'A',
       mofoxInstallDir: 'D:\\Bots\\a',
       platforms: { napcat: { installDir: 'D:\\Bots\\a\\napcat', version: '1.0.0' } },
-      status: 'stopped' as const,
-      createdAt: 1,
-      autoStart: false,
-    };
-    await repository.upsert(existing);
+    });
 
     const incoming: Instance[] = [
       // 与已有 ID 冲突
@@ -262,6 +267,7 @@ describe('InstanceRepository', () => {
         platforms: {},
         status: 'stopped' as const,
         createdAt: 2,
+        lastStartedAt: null,
         autoStart: false,
       },
       // 全新实例
@@ -272,6 +278,7 @@ describe('InstanceRepository', () => {
         platforms: { snowluma: { installDir: 'D:\\Bots\\b\\snowluma', version: '2.0.0' } },
         status: 'stopped' as const,
         createdAt: 3,
+        lastStartedAt: null,
         autoStart: true,
       },
     ];

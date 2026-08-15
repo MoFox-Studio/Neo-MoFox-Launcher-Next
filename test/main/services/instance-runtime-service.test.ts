@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Instance } from '../../../src/shared/domain/instance';
+import type { UpdateInstancePatch } from '../../../src/shared/domain/instance';
 import { PlatformRegistry } from '../../../src/main/platforms/registry';
 import { InstanceRuntimeService, type PtyProcess } from '../../../src/main/services/instance-runtime-service';
 
@@ -172,6 +173,7 @@ function createInstance(installPath = 'D:\\Bot'): Instance {
     platforms: { test: { installDir: installPath, version: '1' } },
     status: 'stopped',
     createdAt: 1,
+    lastStartedAt: null,
     autoStart: false,
   };
 }
@@ -210,7 +212,10 @@ function createRepository(instance: Instance) {
   return {
     current: { ...instance },
     list: vi.fn(async function (this: { current: Instance }) { return [this.current]; }),
-    upsert: vi.fn(async function (this: { current: Instance }, value: Instance) { this.current = { ...value }; }),
+    update: vi.fn(async function (this: { current: Instance }, _id: string, patch: UpdateInstancePatch) {
+      this.current = { ...this.current, ...patch };
+      return this.current;
+    }),
     remove: vi.fn(async () => undefined),
   };
 }

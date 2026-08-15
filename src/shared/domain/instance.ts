@@ -1,5 +1,8 @@
-/** 实例仓库文件格式版本；每次字段或语义变更必须递增并提供迁移分支。 */
-export const INSTANCES_VERSION = 4;
+/**
+ * 实例仓库文件格式版本；每次字段或语义变更必须递增版本号，
+ * 并在 `src/main/utils/instance-migrations.ts` 中提供从旧版本到新版本的一步迁移分支。
+ */
+export const INSTANCES_VERSION = 5;
 
 /** 实例仓库磁盘布局：版本号 + 规范化实例数组。 */
 export interface InstanceRepositoryFile {
@@ -31,8 +34,30 @@ export interface Instance {
   platforms: InstalledPlatforms;
   status: InstanceStatus;
   createdAt: number;
-  lastStartedAt?: number;
+  /** 最后一次成功启动的时间戳（毫秒）；从未启动过时为 `null`。 */
+  lastStartedAt: number | null;
   autoStart: boolean;
+}
+
+/** 新增实例的入参；仅暴露业务可配置字段，ID、状态、时间戳等由仓库在内部以默认值构建。 */
+export interface CreateInstanceInput {
+  /** 可选预生成 ID；缺省时由仓库生成全局唯一 ID。 */
+  id?: string;
+  name: string;
+  /** MoFox 本体安装目录；安装向导只装平台适配器时可留空，由后续流程回填。 */
+  mofoxInstallDir?: string;
+  platforms?: InstalledPlatforms;
+  autoStart?: boolean;
+}
+
+/** 更新实例的补丁；所有字段可选，未提供的字段保持原值。 */
+export interface UpdateInstancePatch {
+  name?: string;
+  mofoxInstallDir?: string;
+  platforms?: InstalledPlatforms;
+  status?: InstanceStatus;
+  lastStartedAt?: number | null;
+  autoStart?: boolean;
 }
 
 /** 一个实例最多运行两个进程：MoFox 本体与平台适配器。 */

@@ -52,6 +52,7 @@ const instances: Instance[] = [
     platforms: { snowluma: { installDir: 'D:\\MoFox\\dev\\snowluma', version: '1.3.0' } },
     status: 'stopped',
     createdAt: Date.now() - 86_400_000 * 9,
+    lastStartedAt: null,
     autoStart: false,
   },
   {
@@ -275,6 +276,7 @@ export const mockApi: MofoxApi = {
         platforms: { [request.platformId]: { installDir: request.targetDir, version: request.version } },
         status: 'stopped',
         createdAt: Date.now(),
+        lastStartedAt: null,
         autoStart: false,
       });
     })();
@@ -294,6 +296,7 @@ export const mockApi: MofoxApi = {
         : {},
       status: 'stopped',
       createdAt: Date.now(),
+      lastStartedAt: null,
       autoStart: false,
     });
     return { instanceId };

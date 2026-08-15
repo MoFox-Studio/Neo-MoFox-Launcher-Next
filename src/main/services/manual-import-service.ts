@@ -3,12 +3,12 @@ import { isAbsolute, join, resolve } from 'node:path';
 import type { Instance } from '../../shared/domain/instance';
 import type { ManualImportRequest, ManualImportResult } from '../../shared/domain/manual-import';
 import { MofoxError } from '../../shared/domain/error';
-import { generateInstanceId } from '../utils/id-generator';
+import type { CreateInstanceInput } from '../../shared/domain/instance';
 
 /** 已有实例导入时依赖的最小仓库能力。 */
 interface InstanceRepository {
   list(): Promise<Instance[]>;
-  upsert(instance: Instance): Promise<void>;
+  create(input: CreateInstanceInput): Promise<Instance>;
 }
 
 /**
@@ -57,19 +57,14 @@ export class ManualImportService {
       throw new MofoxError('CONFLICT', '此 Neo-MoFox 安装目录已被导入');
     }
 
-    const instance: Instance = {
-      id: generateInstanceId(),
+    const instance = await this.repository.create({
       name: instanceName,
       mofoxInstallDir,
       platforms:
         platformId && resolvedPlatformDir
           ? { [platformId]: { installDir: resolvedPlatformDir } }
           : {},
-      status: 'stopped',
-      createdAt: Date.now(),
-      autoStart: false,
-    };
-    await this.repository.upsert(instance);
+    });
     return { instanceId: instance.id };
   }
 }
