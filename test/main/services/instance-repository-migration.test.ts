@@ -35,7 +35,7 @@ describe('upgradeInstancePathsToV2', () => {
     });
     expect(result.mofoxInstallDir).toBe('D:\\Bots\\mofox');
     // 兄弟目录启发式：dirname(installPath)/<platformId>
-    expect(result.platforms).toEqual({ napcat: { installDir: 'D:\\Bots\\napcat' } });
+    expect(result.platform).toEqual({ id: 'napcat', installDir: 'D:\\Bots\\napcat' });
   });
 
   it('uses posix separators when the install path uses them', () => {
@@ -43,7 +43,7 @@ describe('upgradeInstancePathsToV2', () => {
       installPath: '/home/u/bots/mofox',
       platformId: 'snowluma',
     });
-    expect(result.platforms).toEqual({ snowluma: { installDir: '/home/u/bots/snowluma' } });
+    expect(result.platform).toEqual({ id: 'snowluma', installDir: '/home/u/bots/snowluma' });
   });
 
   it('preserves an explicit platforms dict and does not overwrite with the sibling heuristic', () => {
@@ -52,19 +52,19 @@ describe('upgradeInstancePathsToV2', () => {
       platformId: 'napcat',
       platforms: { napcat: { installDir: '/explicit/napcat' } },
     });
-    expect(result.platforms).toEqual({ napcat: { installDir: '/explicit/napcat' } });
+    expect(result.platform).toEqual({ id: 'napcat', installDir: '/explicit/napcat' });
   });
 
-  it('returns an empty platforms dict when platformId is missing', () => {
+  it('returns a null platform when platformId is missing', () => {
     const result = upgradeInstancePathsToV2({ installPath: '/bots/mofox' });
     expect(result.mofoxInstallDir).toBe('/bots/mofox');
-    expect(result.platforms).toEqual({});
+    expect(result.platform).toBeNull();
   });
 
   it('returns empty values when both installPath and mofoxInstallDir are missing', () => {
     const result = upgradeInstancePathsToV2({});
     expect(result.mofoxInstallDir).toBe('');
-    expect(result.platforms).toEqual({});
+    expect(result.platform).toBeNull();
   });
 });
 
@@ -95,27 +95,27 @@ describe('InstanceRepository legacy migration', () => {
 
     const loaded = await repository.list();
 
-    // 当前结构：installPath → mofoxInstallDir；platformId + 兄弟目录 → platforms 字典。
+    // 当前结构：installPath → mofoxInstallDir；platformId + 兄弟目录 → 平铺 platform。
     expect(loaded).toHaveLength(1);
     expect(loaded[0]).toEqual(
       expect.objectContaining({
         id: 'bot-1',
         mofoxInstallDir: 'D:\\Bots\\mofox-1',
-        platforms: { napcat: { installDir: 'D:\\Bots\\napcat' } },
+        platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat' },
       }),
     );
     // 已废弃的 v1 字段不应出现在内存对象中。
     expect(loaded[0]).not.toHaveProperty('installPath');
     expect(loaded[0]).not.toHaveProperty('platformId');
 
-    // 磁盘文件应被回写为 v2 版本，且 v1 字段已移除。
+    // 磁盘文件应被回写为当前版本，且 v1 字段已移除。
     const persisted = JSON.parse(await readFile(instancesPath, 'utf8'));
     expect(persisted.version).toBe(INSTANCES_VERSION);
     expect(persisted.instances[0]).toEqual(
       expect.objectContaining({
         id: 'bot-1',
         mofoxInstallDir: 'D:\\Bots\\mofox-1',
-        platforms: { napcat: { installDir: 'D:\\Bots\\napcat' } },
+        platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat' },
       }),
     );
     expect(persisted.instances[0].installPath).toBeUndefined();
@@ -139,8 +139,8 @@ describe('InstanceRepository legacy migration', () => {
 
     const loaded = await repository.list();
     const byId = Object.fromEntries(loaded.map((i) => [i.id, i]));
-    expect(byId.a.platforms).toEqual({ napcat: { installDir: '/bots/a/napcat' } });
-    expect(byId.b.platforms).toEqual({ snowluma: { installDir: '/bots/b/snowluma' } });
+    expect(byId.a.platform).toEqual({ id: 'napcat', installDir: '/bots/a/napcat' });
+    expect(byId.b.platform).toEqual({ id: 'snowluma', installDir: '/bots/b/snowluma' });
   });
 
   it('leaves an already-current file untouched on load', async () => {
@@ -153,7 +153,7 @@ describe('InstanceRepository legacy migration', () => {
           id: 'bot-1',
           name: 'Bot 1',
           mofoxInstallDir: '/bots/mofox',
-          platforms: { napcat: { installDir: '/bots/napcat', version: '1.0.0' } },
+          platform: { id: 'napcat', installDir: '/bots/napcat', version: '1.0.0' },
           status: 'stopped',
           createdAt: 123,
           lastStartedAt: null,
@@ -185,7 +185,7 @@ describe('InstanceRepository legacy migration', () => {
     // 第一次读取触发升级并回写当前结构。
     const repository = new InstanceRepository(directory, vi.fn());
     const first = await repository.list();
-    expect(first[0].platforms).toEqual({ napcat: { installDir: '/bots/napcat' } });
+    expect(first[0].platform).toEqual({ id: 'napcat', installDir: '/bots/napcat' });
 
     // 第二次读取（新仓库实例）不应再次改动文件，字段保持稳定。
     const reloaded = new InstanceRepository(directory, vi.fn());

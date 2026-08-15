@@ -6,7 +6,7 @@ import {
   type Instance,
   type InstanceRepositoryFile,
   type InstanceStatus,
-  type InstalledPlatforms,
+  type InstalledPlatform,
   type UpdateInstancePatch,
 } from '../../shared/domain/instance';
 import { MofoxError } from '../../shared/domain/error';
@@ -14,7 +14,7 @@ import { writeJsonAtomic } from '../utils/atomic-json';
 import { generateInstanceId } from '../utils/id-generator';
 import {
   DEFAULT_INSTANCE,
-  normalizePlatforms,
+  normalizePlatformValue,
   normalizeRepositoryFile,
 } from '../utils/instance-migrations';
 
@@ -60,7 +60,7 @@ export class InstanceRepository {
       id: input.id?.trim() || generateInstanceId(),
       name,
       mofoxInstallDir: input.mofoxInstallDir?.trim() ?? '',
-      platforms: normalizePlatforms(input.platforms),
+      platform: normalizePlatformValue(input.platform),
       status: 'stopped',
       createdAt: Date.now(),
       autoStart: input.autoStart === true,
@@ -100,8 +100,8 @@ export class InstanceRepository {
         ...(patch.mofoxInstallDir !== undefined
           ? { mofoxInstallDir: patch.mofoxInstallDir.trim() }
           : {}),
-        ...(patch.platforms !== undefined
-          ? { platforms: normalizePlatforms(patch.platforms) }
+        ...(patch.platform !== undefined
+          ? { platform: normalizePlatformValue(patch.platform) }
           : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.lastStartedAt !== undefined ? { lastStartedAt: patch.lastStartedAt } : {}),
@@ -205,7 +205,7 @@ function buildInstance(seed: {
   id: string;
   name?: string;
   mofoxInstallDir?: string;
-  platforms?: InstalledPlatforms;
+  platform?: InstalledPlatform | null;
   status?: InstanceStatus;
   createdAt?: number;
   lastStartedAt?: number | null;
@@ -233,13 +233,9 @@ function isCanonicalInstance(value: unknown, instance: Instance | undefined): bo
   return Boolean(instance && isRecord(value) && JSON.stringify(value) === JSON.stringify(instance));
 }
 
-/** 复制平台字典和平台描述，避免调用方修改返回值后污染仓库缓存。 */
+/** 复制平台对象，避免调用方修改返回值后污染仓库缓存。 */
 function cloneInstance(instance: Instance): Instance {
-  const platforms: InstalledPlatforms = {};
-  for (const [id, platform] of Object.entries(instance.platforms)) {
-    platforms[id] = { ...platform };
-  }
-  return { ...instance, platforms };
+  return { ...instance, platform: instance.platform ? { ...instance.platform } : null };
 }
 
 /**

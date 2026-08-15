@@ -25,7 +25,7 @@ const isBusy = computed(() => status.value === 'starting' || status.value === 's
 
 const PLATFORM_LABELS: Record<string, string> = { napcat: 'NapCat', snowluma: 'SnowLuma' };
 const platformLabel = computed(() => {
-  const id = Object.keys(instance.value?.platforms ?? {})[0] ?? '';
+  const id = instance.value?.platform?.id ?? '';
   return PLATFORM_LABELS[id] ?? id ?? '平台';
 });
 

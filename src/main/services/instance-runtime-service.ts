@@ -295,15 +295,12 @@ export class InstanceRuntimeService {
       );
     }
 
-    // 平台路径的唯一来源是 platforms 字典；当前业务为单平台，取第一项即可。
-    const platformEntries = Object.entries(instance.platforms).filter(([, platform]) =>
-      platform.installDir.trim(),
-    );
-    if (platformEntries.length > 0) {
-      const [platformId, platform] = platformEntries[0];
+    // 平台路径的唯一来源是平铺的 platform 对象；未安装平台时仅启动 MoFox。
+    const platform = instance.platform;
+    if (platform && platform.installDir.trim()) {
       try {
         const platformCommand = await this.registry
-          .get(platformId)
+          .get(platform.id)
           .getStartCommand(platform.installDir, instance.id);
         commands.set('platform', platformCommand);
       } catch (error) {

@@ -30,7 +30,7 @@ describe('instances store', () => {
         id: 'instance-1',
         name: 'Test',
         mofoxInstallDir: 'D:\\Bots\\Test',
-        platforms: { napcat: { installDir: 'D:\\Bots\\Test\\napcat', version: '4.2.19' } },
+        platform: { id: 'napcat', installDir: 'D:\\Bots\\Test\\napcat', version: '4.2.19' },
         status: 'stopped',
         createdAt: 1,
         lastStartedAt: null,

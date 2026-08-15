@@ -3,7 +3,7 @@ import {
   INSTANCES_VERSION,
   type Instance,
   type InstanceRepositoryFile,
-  type InstalledPlatforms,
+  type InstalledPlatform,
 } from '../../shared/domain/instance';
 
 // ─── 实例结构迁移 ─────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ import {
 export const DEFAULT_INSTANCE: Required<Omit<Instance, 'id'>> = {
   name: '',
   mofoxInstallDir: '',
-  platforms: {},
+  platform: null,
   status: 'stopped',
   createdAt: 0,
   lastStartedAt: null,
@@ -45,6 +45,7 @@ const MIGRATIONS: Readonly<Record<number, (file: VersionedFile) => VersionedFile
   2: migrateV2ToV3,
   3: migrateV3ToV4,
   4: migrateV4ToV5,
+  5: migrateV5ToV6,
 };
 
 /**
@@ -84,8 +85,8 @@ export function normalizeRepositoryFile(
 /**
  * 按版本号从起点到 {@link INSTANCES_VERSION} 逐级执行迁移分支。
  *
- * 例如 `version: 1` 的文件会依次经过 1→2、2→3、3→4、4→5；缺失迁移分支（版本已超出
- * 当前版本）时立即停止，剩余字段收敛交给 {@link normalizeInstance} 兜底。
+ * 例如 `version: 1` 的文件会依次经过 1→2、2→3、3→4、4→5、5→6；缺失迁移分支（版本已
+ * 超出当前版本）时立即停止，剩余字段收敛交给 {@link normalizeInstance} 兜底。
  *
  * @param version - 文件记录的起始版本号。
  * @param instances - 起始版本的实例记录集合。
@@ -105,8 +106,8 @@ function upgradeInstances(
 }
 
 /**
- * 规范化单条实例记录；把历史字段（installPath、platformId、napcatDir、qqNickname 等）
- * 收敛到当前 v5 schema，并补齐默认值、剔除未知字段。
+ * 规范化单条实例记录；把历史字段（installPath、platformId、platforms 字典、napcatDir、
+ * qqNickname 等）收敛到当前 v6 schema，并补齐默认值、剔除未知字段。
  *
  * 既是版本迁移的最终兜底，也被旧启动器迁移器在预览阶段直接复用。
  *
@@ -121,51 +122,14 @@ export function normalizeInstance(value: unknown): Instance {
   const extra = isRecord(value.extra) ? value.extra : {};
   const name = firstString(value.name, extra.displayName, value.qqNickname, value.id);
   // v1 installPath 同时承担 MoFox 本体与平台目录语义；优先采用 v2 字段，回退到 v1 字段。
-  const legacyInstallPath = firstString(value.installPath, value.neomofoxDir, '');
-  const mofoxInstallDir = firstString(value.mofoxInstallDir, legacyInstallPath);
-  const legacyPlatformId = firstString(
-    value.platformId,
-    value.platform,
-    value.platformDir || value.napcatDir ? 'napcat' : undefined,
-    '',
-  );
-  // 兼容 v2/v3 的字符串平台路径，并将其收敛为当前平台描述对象。
-  const inheritedPlatforms = normalizePlatforms(value.platforms);
-  const legacyPlatformPath = firstString(value.platformRoot, value.platformDir, value.napcatDir);
-  if (legacyPlatformId && legacyPlatformPath && !inheritedPlatforms[legacyPlatformId]) {
-    inheritedPlatforms[legacyPlatformId] = { installDir: legacyPlatformPath };
-  }
-  const { platforms } = upgradeInstancePathsToV2({
-    mofoxInstallDir,
-    platforms: inheritedPlatforms,
-    platformId: legacyPlatformId,
-  });
-  // v2 曾混用顶层 version：手动导入写入 MoFox 版本，平台安装写入平台版本。
-  // 仅平台目录独立存在的记录可无歧义保留其安装器写入的平台版本。
-  const isPlatformOnlyRecord = !firstString(
-    value.mofoxInstallDir,
-    value.neomofoxDir,
-    value.installPath,
-  );
-  const platformVersion = firstString(value.platformVersion);
-  const napcatVersion = firstString(value.napcatVersion);
-  const legacyPlatformVersion = firstString(
-    platformVersion,
-    napcatVersion,
-    isPlatformOnlyRecord ? value.version : undefined,
-  );
-  setPlatformVersion(
-    platforms,
-    napcatVersion && !platformVersion ? 'napcat' : legacyPlatformId,
-    legacyPlatformVersion,
-  );
+  const mofoxInstallDir = firstString(value.mofoxInstallDir, value.installPath, value.neomofoxDir);
   const createdAt = normalizeTimestamp(value.createdAt);
   return {
     ...DEFAULT_INSTANCE,
     id: value.id,
     name,
     mofoxInstallDir,
-    platforms,
+    platform: resolvePlatform(value),
     status: value.status === 'error' ? 'error' : 'stopped',
     createdAt,
     lastStartedAt: typeof value.lastStartedAt === 'number' ? value.lastStartedAt : null,
@@ -177,30 +141,27 @@ export function normalizeInstance(value: unknown): Instance {
 
 /**
  * v1 → v2：把单一 `installPath` + `platformId` 字段拆分为 `mofoxInstallDir` +
- * `platforms` 字典，并沿用兄弟目录启发式把平台路径烘焙为显式值。
+ * 平铺的 `platform` 对象，并沿用兄弟目录启发式把平台路径烘焙为显式值。
  */
 function migrateV1ToV2(file: VersionedFile): VersionedFile {
   const instances = file.instances.map((record) => {
     const value = asRecord(record);
-    const mofoxInstallDir = firstString(
-      value.mofoxInstallDir,
-      value.installPath,
-      value.neomofoxDir,
-    );
-    const platformId = firstString(
-      value.platformId,
-      value.platform,
-      value.platformDir || value.napcatDir ? 'napcat' : undefined,
-      '',
-    );
-    const platforms = normalizePlatforms(value.platforms);
-    const legacyPlatformPath = firstString(value.platformRoot, value.platformDir, value.napcatDir);
-    if (platformId && legacyPlatformPath && !platforms[platformId]) {
-      platforms[platformId] = { installDir: legacyPlatformPath };
-    }
-    const upgraded = upgradeInstancePathsToV2({ mofoxInstallDir, platforms, platformId });
+    const upgraded = upgradeInstancePathsToV2({
+      mofoxInstallDir: firstString(value.mofoxInstallDir),
+      installPath: firstString(value.installPath, value.neomofoxDir) || undefined,
+      platforms: value.platforms,
+      platformId: firstString(
+        value.platformId,
+        value.platform,
+        value.platformDir || value.napcatDir ? 'napcat' : undefined,
+      ),
+    });
     for (const field of LEGACY_PATH_FIELDS) delete value[field];
-    return { ...value, mofoxInstallDir: upgraded.mofoxInstallDir, platforms: upgraded.platforms };
+    return {
+      ...value,
+      mofoxInstallDir: upgraded.mofoxInstallDir,
+      ...(upgraded.platform ? { platform: upgraded.platform } : {}),
+    };
   });
   return { version: 2, instances };
 }
@@ -219,21 +180,16 @@ const LEGACY_PATH_FIELDS = [
 /**
  * v2 → v3：v2 混用了顶层 `version`（手动导入写 MoFox 版本，平台安装写平台版本）。
  * 记录包含 MoFox 目录时视为 MoFox 版本并丢弃；仅平台目录独立存在时视为平台版本，
- * 写入对应平台条目后丢弃顶层字段。
+ * 写入平铺的 `platform.version` 后丢弃顶层字段。
  */
 function migrateV2ToV3(file: VersionedFile): VersionedFile {
   const instances = file.instances.map((record) => {
     const value = asRecord(record);
     const version = firstString(value.version);
     if (version) {
-      const hasMofoxDir = Boolean(
-        firstString(value.mofoxInstallDir, value.neomofoxDir, value.installPath).trim(),
-      );
-      if (!hasMofoxDir) {
-        const platforms = normalizePlatforms(value.platforms);
-        setPlatformVersion(platforms, '', version);
-        value.platforms = platforms;
-      }
+      // resolvePlatform 会自行判断 version 是 MoFox 版本还是平台版本（仅平台记录采纳）。
+      const platform = resolvePlatform(value);
+      if (platform) value.platform = platform;
       delete value.version;
     }
     return value;
@@ -242,8 +198,7 @@ function migrateV2ToV3(file: VersionedFile): VersionedFile {
 }
 
 /**
- * v3 → v4：把顶层的 `platformVersion` / `napcatVersion` 收进对应平台条目，
- * 并统一平台路径的字符串/描述对象两种写法。
+ * v3 → v4：把顶层的 `platformVersion` / `napcatVersion` 收进平铺的 `platform.version`。
  */
 function migrateV3ToV4(file: VersionedFile): VersionedFile {
   const instances = file.instances.map((record) => {
@@ -251,14 +206,9 @@ function migrateV3ToV4(file: VersionedFile): VersionedFile {
     const platformVersion = firstString(value.platformVersion);
     const napcatVersion = firstString(value.napcatVersion);
     if (platformVersion || napcatVersion) {
-      const platforms = normalizePlatforms(value.platforms);
-      const preferredPlatformId = napcatVersion && !platformVersion ? 'napcat' : '';
-      setPlatformVersion(
-        platforms,
-        preferredPlatformId,
-        firstString(platformVersion, napcatVersion),
-      );
-      value.platforms = platforms;
+      // resolvePlatform 已把 platformVersion/napcatVersion 并入 version。
+      const platform = resolvePlatform(value);
+      if (platform) value.platform = platform;
     }
     for (const field of ['platformVersion', 'napcatVersion'] as const) delete value[field];
     return value;
@@ -276,6 +226,21 @@ function migrateV4ToV5(file: VersionedFile): VersionedFile {
   return { version: 5, instances };
 }
 
+/**
+ * v5 → v6：把 `platforms` 字典（ID → { installDir, version }）平铺为单个
+ * `platform` 对象（{ id, installDir, version }），字典中的首个条目作为唯一平台。
+ */
+function migrateV5ToV6(file: VersionedFile): VersionedFile {
+  const instances = file.instances.map((record) => {
+    const value = asRecord(record);
+    const platform = resolvePlatform(value);
+    if (platform) value.platform = platform;
+    delete value.platforms;
+    return value;
+  });
+  return { version: 6, instances };
+}
+
 // ─── Legacy instance path migration ───────────────────────────────────────
 
 /**
@@ -283,7 +248,7 @@ function migrateV4ToV5(file: VersionedFile): VersionedFile {
  *
  * v1 的 `installPath` 同时承担 MoFox 本体目录与平台目录两重语义，运行时通过
  * `dirname(installPath)/<platformId>` 兄弟目录回退来定位平台。当前结构把二者拆开：
- * `mofoxInstallDir` 指向 MoFox 本体，`platforms[platformId]` 显式记录平台安装信息。
+ * `mofoxInstallDir` 指向 MoFox 本体，`platform` 平铺记录平台 ID、安装目录与版本。
  * 迁移时沿用旧的兄弟目录启发式，把平台路径烘焙为显式值，旧实例无需重新配置即可启动。
  *
  * 路径分隔符同时兼容 `/` 与 `\`：迁移可能在 Linux 主进程上解析旧 Windows 实例记录，
@@ -291,26 +256,115 @@ function migrateV4ToV5(file: VersionedFile): VersionedFile {
  * 因此这里用自实现的、同时识别两种分隔符的 `parentDir`/`joinPath`。
  *
  * @param record - v1 实例记录（至少包含 `installPath` 与 `platformId`）。
- * @returns 当前结构的 `mofoxInstallDir` 与 `platforms` 字段；输入缺字段时给出安全默认值。
+ * @returns 当前结构的 `mofoxInstallDir` 与平铺的 `platform`；输入缺字段时给出安全默认值。
  */
 export function upgradeInstancePathsToV2(record: {
   installPath?: string;
   mofoxInstallDir?: string;
-  platforms?: InstalledPlatforms;
+  platforms?: unknown;
   platformId?: string;
-}): { mofoxInstallDir: string; platforms: InstalledPlatforms } {
-  const mofoxInstallDir = record.mofoxInstallDir ?? record.installPath ?? '';
+}): { mofoxInstallDir: string; platform: InstalledPlatform | null } {
+  const mofoxInstallDir = record.mofoxInstallDir || record.installPath || '';
   const platformId = record.platformId ?? '';
-  const platforms: InstalledPlatforms = {};
-  for (const [id, platform] of Object.entries(record.platforms ?? {})) {
-    platforms[id] = { ...platform };
-  }
-  if (platformId && !platforms[platformId] && mofoxInstallDir) {
+  let platform = flattenPlatformsDict(record.platforms);
+  if (!platform && platformId) {
     // v1 靠 dirname(installPath)/<platformId> 兄弟目录回退定位平台；当前结构把它烘焙为显式路径。
-    platforms[platformId] = { installDir: joinPath(parentDir(mofoxInstallDir), platformId) };
+    const installDir = mofoxInstallDir ? joinPath(parentDir(mofoxInstallDir), platformId) : '';
+    if (installDir) platform = { id: platformId, installDir };
   }
-  return { mofoxInstallDir, platforms };
+  return { mofoxInstallDir, platform };
 }
+
+// ─── 平台解析 ─────────────────────────────────────────────────────────────
+
+/**
+ * 从任意版本的记录中解析出平铺的单个平台对象。
+ *
+ * 来源按优先级合并：v6 平铺的 `platform` → v2-v5 的 `platforms` 字典（取首个条目）→
+ * 遗留的顶层 `platformId`/`platform`/`platformDir`/`napcatDir`/`platformRoot` →
+ * v1 兄弟目录启发式；版本则合并 `platformVersion`/`napcatVersion` 以及仅平台记录的顶层
+ * `version`。任何来源都缺失时返回 `null`。
+ *
+ * @param value - 未经类型约束的单条实例记录。
+ * @returns 平铺的平台对象，或 `null`。
+ */
+function resolvePlatform(value: Record<string, unknown>): InstalledPlatform | null {
+  const mofoxInstallDir = firstString(value.mofoxInstallDir, value.installPath, value.neomofoxDir);
+  const flat = normalizePlatformValue(value.platform);
+  const inherited = flattenPlatformsDict(value.platforms);
+  const legacyPlatformId = firstString(
+    value.platformId,
+    value.platform,
+    value.platformDir || value.napcatDir ? 'napcat' : undefined,
+    '',
+  );
+  const legacyPlatformPath = firstString(value.platformRoot, value.platformDir, value.napcatDir);
+  const isPlatformOnlyRecord = !mofoxInstallDir;
+  const platformVersion = firstString(value.platformVersion);
+  const napcatVersion = firstString(value.napcatVersion);
+  const legacyPlatformVersion = firstString(
+    platformVersion,
+    napcatVersion,
+    isPlatformOnlyRecord ? value.version : undefined,
+  );
+
+  const preferredId = napcatVersion && !platformVersion ? 'napcat' : legacyPlatformId;
+  const id = flat?.id || inherited?.id || preferredId || '';
+  let installDir = flat?.installDir || inherited?.installDir || legacyPlatformPath || '';
+  let version = flat?.version || inherited?.version || legacyPlatformVersion || '';
+
+  if (!installDir && id && mofoxInstallDir) {
+    // v1 靠 dirname(mofoxInstallDir)/<id> 兄弟目录回退定位平台；当前结构把它烘焙为显式路径。
+    installDir = joinPath(parentDir(mofoxInstallDir), id);
+  }
+  if (!id && !installDir) return null;
+  const platform: InstalledPlatform = { id, installDir };
+  if (version) platform.version = version;
+  return platform;
+}
+
+/**
+ * 规范化平铺平台对象：从 `{ id, installDir, version }`（或 v2-v5 字典中的单条描述）中
+ * 提取字段，ID 与路径都为空时返回 `null`。
+ *
+ * @param value - 平台对象或字典条目。
+ * @returns 规范化后的平台对象，或 `null`。
+ */
+export function normalizePlatformValue(value: unknown): InstalledPlatform | null {
+  if (!isRecord(value)) return null;
+  const id = firstString(value.id);
+  const installDir = firstString(value.installDir);
+  if (!id && !installDir) return null;
+  const version = firstString(value.version);
+  const platform: InstalledPlatform = { id, installDir };
+  if (version) platform.version = version;
+  return platform;
+}
+
+/**
+ * 把 v2-v5 的 `platforms` 字典平铺为单个平台对象，取首个非空条目作为唯一平台。
+ * 兼容字符串路径与 `{ installDir, version }` 描述对象两种写法。
+ *
+ * @param value - `platforms` 字典。
+ * @returns 首个有效条目的平铺平台对象，或 `null`。
+ */
+function flattenPlatformsDict(value: unknown): InstalledPlatform | null {
+  if (!isRecord(value)) return null;
+  for (const [id, raw] of Object.entries(value)) {
+    if (!id.trim()) continue;
+    if (typeof raw === 'string' && raw.trim()) return { id, installDir: raw };
+    if (!isRecord(raw)) continue;
+    const installDir = firstString(raw.installDir);
+    if (!installDir) continue;
+    const version = firstString(raw.version);
+    const platform: InstalledPlatform = { id, installDir };
+    if (version) platform.version = version;
+    return platform;
+  }
+  return null;
+}
+
+// ─── 路径辅助（仅迁移期使用） ─────────────────────────────────────────────
 
 /**
  * 取路径的父目录；同时兼容 `/` 与 `\` 分隔符，仅在迁移期使用。
@@ -338,41 +392,6 @@ function joinPath(parent: string, child: string): string {
 }
 
 // ─── 规范化辅助 ───────────────────────────────────────────────────────────
-
-/** 规范化旧路径字典与当前平台描述字典；字符串写法收敛为描述对象，非法条目被忽略。 */
-export function normalizePlatforms(value: unknown): InstalledPlatforms {
-  if (!isRecord(value)) return {};
-  const platforms: InstalledPlatforms = {};
-  for (const [id, rawPlatform] of Object.entries(value)) {
-    if (!id.trim()) continue;
-    if (typeof rawPlatform === 'string' && rawPlatform.trim()) {
-      platforms[id] = { installDir: rawPlatform };
-      continue;
-    }
-    if (!isRecord(rawPlatform)) continue;
-    const installDir = firstString(rawPlatform.installDir);
-    if (!installDir) continue;
-    const version = firstString(rawPlatform.version);
-    platforms[id] = { installDir, ...(version ? { version } : {}) };
-  }
-  return platforms;
-}
-
-/** 将遗留平台版本放入对应平台；缺少平台 ID 时仅在单平台记录中保留。 */
-function setPlatformVersion(
-  platforms: InstalledPlatforms,
-  preferredPlatformId: string,
-  version: string,
-): void {
-  if (!version) return;
-  const platformId = platforms[preferredPlatformId]
-    ? preferredPlatformId
-    : Object.keys(platforms).length === 1
-      ? Object.keys(platforms)[0]
-      : '';
-  const platform = platformId ? platforms[platformId] : undefined;
-  if (platform && !platform.version) platforms[platformId] = { ...platform, version };
-}
 
 /** 把任意输入视为可变普通对象；非对象时返回空对象，保证迁移分支不会因坏记录抛错。 */
 function asRecord(value: unknown): Record<string, unknown> {

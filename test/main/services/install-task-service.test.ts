@@ -44,7 +44,7 @@ describe('InstallTaskService', () => {
       expect.objectContaining({
         id: taskId,
         name: 'Test',
-        platforms: { test: { installDir: target, version: '2.0.0' } },
+        platform: { id: 'test', installDir: target, version: '2.0.0' },
       }),
     );
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done', step: 'finalize' }));

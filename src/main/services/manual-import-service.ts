@@ -60,10 +60,10 @@ export class ManualImportService {
     const instance = await this.repository.create({
       name: instanceName,
       mofoxInstallDir,
-      platforms:
+      platform:
         platformId && resolvedPlatformDir
-          ? { [platformId]: { installDir: resolvedPlatformDir } }
-          : {},
+          ? { id: platformId, installDir: resolvedPlatformDir }
+          : null,
     });
     return { instanceId: instance.id };
   }

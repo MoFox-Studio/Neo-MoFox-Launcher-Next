@@ -25,10 +25,10 @@ const isBusy = computed(
   () => props.instance.status === 'starting' || props.instance.status === 'stopping',
 );
 
-// 平台信息存放在 platforms 字典中；卡片展示首个平台的名称和实际平台版本。
-const platform = computed(() => Object.entries(props.instance.platforms)[0]);
-const platformId = computed(() => platform.value?.[0] ?? '');
-const platformVersion = computed(() => platform.value?.[1].version ?? '');
+// 平台信息平铺在 instance.platform 中；卡片展示平台 ID 与实际平台版本。
+const platform = computed(() => props.instance.platform);
+const platformId = computed(() => platform.value?.id ?? '');
+const platformVersion = computed(() => platform.value?.version ?? '');
 const installPath = computed(() => props.instance.mofoxInstallDir);
 
 // 启动和停止共用同一入口，保证状态切换期间不会重复派发操作。

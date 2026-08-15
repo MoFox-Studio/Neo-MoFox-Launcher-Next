@@ -266,7 +266,11 @@ export class InstallTaskService {
     await this.dependencies.repository.create({
       id: task.id,
       name: task.request.instanceName,
-      platforms: { [task.request.platformId]: { installDir: target, version: result.version } },
+      platform: {
+        id: task.request.platformId,
+        installDir: target,
+        version: result.version,
+      },
     });
   }
 

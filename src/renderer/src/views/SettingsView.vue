@@ -622,7 +622,7 @@ onMounted(() => {
                   <div class="migration-preview__text">
                     <span class="migration-preview__name">{{ entry.instance.name }}</span>
                     <span class="migration-preview__meta">
-                      {{ Object.keys(entry.instance.platforms ?? {})[0] ?? '' }} ·
+                      {{ entry.instance.platform?.id ?? '' }} ·
                       {{ entry.instance.mofoxInstallDir }}
                     </span>
                   </div>

@@ -55,9 +55,9 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-10001',
         name: 'Primary bot',
-        // v1 installPath 升级为当前的 mofoxInstallDir；platformId 收敛为 platforms 字典。
+        // v1 installPath 升级为当前的 mofoxInstallDir；platformId 收敛为平铺 platform。
         mofoxInstallDir: 'D:\\Bots\\10001',
-        platforms: { napcat: { installDir: 'D:\\Bots\\napcat', version: '4.2.0' } },
+        platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat', version: '4.2.0' },
         status: 'stopped',
       }),
     ]);
@@ -93,7 +93,7 @@ describe('InstanceRepository', () => {
       id: 'instance-1',
       name: 'Test',
       mofoxInstallDir: 'D:\\Bots\\Test',
-      platforms: { snowluma: { installDir: 'D:\\Bots\\Test\\snowluma', version: '1.0.0' } },
+      platform: { id: 'snowluma', installDir: 'D:\\Bots\\Test\\snowluma', version: '1.0.0' },
     });
 
     // 调用方只提供业务字段，其余字段由仓库内部以默认值补齐。
@@ -102,7 +102,7 @@ describe('InstanceRepository', () => {
       id: 'instance-1',
       name: 'Test',
       mofoxInstallDir: 'D:\\Bots\\Test',
-      platforms: { snowluma: { installDir: 'D:\\Bots\\Test\\snowluma', version: '1.0.0' } },
+      platform: { id: 'snowluma', installDir: 'D:\\Bots\\Test\\snowluma', version: '1.0.0' },
       status: 'stopped',
       createdAt: expect.any(Number),
       autoStart: false,
@@ -144,9 +144,9 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-1',
         name: '主号',
-        // v1 的 installPath/platformId 拆分为当前的 mofoxInstallDir + platforms 字典。
+        // v1 的 installPath/platformId 拆分为当前的 mofoxInstallDir + 平铺 platform。
         mofoxInstallDir: 'D:\\Bots\\1',
-        platforms: { napcat: { installDir: 'D:\\Bots\\napcat', version: '4.2.0' } },
+        platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat', version: '4.2.0' },
       }),
     ]);
 
@@ -251,7 +251,7 @@ describe('InstanceRepository', () => {
       id: 'ins-a',
       name: 'A',
       mofoxInstallDir: 'D:\\Bots\\a',
-      platforms: { napcat: { installDir: 'D:\\Bots\\a\\napcat', version: '1.0.0' } },
+      platform: { id: 'napcat', installDir: 'D:\\Bots\\a\\napcat', version: '1.0.0' },
     });
 
     const incoming: Instance[] = [
@@ -264,7 +264,7 @@ describe('InstanceRepository', () => {
         id: '',
         name: '',
         mofoxInstallDir: '',
-        platforms: {},
+        platform: null,
         status: 'stopped' as const,
         createdAt: 2,
         lastStartedAt: null,
@@ -275,7 +275,7 @@ describe('InstanceRepository', () => {
         id: 'ins-b',
         name: 'B',
         mofoxInstallDir: 'D:\\Bots\\b',
-        platforms: { snowluma: { installDir: 'D:\\Bots\\b\\snowluma', version: '2.0.0' } },
+        platform: { id: 'snowluma', installDir: 'D:\\Bots\\b\\snowluma', version: '2.0.0' },
         status: 'stopped' as const,
         createdAt: 3,
         lastStartedAt: null,
@@ -308,9 +308,9 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-2',
         name: '展示名',
-        // v1 的 installPath/platformId 收敛为当前的 mofoxInstallDir + platforms 字典。
+        // v1 的 installPath/platformId 收敛为当前的 mofoxInstallDir + 平铺 platform。
         mofoxInstallDir: '/bots/2',
-        platforms: { napcat: { installDir: '/bots/napcat', version: '4.1.0' } },
+        platform: { id: 'napcat', installDir: '/bots/napcat', version: '4.1.0' },
         status: 'stopped',
         autoStart: true,
       }),
@@ -329,7 +329,7 @@ describe('InstanceRepository', () => {
 
     expect(normalized).toMatchObject({
       id: 'bot-3',
-      platforms: { napcat: { installDir: '/bots/napcat', version: '4.2.19' } },
+      platform: { id: 'napcat', installDir: '/bots/napcat', version: '4.2.19' },
     });
     expect(normalized).not.toHaveProperty('version');
   });
@@ -359,7 +359,7 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-v2',
         mofoxInstallDir: '/bots/mofox',
-        platforms: { napcat: { installDir: '/bots/napcat' } },
+        platform: { id: 'napcat', installDir: '/bots/napcat' },
       }),
     ]);
 
@@ -393,13 +393,13 @@ describe('InstanceRepository', () => {
     await expect(repository.list()).resolves.toEqual([
       expect.objectContaining({
         id: 'bot-v2-install',
-        platforms: { napcat: { installDir: '/bots/napcat', version: '4.2.19' } },
+        platform: { id: 'napcat', installDir: '/bots/napcat', version: '4.2.19' },
       }),
     ]);
 
     const persisted = JSON.parse(await readFile(instancesPath, 'utf8'));
     expect(persisted.instances[0]).toMatchObject({
-      platforms: { napcat: { installDir: '/bots/napcat', version: '4.2.19' } },
+      platform: { id: 'napcat', installDir: '/bots/napcat', version: '4.2.19' },
     });
     expect(persisted.instances[0].version).toBeUndefined();
   });
@@ -428,15 +428,17 @@ describe('InstanceRepository', () => {
     await expect(repository.list()).resolves.toEqual([
       expect.objectContaining({
         id: 'bot-v3',
-        platforms: { napcat: { installDir: '/bots/napcat', version: '4.2.19' } },
+        platform: { id: 'napcat', installDir: '/bots/napcat', version: '4.2.19' },
       }),
     ]);
 
     const persisted = JSON.parse(await readFile(instancesPath, 'utf8'));
     expect(persisted.version).toBe(INSTANCES_VERSION);
     expect(persisted.instances[0].platformVersion).toBeUndefined();
-    expect(persisted.instances[0].platforms).toEqual({
-      napcat: { installDir: '/bots/napcat', version: '4.2.19' },
+    expect(persisted.instances[0].platform).toEqual({
+      id: 'napcat',
+      installDir: '/bots/napcat',
+      version: '4.2.19',
     });
   });
 
@@ -452,11 +454,11 @@ describe('InstanceRepository', () => {
 
     expect(normalized).toMatchObject({
       mofoxInstallDir: '/bots/4/mofox',
-      platforms: { napcat: { installDir: '/bots/4/napcat', version: '4.2.19' } },
+      platform: { id: 'napcat', installDir: '/bots/4/napcat', version: '4.2.19' },
     });
   });
 
-  it('assigns a legacy NapCat version to its NapCat entry', () => {
+  it('flattens a legacy multi-entry platforms dict to a single platform', () => {
     const normalized = normalizeInstance({
       id: 'bot-5',
       name: 'NapCat 版本实例',
@@ -469,9 +471,10 @@ describe('InstanceRepository', () => {
       napcatVersion: '4.2.19',
     });
 
-    expect(normalized.platforms).toEqual({
-      napcat: { installDir: '/bots/5/napcat', version: '4.2.19' },
-      snowluma: { installDir: '/bots/5/snowluma' },
+    expect(normalized.platform).toEqual({
+      id: 'napcat',
+      installDir: '/bots/5/napcat',
+      version: '4.2.19',
     });
   });
 });

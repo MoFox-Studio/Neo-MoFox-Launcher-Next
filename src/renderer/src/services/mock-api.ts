@@ -39,7 +39,7 @@ const instances: Instance[] = [
     id: 'ins-aurora',
     name: '墨狐 · 主号',
     mofoxInstallDir: 'D:\\MoFox\\aurora',
-    platforms: { napcat: { installDir: 'D:\\MoFox\\aurora\\napcat', version: '4.2.19' } },
+    platform: { id: 'napcat', installDir: 'D:\\MoFox\\aurora\\napcat', version: '4.2.19' },
     status: 'running',
     createdAt: Date.now() - 86_400_000 * 42,
     lastStartedAt: Date.now() - 3_600_000 * 5,
@@ -49,7 +49,7 @@ const instances: Instance[] = [
     id: 'ins-dev',
     name: '开发测试机',
     mofoxInstallDir: 'D:\\MoFox\\dev',
-    platforms: { snowluma: { installDir: 'D:\\MoFox\\dev\\snowluma', version: '1.3.0' } },
+    platform: { id: 'snowluma', installDir: 'D:\\MoFox\\dev\\snowluma', version: '1.3.0' },
     status: 'stopped',
     createdAt: Date.now() - 86_400_000 * 9,
     lastStartedAt: null,
@@ -59,7 +59,7 @@ const instances: Instance[] = [
     id: 'ins-guard',
     name: '群管理助手',
     mofoxInstallDir: 'E:\\Bots\\guard',
-    platforms: { napcat: { installDir: 'E:\\Bots\\guard\\napcat', version: '4.2.0' } },
+    platform: { id: 'napcat', installDir: 'E:\\Bots\\guard\\napcat', version: '4.2.0' },
     status: 'error',
     createdAt: Date.now() - 86_400_000 * 120,
     lastStartedAt: Date.now() - 86_400_000 * 2,
@@ -273,7 +273,7 @@ export const mockApi: MofoxApi = {
         id: `ins-${Date.now()}`,
         name: request.instanceName,
         mofoxInstallDir: '',
-        platforms: { [request.platformId]: { installDir: request.targetDir, version: request.version } },
+        platform: { id: request.platformId, installDir: request.targetDir, version: request.version },
         status: 'stopped',
         createdAt: Date.now(),
         lastStartedAt: null,
@@ -291,9 +291,10 @@ export const mockApi: MofoxApi = {
       id: instanceId,
       name: request.instanceName,
       mofoxInstallDir: request.mofoxInstallDir,
-      platforms: request.platformId && request.platformDir
-        ? { [request.platformId]: { installDir: request.platformDir } }
-        : {},
+      platform:
+        request.platformId && request.platformDir
+          ? { id: request.platformId, installDir: request.platformDir }
+          : null,
       status: 'stopped',
       createdAt: Date.now(),
       lastStartedAt: null,

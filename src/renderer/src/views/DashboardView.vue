@@ -22,7 +22,7 @@ const greeting = computed(() => {
 const totalCount = computed(() => instancesStore.instances.length);
 const runningCount = computed(() => instancesStore.running.length);
 const platformCount = computed(
-  () => new Set(instancesStore.instances.map((i) => Object.keys(i.platforms ?? {})[0] ?? '').filter(Boolean)).size,
+  () => new Set(instancesStore.instances.map((i) => i.platform?.id ?? '').filter(Boolean)).size,
 );
 
 // 页面进入时发起列表同步，卡片状态后续由仓库事件更新。
