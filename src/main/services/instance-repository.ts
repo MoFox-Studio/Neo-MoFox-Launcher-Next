@@ -205,7 +205,7 @@ function buildInstance(seed: {
   id: string;
   name?: string;
   mofoxInstallDir?: string;
-  platform?: InstalledPlatform | null;
+  platform?: InstalledPlatform;
   status?: InstanceStatus;
   createdAt?: number;
   lastStartedAt?: number | null;
@@ -235,7 +235,7 @@ function isCanonicalInstance(value: unknown, instance: Instance | undefined): bo
 
 /** 复制平台对象，避免调用方修改返回值后污染仓库缓存。 */
 function cloneInstance(instance: Instance): Instance {
-  return { ...instance, platform: instance.platform ? { ...instance.platform } : null };
+  return { ...instance, platform: { ...instance.platform } };
 }
 
 /**

@@ -359,7 +359,7 @@ describe('InstanceRepository', () => {
       expect.objectContaining({
         id: 'bot-v2',
         mofoxInstallDir: '/bots/mofox',
-        platform: { id: 'napcat', installDir: '/bots/napcat' },
+        platform: { id: 'napcat', installDir: '/bots/napcat', version: null },
       }),
     ]);
 

@@ -293,8 +293,8 @@ export const mockApi: MofoxApi = {
       mofoxInstallDir: request.mofoxInstallDir,
       platform:
         request.platformId && request.platformDir
-          ? { id: request.platformId, installDir: request.platformDir }
-          : null,
+          ? { id: request.platformId, installDir: request.platformDir, version: null }
+          : { id: null, installDir: null, version: null },
       status: 'stopped',
       createdAt: Date.now(),
       lastStartedAt: null,

@@ -21,7 +21,7 @@ import {
 export const DEFAULT_INSTANCE: Required<Omit<Instance, 'id'>> = {
   name: '',
   mofoxInstallDir: '',
-  platform: null,
+  platform: { id: null, installDir: null, version: null },
   status: 'stopped',
   createdAt: 0,
   lastStartedAt: null,
@@ -46,6 +46,7 @@ const MIGRATIONS: Readonly<Record<number, (file: VersionedFile) => VersionedFile
   3: migrateV3ToV4,
   4: migrateV4ToV5,
   5: migrateV5ToV6,
+  6: migrateV6ToV7,
 };
 
 /**
@@ -85,8 +86,8 @@ export function normalizeRepositoryFile(
 /**
  * 按版本号从起点到 {@link INSTANCES_VERSION} 逐级执行迁移分支。
  *
- * 例如 `version: 1` 的文件会依次经过 1→2、2→3、3→4、4→5、5→6；缺失迁移分支（版本已
- * 超出当前版本）时立即停止，剩余字段收敛交给 {@link normalizeInstance} 兜底。
+ * 例如 `version: 1` 的文件会依次经过 1→2、2→3、3→4、4→5、5→6、6→7；缺失迁移分支
+ * （版本已超出当前版本）时立即停止，剩余字段收敛交给 {@link normalizeInstance} 兜底。
  *
  * @param version - 文件记录的起始版本号。
  * @param instances - 起始版本的实例记录集合。
@@ -160,7 +161,7 @@ function migrateV1ToV2(file: VersionedFile): VersionedFile {
     return {
       ...value,
       mofoxInstallDir: upgraded.mofoxInstallDir,
-      ...(upgraded.platform ? { platform: upgraded.platform } : {}),
+      platform: upgraded.platform,
     };
   });
   return { version: 2, instances };
@@ -188,8 +189,7 @@ function migrateV2ToV3(file: VersionedFile): VersionedFile {
     const version = firstString(value.version);
     if (version) {
       // resolvePlatform 会自行判断 version 是 MoFox 版本还是平台版本（仅平台记录采纳）。
-      const platform = resolvePlatform(value);
-      if (platform) value.platform = platform;
+      value.platform = resolvePlatform(value);
       delete value.version;
     }
     return value;
@@ -207,8 +207,7 @@ function migrateV3ToV4(file: VersionedFile): VersionedFile {
     const napcatVersion = firstString(value.napcatVersion);
     if (platformVersion || napcatVersion) {
       // resolvePlatform 已把 platformVersion/napcatVersion 并入 version。
-      const platform = resolvePlatform(value);
-      if (platform) value.platform = platform;
+      value.platform = resolvePlatform(value);
     }
     for (const field of ['platformVersion', 'napcatVersion'] as const) delete value[field];
     return value;
@@ -233,12 +232,24 @@ function migrateV4ToV5(file: VersionedFile): VersionedFile {
 function migrateV5ToV6(file: VersionedFile): VersionedFile {
   const instances = file.instances.map((record) => {
     const value = asRecord(record);
-    const platform = resolvePlatform(value);
-    if (platform) value.platform = platform;
+    value.platform = resolvePlatform(value);
     delete value.platforms;
     return value;
   });
   return { version: 6, instances };
+}
+
+/**
+ * v6 → v7：`platform` 不再整体为 `null`，而是始终是 `{ id, installDir, version }`
+ * 对象；未安装平台的记录补成三个字段全为 `null`，并确保 `version` 字段始终存在。
+ */
+function migrateV6ToV7(file: VersionedFile): VersionedFile {
+  const instances = file.instances.map((record) => {
+    const value = asRecord(record);
+    value.platform = resolvePlatform(value);
+    return value;
+  });
+  return { version: 7, instances };
 }
 
 // ─── Legacy instance path migration ───────────────────────────────────────
@@ -263,32 +274,32 @@ export function upgradeInstancePathsToV2(record: {
   mofoxInstallDir?: string;
   platforms?: unknown;
   platformId?: string;
-}): { mofoxInstallDir: string; platform: InstalledPlatform | null } {
+}): { mofoxInstallDir: string; platform: InstalledPlatform } {
   const mofoxInstallDir = record.mofoxInstallDir || record.installPath || '';
   const platformId = record.platformId ?? '';
   let platform = flattenPlatformsDict(record.platforms);
   if (!platform && platformId) {
     // v1 靠 dirname(installPath)/<platformId> 兄弟目录回退定位平台；当前结构把它烘焙为显式路径。
     const installDir = mofoxInstallDir ? joinPath(parentDir(mofoxInstallDir), platformId) : '';
-    if (installDir) platform = { id: platformId, installDir };
+    if (installDir) platform = { id: platformId, installDir, version: null };
   }
-  return { mofoxInstallDir, platform };
+  return { mofoxInstallDir, platform: toCompletePlatform(platform) };
 }
 
 // ─── 平台解析 ─────────────────────────────────────────────────────────────
 
 /**
- * 从任意版本的记录中解析出平铺的单个平台对象。
+ * 从任意版本的记录中解析出平铺的单个平台对象；任何来源都缺失时返回全 `null` 的平台。
  *
- * 来源按优先级合并：v6 平铺的 `platform` → v2-v5 的 `platforms` 字典（取首个条目）→
+ * 来源按优先级合并：v6 平铺的 `platform` → v5 的 `platforms` 字典（取首个条目）→
  * 遗留的顶层 `platformId`/`platform`/`platformDir`/`napcatDir`/`platformRoot` →
  * v1 兄弟目录启发式；版本则合并 `platformVersion`/`napcatVersion` 以及仅平台记录的顶层
- * `version`。任何来源都缺失时返回 `null`。
+ * `version`。缺失的字段统一落为 `null`。
  *
  * @param value - 未经类型约束的单条实例记录。
- * @returns 平铺的平台对象，或 `null`。
+ * @returns 字段完整（可能含 `null`）的平台对象。
  */
-function resolvePlatform(value: Record<string, unknown>): InstalledPlatform | null {
+function resolvePlatform(value: Record<string, unknown>): InstalledPlatform {
   const mofoxInstallDir = firstString(value.mofoxInstallDir, value.installPath, value.neomofoxDir);
   const flat = normalizePlatformValue(value.platform);
   const inherited = flattenPlatformsDict(value.platforms);
@@ -317,28 +328,43 @@ function resolvePlatform(value: Record<string, unknown>): InstalledPlatform | nu
     // v1 靠 dirname(mofoxInstallDir)/<id> 兄弟目录回退定位平台；当前结构把它烘焙为显式路径。
     installDir = joinPath(parentDir(mofoxInstallDir), id);
   }
-  if (!id && !installDir) return null;
-  const platform: InstalledPlatform = { id, installDir };
-  if (version) platform.version = version;
-  return platform;
+  return toCompletePlatform({ id, installDir, version });
+}
+
+/**
+ * 把部分平台字段补齐为完整的 {@link InstalledPlatform}：空字符串一律落为 `null`。
+ *
+ * @param platform - 可能缺字段的平台对象。
+ * @returns 三个字段齐全的平台对象。
+ */
+function toCompletePlatform(
+  platform: {
+    id: string | null;
+    installDir: string | null;
+    version: string | null;
+  } | null,
+): InstalledPlatform {
+  return {
+    id: platform?.id || null,
+    installDir: platform?.installDir || null,
+    version: platform?.version || null,
+  };
 }
 
 /**
  * 规范化平铺平台对象：从 `{ id, installDir, version }`（或 v2-v5 字典中的单条描述）中
- * 提取字段，ID 与路径都为空时返回 `null`。
+ * 提取字段，缺失或空字符串一律落为 `null`。
  *
  * @param value - 平台对象或字典条目。
- * @returns 规范化后的平台对象，或 `null`。
+ * @returns 三个字段齐全的平台对象。
  */
-export function normalizePlatformValue(value: unknown): InstalledPlatform | null {
-  if (!isRecord(value)) return null;
-  const id = firstString(value.id);
-  const installDir = firstString(value.installDir);
-  if (!id && !installDir) return null;
-  const version = firstString(value.version);
-  const platform: InstalledPlatform = { id, installDir };
-  if (version) platform.version = version;
-  return platform;
+export function normalizePlatformValue(value: unknown): InstalledPlatform {
+  if (!isRecord(value)) return { id: null, installDir: null, version: null };
+  return toCompletePlatform({
+    id: firstString(value.id),
+    installDir: firstString(value.installDir),
+    version: firstString(value.version),
+  });
 }
 
 /**
@@ -352,14 +378,13 @@ function flattenPlatformsDict(value: unknown): InstalledPlatform | null {
   if (!isRecord(value)) return null;
   for (const [id, raw] of Object.entries(value)) {
     if (!id.trim()) continue;
-    if (typeof raw === 'string' && raw.trim()) return { id, installDir: raw };
+    if (typeof raw === 'string' && raw.trim()) {
+      return { id, installDir: raw, version: null };
+    }
     if (!isRecord(raw)) continue;
     const installDir = firstString(raw.installDir);
     if (!installDir) continue;
-    const version = firstString(raw.version);
-    const platform: InstalledPlatform = { id, installDir };
-    if (version) platform.version = version;
-    return platform;
+    return toCompletePlatform({ id, installDir, version: firstString(raw.version) });
   }
   return null;
 }

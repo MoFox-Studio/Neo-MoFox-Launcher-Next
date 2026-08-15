@@ -62,8 +62,8 @@ export class ManualImportService {
       mofoxInstallDir,
       platform:
         platformId && resolvedPlatformDir
-          ? { id: platformId, installDir: resolvedPlatformDir }
-          : null,
+          ? { id: platformId, installDir: resolvedPlatformDir, version: null }
+          : { id: null, installDir: null, version: null },
     });
     return { instanceId: instance.id };
   }

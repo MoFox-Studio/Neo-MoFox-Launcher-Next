@@ -35,7 +35,11 @@ describe('upgradeInstancePathsToV2', () => {
     });
     expect(result.mofoxInstallDir).toBe('D:\\Bots\\mofox');
     // 兄弟目录启发式：dirname(installPath)/<platformId>
-    expect(result.platform).toEqual({ id: 'napcat', installDir: 'D:\\Bots\\napcat' });
+    expect(result.platform).toEqual({
+      id: 'napcat',
+      installDir: 'D:\\Bots\\napcat',
+      version: null,
+    });
   });
 
   it('uses posix separators when the install path uses them', () => {
@@ -43,7 +47,11 @@ describe('upgradeInstancePathsToV2', () => {
       installPath: '/home/u/bots/mofox',
       platformId: 'snowluma',
     });
-    expect(result.platform).toEqual({ id: 'snowluma', installDir: '/home/u/bots/snowluma' });
+    expect(result.platform).toEqual({
+      id: 'snowluma',
+      installDir: '/home/u/bots/snowluma',
+      version: null,
+    });
   });
 
   it('preserves an explicit platforms dict and does not overwrite with the sibling heuristic', () => {
@@ -52,19 +60,23 @@ describe('upgradeInstancePathsToV2', () => {
       platformId: 'napcat',
       platforms: { napcat: { installDir: '/explicit/napcat' } },
     });
-    expect(result.platform).toEqual({ id: 'napcat', installDir: '/explicit/napcat' });
+    expect(result.platform).toEqual({
+      id: 'napcat',
+      installDir: '/explicit/napcat',
+      version: null,
+    });
   });
 
-  it('returns a null platform when platformId is missing', () => {
+  it('returns an all-null platform when platformId is missing', () => {
     const result = upgradeInstancePathsToV2({ installPath: '/bots/mofox' });
     expect(result.mofoxInstallDir).toBe('/bots/mofox');
-    expect(result.platform).toBeNull();
+    expect(result.platform).toEqual({ id: null, installDir: null, version: null });
   });
 
-  it('returns empty values when both installPath and mofoxInstallDir are missing', () => {
+  it('returns an all-null platform when both installPath and mofoxInstallDir are missing', () => {
     const result = upgradeInstancePathsToV2({});
     expect(result.mofoxInstallDir).toBe('');
-    expect(result.platform).toBeNull();
+    expect(result.platform).toEqual({ id: null, installDir: null, version: null });
   });
 });
 
@@ -101,7 +113,7 @@ describe('InstanceRepository legacy migration', () => {
       expect.objectContaining({
         id: 'bot-1',
         mofoxInstallDir: 'D:\\Bots\\mofox-1',
-        platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat' },
+        platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat', version: null },
       }),
     );
     // 已废弃的 v1 字段不应出现在内存对象中。
@@ -115,7 +127,7 @@ describe('InstanceRepository legacy migration', () => {
       expect.objectContaining({
         id: 'bot-1',
         mofoxInstallDir: 'D:\\Bots\\mofox-1',
-        platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat' },
+        platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat', version: null },
       }),
     );
     expect(persisted.instances[0].installPath).toBeUndefined();
@@ -139,8 +151,12 @@ describe('InstanceRepository legacy migration', () => {
 
     const loaded = await repository.list();
     const byId = Object.fromEntries(loaded.map((i) => [i.id, i]));
-    expect(byId.a.platform).toEqual({ id: 'napcat', installDir: '/bots/a/napcat' });
-    expect(byId.b.platform).toEqual({ id: 'snowluma', installDir: '/bots/b/snowluma' });
+    expect(byId.a.platform).toEqual({ id: 'napcat', installDir: '/bots/a/napcat', version: null });
+    expect(byId.b.platform).toEqual({
+      id: 'snowluma',
+      installDir: '/bots/b/snowluma',
+      version: null,
+    });
   });
 
   it('leaves an already-current file untouched on load', async () => {
@@ -185,7 +201,7 @@ describe('InstanceRepository legacy migration', () => {
     // 第一次读取触发升级并回写当前结构。
     const repository = new InstanceRepository(directory, vi.fn());
     const first = await repository.list();
-    expect(first[0].platform).toEqual({ id: 'napcat', installDir: '/bots/napcat' });
+    expect(first[0].platform).toEqual({ id: 'napcat', installDir: '/bots/napcat', version: null });
 
     // 第二次读取（新仓库实例）不应再次改动文件，字段保持稳定。
     const reloaded = new InstanceRepository(directory, vi.fn());

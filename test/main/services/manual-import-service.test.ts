@@ -62,7 +62,7 @@ describe('ManualImportService', () => {
       expect.objectContaining({
         name: '已有实例',
         mofoxInstallDir: resolve(mofoxDirectory),
-        platform: { id: 'napcat', installDir: resolve(platformDirectory) },
+        platform: { id: 'napcat', installDir: resolve(platformDirectory), version: null },
       }),
     );
   });

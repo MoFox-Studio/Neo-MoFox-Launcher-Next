@@ -297,7 +297,7 @@ export class InstanceRuntimeService {
 
     // 平台路径的唯一来源是平铺的 platform 对象；未安装平台时仅启动 MoFox。
     const platform = instance.platform;
-    if (platform && platform.installDir.trim()) {
+    if (platform.id && platform.installDir) {
       try {
         const platformCommand = await this.registry
           .get(platform.id)
