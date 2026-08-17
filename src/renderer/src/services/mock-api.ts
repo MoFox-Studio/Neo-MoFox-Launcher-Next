@@ -314,6 +314,17 @@ export const mockApi: MofoxApi = {
     };
   },
 
+  async inspectPlatformImportPath(_platformId, path) {
+    await delay(120);
+    const absolute = /^[a-zA-Z]:[\\/]|\//.test(path);
+    return {
+      absolute,
+      exists: absolute,
+      isDirectory: absolute,
+      valid: absolute,
+    };
+  },
+
   async detectSystemEnv() {
     await delay(350);
     return {

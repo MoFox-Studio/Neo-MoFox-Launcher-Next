@@ -240,7 +240,7 @@ if (!hasSingleInstanceLock) {
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
     registerInstallIpc(ipcMain, installTasks);
-    registerManualImportIpc(ipcMain, new ManualImportService(instances));
+    registerManualImportIpc(ipcMain, new ManualImportService(instances, platforms));
     // 旧启动器迁移：默认指向与当前 userData 同级的 Neo-MoFox-Launcher 目录。
     const legacyDataDir = resolveLegacyLauncherDataDir({
       appDataDir: app.getPath('appData'),

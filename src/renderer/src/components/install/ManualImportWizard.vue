@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useInstancesStore } from '@/stores/instances';
 import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
@@ -36,131 +36,111 @@ const completed = ref(false);
 const importError = ref<Error | null>(null);
 const showErrorDialog = ref(false);
 
-// 名称在输入时即时校验；目录则防抖调用主进程探测路径。
-const nameTouched = ref(false);
-const nameError = computed(() => {
-  const trimmed = instanceName.value.trim();
-  if (!trimmed) return '实例名称不能为空';
-  if (trimmed.length > 32) return '实例名称不能超过 32 个字符';
-  return '';
-});
+// 只有按下"继续/开始导入"才校验；错误由校验函数写入，输入过程不做即时判断。
+const nameError = ref('');
+const mofoxDirError = ref('');
+const platformDirError = ref('');
+const checkingMofoxDir = ref(false);
+const checkingPlatformDir = ref(false);
+const validating = ref(false);
 
-interface PathValidationState {
-  touched: boolean;
-  checking: boolean;
-  error: string;
+const showNameError = computed(() => nameError.value !== '');
+const showMofoxDirError = computed(() => mofoxDirError.value !== '');
+const showPlatformDirError = computed(() => platformDirError.value !== '');
+
+function validateName(): boolean {
+  nameError.value = instanceName.value.trim() ? '' : '实例名称不能为空';
+  return nameError.value === '';
 }
 
-/** 目录校验状态机：输入即标记已触碰，防抖 400ms 后调用主进程探测路径。 */
-function createPathValidation(
-  check: (value: string) => Promise<string>,
-  emptyMessage: string,
-) {
-  const state = reactive<PathValidationState>({ touched: false, checking: false, error: '' });
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let token = 0;
-
-  function run(value: string): void {
-    const trimmed = value.trim();
-    const current = ++token;
-    if (timer) clearTimeout(timer);
-    if (!trimmed) {
-      state.checking = false;
-      state.error = emptyMessage;
-      return;
-    }
-    state.checking = true;
-    timer = setTimeout(async () => {
-      let error: string;
-      try {
-        error = await check(trimmed);
-      } catch {
-        error = '目录校验失败，请稍后重试';
-      }
-      // 输入持续变化时丢弃过期探测结果。
-      if (current !== token) return;
-      state.error = error;
-      state.checking = false;
-    }, 400);
+async function validateMofoxDir(): Promise<boolean> {
+  const value = mofoxInstallDir.value.trim();
+  if (!value) {
+    mofoxDirError.value = 'Neo-MoFox 安装目录不能为空';
+    return false;
   }
-
-  return {
-    state,
-    markTouched: () => {
-      state.touched = true;
-    },
-    run,
-  };
+  mofoxDirError.value = '';
+  checkingMofoxDir.value = true;
+  try {
+    const check = await mofoxApi.inspectImportPath(value);
+    if (!check.absolute) mofoxDirError.value = '请输入绝对路径';
+    else if (!check.exists) mofoxDirError.value = '目录不存在';
+    else if (!check.isDirectory) mofoxDirError.value = '必须是目录';
+    else if (!check.mainPyExists)
+      mofoxDirError.value = '不是有效的 Neo-MoFox 安装目录（缺少 main.py）';
+  } catch {
+    mofoxDirError.value = '目录校验失败，请稍后重试';
+  } finally {
+    checkingMofoxDir.value = false;
+  }
+  return mofoxDirError.value === '';
 }
 
-const mofoxDirPath = createPathValidation(async (value) => {
-  const check = await mofoxApi.inspectImportPath(value);
-  if (!check.absolute) return '请输入绝对路径';
-  if (!check.exists) return '目录不存在';
-  if (!check.isDirectory) return '必须是目录';
-  if (!check.mainPyExists) return '不是有效的 Neo-MoFox 安装目录（缺少 main.py）';
-  return '';
-}, 'Neo-MoFox 安装目录不能为空');
-
-const platformDirPath = createPathValidation(async (value) => {
-  const check = await mofoxApi.inspectImportPath(value);
-  if (!check.absolute) return '请输入绝对路径';
-  if (!check.exists) return '目录不存在';
-  if (!check.isDirectory) return '必须是目录';
-  return '';
-}, '平台安装目录不能为空');
-
-const showNameError = computed(() => nameTouched.value && nameError.value !== '');
-const showMofoxDirError = computed(
-  () => mofoxDirPath.state.touched && mofoxDirPath.state.error !== '',
-);
-const showPlatformDirError = computed(
-  () => platformDirPath.state.touched && platformDirPath.state.error !== '',
-);
+async function validatePlatformDir(): Promise<boolean> {
+  if (!includePlatform.value) return true;
+  const value = platformDir.value.trim();
+  if (!value) {
+    platformDirError.value = '平台安装目录不能为空';
+    return false;
+  }
+  if (!platformId.value) {
+    platformDirError.value = '请先选择平台';
+    return false;
+  }
+  platformDirError.value = '';
+  checkingPlatformDir.value = true;
+  try {
+    const check = await mofoxApi.inspectPlatformImportPath(platformId.value, value);
+    if (!check.absolute) platformDirError.value = '请输入绝对路径';
+    else if (!check.exists) platformDirError.value = '目录不存在';
+    else if (!check.isDirectory) platformDirError.value = '必须是目录';
+    else if (!check.valid) platformDirError.value = '不是有效的平台安装目录';
+  } catch {
+    platformDirError.value = '目录校验失败，请稍后重试';
+  } finally {
+    checkingPlatformDir.value = false;
+  }
+  return platformDirError.value === '';
+}
 
 const currentPlatform = computed(
   () => platforms.value.find((platform) => platform.id === platformId.value) ?? null,
 );
-const canContinue = computed(() => {
-  if (currentStep.value === 1) return true;
-  if (currentStep.value === 2) {
-    return (
-      nameError.value === '' &&
-      mofoxInstallDir.value.trim() !== '' &&
-      !mofoxDirPath.state.checking &&
-      mofoxDirPath.state.error === ''
-    );
-  }
-  return (
-    !includePlatform.value ||
-    (Boolean(platformId.value && platformDir.value.trim()) &&
-      !platformDirPath.state.checking &&
-      platformDirPath.state.error === '')
-  );
-});
+// 校验只在按下下一步/导入时进行，因此按钮不再因字段状态被禁用（校验中除外）。
+const navDisabled = computed(() => validating.value || busy.value);
 
 function onPlatformChange(event: Event): void {
   platformId.value = (event.target as HTMLSelectElement).value;
 }
 
-function onNameInput(): void {
-  nameTouched.value = true;
+// 校验结果在输入框再次获得焦点时清除，避免用户在修改过程中仍看到旧错误。
+function onNameFocus(): void {
+  nameError.value = '';
 }
 
-function onMofoxDirInput(): void {
-  mofoxDirPath.markTouched();
-  mofoxDirPath.run(mofoxInstallDir.value);
+function onMofoxDirFocus(): void {
+  mofoxDirError.value = '';
 }
 
-function onPlatformDirInput(): void {
-  platformDirPath.markTouched();
-  platformDirPath.run(platformDir.value);
+function onPlatformDirFocus(): void {
+  platformDirError.value = '';
 }
 
-function next(): void {
-  if (!canContinue.value || currentStep.value === 3) return;
-  direction.value = 'forward';
-  currentStep.value = (currentStep.value + 1) as Step;
+async function next(): Promise<void> {
+  if (currentStep.value === 3 || navDisabled.value) return;
+  validating.value = true;
+  try {
+    let valid = true;
+    if (currentStep.value === 2) {
+      valid = validateName();
+      valid = (await validateMofoxDir()) && valid;
+    }
+    if (!valid) return;
+    direction.value = 'forward';
+    currentStep.value = (currentStep.value + 1) as Step;
+  } finally {
+    validating.value = false;
+  }
 }
 
 function back(): void {
@@ -181,8 +161,6 @@ async function chooseMofoxDirectory(): Promise<void> {
   if (!selected) return;
   mofoxInstallDir.value = selected;
   if (!instanceName.value.trim()) instanceName.value = pathName(selected);
-  mofoxDirPath.markTouched();
-  mofoxDirPath.run(mofoxInstallDir.value);
 }
 
 async function choosePlatformDirectory(): Promise<void> {
@@ -192,30 +170,34 @@ async function choosePlatformDirectory(): Promise<void> {
   });
   if (!selected) return;
   platformDir.value = selected;
-  platformDirPath.markTouched();
-  platformDirPath.run(platformDir.value);
 }
 
 async function submit(): Promise<void> {
-  if (!canContinue.value || busy.value) return;
-  busy.value = true;
-  importError.value = null;
-  showErrorDialog.value = false;
+  if (navDisabled.value) return;
+  validating.value = true;
   try {
-    await mofoxApi.manualImportInstance({
-      instanceName: instanceName.value.trim(),
-      mofoxInstallDir: mofoxInstallDir.value.trim(),
-      ...(includePlatform.value
-        ? { platformId: platformId.value, platformDir: platformDir.value.trim() }
-        : {}),
-    });
-    await instancesStore.refresh();
-    completed.value = true;
-  } catch (error) {
-    importError.value = error instanceof Error ? error : new Error(String(error));
-    showErrorDialog.value = true;
+    if (!(await validatePlatformDir())) return;
+    busy.value = true;
+    importError.value = null;
+    showErrorDialog.value = false;
+    try {
+      await mofoxApi.manualImportInstance({
+        instanceName: instanceName.value.trim(),
+        mofoxInstallDir: mofoxInstallDir.value.trim(),
+        ...(includePlatform.value
+          ? { platformId: platformId.value, platformDir: platformDir.value.trim() }
+          : {}),
+      });
+      await instancesStore.refresh();
+      completed.value = true;
+    } catch (error) {
+      importError.value = error instanceof Error ? error : new Error(String(error));
+      showErrorDialog.value = true;
+    } finally {
+      busy.value = false;
+    }
   } finally {
-    busy.value = false;
+    validating.value = false;
   }
 }
 
@@ -305,13 +287,15 @@ onMounted(async () => {
                 type="text"
                 placeholder=" "
                 maxlength="32"
-                @input="onNameInput"
+                @focus="onNameFocus"
               />
               <span class="field__label">实例名称</span>
             </label>
-            <p v-if="showNameError" class="field__support field__support--error">
-              {{ nameError }}
-            </p>
+            <Transition name="field-error">
+              <p v-if="showNameError" class="field__support field__support--error">
+                {{ nameError }}
+              </p>
+            </Transition>
 
             <div class="path-field">
               <label
@@ -323,28 +307,32 @@ onMounted(async () => {
                   class="field__input"
                   type="text"
                   placeholder=" "
-                  @input="onMofoxDirInput"
+                  @focus="onMofoxDirFocus"
                 />
                 <span class="field__label">Neo-MoFox 安装目录</span>
               </label>
               <button
                 type="button"
                 class="btn btn--tonal state-layer"
-                :disabled="mofoxDirPath.state.checking"
                 @click="chooseMofoxDirectory"
               >
                 <span class="msr" aria-hidden="true">folder_open</span>
                 浏览
               </button>
             </div>
-            <p class="field__support" :class="{ 'field__support--error': showMofoxDirError }">
-              <template v-if="mofoxDirPath.state.checking">正在校验目录…</template>
-              <template v-else-if="showMofoxDirError">
-                {{ mofoxDirPath.state.error }}
-              </template>
-              <template v-else-if="mofoxDirPath.state.touched">✓ 目录有效</template>
-              <template v-else>目录内需要包含 Neo-MoFox 的 <code>main.py</code> 文件。</template>
-            </p>
+            <Transition name="field-error" mode="out-in">
+              <p
+                v-if="showMofoxDirError"
+                key="error"
+                class="field__support field__support--error"
+              >
+                {{ mofoxDirError }}
+              </p>
+              <p v-else key="hint" class="field__support">
+                <template v-if="checkingMofoxDir">正在校验目录…</template>
+                <template v-else>目录内需要包含 Neo-MoFox 的 <code>main.py</code> 文件。</template>
+              </p>
+            </Transition>
           </template>
 
           <template v-else>
@@ -402,7 +390,7 @@ onMounted(async () => {
                         class="field__input"
                         type="text"
                         placeholder=" "
-                        @input="onPlatformDirInput"
+                        @focus="onPlatformDirFocus"
                       />
                       <span class="field__label"
                         >{{ currentPlatform?.name ?? '平台' }}安装目录</span
@@ -411,24 +399,25 @@ onMounted(async () => {
                     <button
                       type="button"
                       class="btn btn--tonal state-layer"
-                      :disabled="platformDirPath.state.checking"
                       @click="choosePlatformDirectory"
                     >
                       <span class="msr" aria-hidden="true">folder_open</span>
                       浏览
                     </button>
                   </div>
-                  <p
-                    class="field__support"
-                    :class="{ 'field__support--error': showPlatformDirError }"
-                  >
-                    <template v-if="platformDirPath.state.checking">正在校验目录…</template>
-                    <template v-else-if="showPlatformDirError">
-                      {{ platformDirPath.state.error }}
-                    </template>
-                    <template v-else-if="platformDirPath.state.touched">✓ 目录有效</template>
-                    <template v-else>平台目录需为已存在的安装目录。</template>
-                  </p>
+                  <Transition name="field-error" mode="out-in">
+                    <p
+                      v-if="showPlatformDirError"
+                      key="error"
+                      class="field__support field__support--error"
+                    >
+                      {{ platformDirError }}
+                    </p>
+                    <p v-else key="hint" class="field__support">
+                      <template v-if="checkingPlatformDir">正在校验目录…</template>
+                      <template v-else>平台目录需为已安装且可启动的平台目录。</template>
+                    </p>
+                  </Transition>
                 </template>
               </div>
             </Transition>
@@ -447,7 +436,7 @@ onMounted(async () => {
           v-if="currentStep < 3"
           type="button"
           class="btn btn--filled state-layer"
-          :disabled="!canContinue"
+          :disabled="navDisabled"
           @click="next"
         >
           继续
@@ -464,7 +453,7 @@ onMounted(async () => {
           v-else
           type="button"
           class="btn btn--filled state-layer"
-          :disabled="!canContinue || busy || (includePlatform && Boolean(platformError))"
+          :disabled="navDisabled || (includePlatform && Boolean(platformError))"
           @click="submit"
         >
           <span v-if="busy" class="spinner spinner--small" aria-hidden="true"></span>
@@ -595,14 +584,18 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* 内容画布之下铺设固定不透明度的底色，避免壁纸背景透明度被调为零时内容失去衬底、可读性骤降。 */
+/* 仅在启用壁纸背景时为内容画布铺设固定不透明度的底色，避免壁纸透明度被调为零时内容失去衬底；
+   无背景时不铺设，内容区直接沿用外壳表面即可，不再叠加不透明度。 */
 .manual-import__panel::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--md-sys-color-surface) 82%, transparent);
   pointer-events: none;
   border-radius: inherit;
+}
+
+:global(.shell--has-wallpaper) .manual-import__panel::before {
+  background: color-mix(in srgb, var(--md-sys-color-surface) 82%, transparent);
 }
 
 .manual-import__panel > .step,
@@ -679,6 +672,11 @@ onMounted(async () => {
   margin-bottom: 20px;
 }
 
+/* 直接跟随说明文字时取消底部间距，让解释紧贴输入框；间距改由说明文字自身承担。 */
+.field:has(+ .field__support) {
+  margin-bottom: 0;
+}
+
 .field--grow {
   min-width: 0;
   flex: 1;
@@ -742,7 +740,7 @@ onMounted(async () => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 
 /* 浏览按钮与输入框同高对齐 */
@@ -751,13 +749,21 @@ onMounted(async () => {
 }
 
 .field__support {
-  margin: 0 0 20px 16px;
+  margin: 4px 0 20px;
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
 }
 
 .field__support--error {
-  color: var(--md-sys-color-error);
+  padding: 8px 12px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+/* 平台分栏内由 flex gap 承担间距，说明文字只需紧贴所在输入。 */
+.platform-fields .field__support {
+  margin: 4px 0 0;
 }
 
 .field__support code {
@@ -936,6 +942,39 @@ onMounted(async () => {
     transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
 }
 
+/* 字段错误提示：淡入 + 轻微水平抖动的动效，与红色圆角背景同步呈现。 */
+.field-error-enter-active,
+.field-error-leave-active {
+  transition:
+    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
+}
+
+.field-error-enter-from,
+.field-error-leave-to {
+  opacity: 0;
+}
+
+.field-error-enter-active.field__support--error {
+  animation: field-error-shake var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-emphasized);
+}
+
+@keyframes field-error-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+}
+
 .manual-import-slide-forward-enter-from,
 .manual-import-slide-backward-leave-to {
   opacity: 0;
@@ -1019,7 +1058,9 @@ onMounted(async () => {
   .manual-import-slide-backward-enter-active,
   .manual-import-slide-backward-leave-active,
   .platform-fields-enter-active,
-  .platform-fields-leave-active {
+  .platform-fields-leave-active,
+  .field-error-enter-active,
+  .field-error-leave-active {
     transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
 
@@ -1028,8 +1069,14 @@ onMounted(async () => {
   .manual-import-slide-backward-enter-from,
   .manual-import-slide-backward-leave-to,
   .platform-fields-enter-from,
-  .platform-fields-leave-to {
+  .platform-fields-leave-to,
+  .field-error-enter-from,
+  .field-error-leave-to {
     transform: none;
+  }
+
+  .field-error-enter-active.field__support--error {
+    animation: none;
   }
 
   .spinner {

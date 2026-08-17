@@ -21,7 +21,7 @@ function createIpcMain(): {
 }
 
 describe('registerManualImportIpc', () => {
-  it('registers both manual-import channels and forwards the valid request', async () => {
+  it('registers manual-import channels and forwards the valid request', async () => {
     const { handlers, ipcMain } = createIpcMain();
     const actions = {
       importInstance: vi.fn(async () => ({ instanceId: 'mofox-new' })),
@@ -30,6 +30,12 @@ describe('registerManualImportIpc', () => {
         exists: true,
         isDirectory: true,
         mainPyExists: true,
+      })),
+      inspectPlatformPath: vi.fn(async () => ({
+        absolute: true,
+        exists: true,
+        isDirectory: true,
+        valid: true,
       })),
     };
     registerManualImportIpc(ipcMain, actions);
@@ -45,6 +51,7 @@ describe('registerManualImportIpc', () => {
     expect([...handlers.keys()]).toEqual([
       IPC_INVOKE_CHANNELS.manualImportInstance,
       IPC_INVOKE_CHANNELS.inspectImportPath,
+      IPC_INVOKE_CHANNELS.inspectPlatformImportPath,
     ]);
     expect(actions.importInstance).toHaveBeenCalledWith(request);
     expect(result).toEqual({ instanceId: 'mofox-new' });
@@ -60,6 +67,7 @@ describe('registerManualImportIpc', () => {
         isDirectory: false,
         mainPyExists: false,
       })),
+      inspectPlatformPath: vi.fn(),
     };
     registerManualImportIpc(ipcMain, actions);
 
@@ -76,9 +84,35 @@ describe('registerManualImportIpc', () => {
     });
   });
 
+  it('forwards platform path inspection with the selected platform id', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = {
+      importInstance: vi.fn(),
+      inspectImportPath: vi.fn(),
+      inspectPlatformPath: vi.fn(async () => ({
+        absolute: true,
+        exists: true,
+        isDirectory: true,
+        valid: true,
+      })),
+    };
+    registerManualImportIpc(ipcMain, actions);
+
+    const result = await handlers
+      .get(IPC_INVOKE_CHANNELS.inspectPlatformImportPath)
+      ?.({}, 'napcat', '/bots/napcat');
+
+    expect(actions.inspectPlatformPath).toHaveBeenCalledWith('napcat', '/bots/napcat');
+    expect(result).toEqual({ absolute: true, exists: true, isDirectory: true, valid: true });
+  });
+
   it('rejects malformed inspection arguments before calling the service', async () => {
     const { handlers, ipcMain } = createIpcMain();
-    const actions = { importInstance: vi.fn(), inspectImportPath: vi.fn() };
+    const actions = {
+      importInstance: vi.fn(),
+      inspectImportPath: vi.fn(),
+      inspectPlatformPath: vi.fn(),
+    };
     registerManualImportIpc(ipcMain, actions);
 
     await expect(
@@ -90,9 +124,31 @@ describe('registerManualImportIpc', () => {
     expect(actions.inspectImportPath).not.toHaveBeenCalled();
   });
 
+  it('rejects malformed platform inspection arguments before calling the service', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = {
+      importInstance: vi.fn(),
+      inspectImportPath: vi.fn(),
+      inspectPlatformPath: vi.fn(),
+    };
+    registerManualImportIpc(ipcMain, actions);
+
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.inspectPlatformImportPath)?.(null),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.inspectPlatformImportPath)?.({}, 'napcat'),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    expect(actions.inspectPlatformPath).not.toHaveBeenCalled();
+  });
+
   it('rejects the removed MoFox version field before calling the service', async () => {
     const { handlers, ipcMain } = createIpcMain();
-    const actions = { importInstance: vi.fn(), inspectImportPath: vi.fn() };
+    const actions = {
+      importInstance: vi.fn(),
+      inspectImportPath: vi.fn(),
+      inspectPlatformPath: vi.fn(),
+    };
     registerManualImportIpc(ipcMain, actions);
 
     await expect(
@@ -106,7 +162,11 @@ describe('registerManualImportIpc', () => {
 
   it('rejects malformed or extra manual-import arguments before calling the service', async () => {
     const { handlers, ipcMain } = createIpcMain();
-    const actions = { importInstance: vi.fn(), inspectImportPath: vi.fn() };
+    const actions = {
+      importInstance: vi.fn(),
+      inspectImportPath: vi.fn(),
+      inspectPlatformPath: vi.fn(),
+    };
     registerManualImportIpc(ipcMain, actions);
 
     await expect(

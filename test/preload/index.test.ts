@@ -48,6 +48,7 @@ describe('createMofoxApi', () => {
       mofoxInstallDir: 'C:\\MoFox\\existing',
     });
     await api.inspectImportPath('C:\\MoFox\\existing');
+    await api.inspectPlatformImportPath('napcat', 'C:\\MoFox\\napcat');
     await api.detectSystemEnv();
     await api.listBotPlatforms();
     await api.getSettings();

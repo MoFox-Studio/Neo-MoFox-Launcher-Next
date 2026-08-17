@@ -5,7 +5,9 @@ import type {
   ManualImportRequest,
   ManualImportResult,
   PathInspection,
+  PlatformPathInspection,
 } from '../../shared/domain/manual-import';
+import type { BotPlatform } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { CreateInstanceInput } from '../../shared/domain/instance';
 
@@ -15,14 +17,24 @@ interface InstanceRepository {
   create(input: CreateInstanceInput): Promise<Instance>;
 }
 
+/** 导入时按 ID 解析平台实例；未知 ID 抛出 NOT_FOUND。 */
+interface PlatformResolver {
+  get(platformId: string): BotPlatform;
+}
+
 /**
  * 将用户选择的现有 Neo-MoFox 目录注册为实例，不下载、移动或修改被导入的文件。
  */
 export class ManualImportService {
-  constructor(private readonly repository: InstanceRepository) {}
+  constructor(
+    private readonly repository: InstanceRepository,
+    private readonly platforms: PlatformResolver,
+  ) {}
 
   /**
    * 验证已有目录和可选平台目录，并将实例写入仓库。
+   *
+   * 平台目录在最终写入前会被再次校验，确保登记的平台目录可以被对应平台启动。
    *
    * @param request - 来自手动导入向导的实例信息。
    * @returns 新建实例的唯一 ID。
@@ -50,6 +62,19 @@ export class ManualImportService {
       ? await requireDirectory(platformDir, '平台安装目录')
       : undefined;
 
+    // 导入时再次核验平台目录：目录必须能按该平台解析出启动入口。
+    if (platformId && resolvedPlatformDir) {
+      const platform = this.platforms.get(platformId);
+      try {
+        await platform.getStartCommand(resolvedPlatformDir);
+      } catch {
+        throw new MofoxError(
+          'INVALID_ARGUMENT',
+          `所选目录不是有效的 ${platform.name} 安装目录`,
+        );
+      }
+    }
+
     const existing = await this.repository.list();
     if (
       existing.some(
@@ -73,13 +98,39 @@ export class ManualImportService {
   }
 
   /**
-   * 探测输入路径的状态，供用户输入目录时立即反馈，不替代导入时的完整校验。
+   * 探测输入路径的状态，供用户导入前立即反馈，不替代导入时的完整校验。
    *
    * @param value - 用户在输入框内填写的路径。
    * @returns 路径的绝对性、存在性、目录类型与 main.py 标志。
    */
   async inspectImportPath(value: string): Promise<PathInspection> {
     return inspectImportPath(value);
+  }
+
+  /**
+   * 探测平台安装目录是否有效，与 Neo-MoFox 探测相互独立。
+   *
+   * 平台 ID 由调用方先选定，这里按该平台的启动入口探测目录；
+   * 只用于导入前校验，导入时仍会对平台目录做一次完整核验。
+   *
+   * @param platformId - 所选平台的 ID。
+   * @param value - 用户在输入框内填写的平台目录路径。
+   * @returns 路径的绝对性、存在性与该平台的启动入口是否可解析。
+   */
+  async inspectPlatformPath(platformId: string, value: string): Promise<PlatformPathInspection> {
+    const inspection = await inspectImportPath(value);
+    if (!inspection.absolute || !inspection.exists || !inspection.isDirectory) {
+      return { ...inspection, valid: false };
+    }
+    const platform = this.platforms.get(platformId);
+    let valid: boolean;
+    try {
+      await platform.getStartCommand(resolve(value));
+      valid = true;
+    } catch {
+      valid = false;
+    }
+    return { ...inspection, valid };
   }
 }
 
@@ -122,7 +173,7 @@ async function inspectImportPath(value: string): Promise<PathInspection> {
   if (!absolute) {
     return { absolute: false, exists: false, isDirectory: false, mainPyExists: false };
   }
-  let isDirectory = false;
+  let isDirectory: boolean;
   try {
     isDirectory = (await stat(value)).isDirectory();
   } catch {
