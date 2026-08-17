@@ -7,6 +7,7 @@ import OobeLegacyImport from '@/components/oobe/OobeLegacyImport.vue';
 import OobePreferences from '@/components/oobe/OobePreferences.vue';
 import OobeSummary from '@/components/oobe/OobeSummary.vue';
 import { useSettingsStore } from '@/stores/settings';
+import { useWindowTitle } from '@/composables/use-window-title';
 
 // 首次引导编排：欢迎 → 依赖安装（仅 Linux 在确认安装后索取 sudo 密码）→ 旧版导入（仅检测到时）→ 偏好设置 → 总结
 type StepId = 'welcome' | 'dependencies' | 'legacy' | 'preferences' | 'summary';
@@ -19,6 +20,9 @@ interface Step {
 }
 
 const settingsStore = useSettingsStore();
+
+// 首次引导标题显示在窗口栏。
+useWindowTitle({ title: '首次引导', subtitle: '完成启动器的初始配置' });
 
 const steps = computed<Step[]>(() => [
   { id: 'welcome', label: '欢迎', visible: true },
@@ -96,9 +100,9 @@ onMounted(async () => {
           v-else-if="currentStepId === 'preferences'"
           key="preferences"
           @next="goToStep('summary', 'forward')"
-          @back="showLegacyStep
-            ? goToStep('legacy', 'backward')
-            : goToStep('dependencies', 'backward')"
+          @back="
+            showLegacyStep ? goToStep('legacy', 'backward') : goToStep('dependencies', 'backward')
+          "
         />
 
         <OobeSummary v-else key="summary" />

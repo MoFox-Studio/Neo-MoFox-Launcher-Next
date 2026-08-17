@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useSettingsStore } from '@/stores/settings';
+import { useWindowTitle } from '@/composables/use-window-title';
 import { mofoxApi } from '@/services/mofox-api';
 import type { LauncherSettings } from '@shared/domain/settings';
 import type {
@@ -22,6 +23,9 @@ import { getWallpaperMediaUrl, loadWallpaperFile } from '@/utils/wallpaper-media
 // 设置页直接绑定持久化仓库，所有控件通过局部补丁提交更新。
 const settingsStore = useSettingsStore();
 const { settings } = storeToRefs(settingsStore);
+
+// 设置页标题显示在窗口栏。
+useWindowTitle({ title: '设置', subtitle: '调整启动器的外观、行为与数据选项' });
 
 const update = (patch: Partial<LauncherSettings>) => {
   settingsStore.update(patch);
@@ -265,11 +269,6 @@ onMounted(() => {
         <span>更改将自动保存</span>
       </div>
     </aside>
-
-    <header class="settings-view__header">
-      <h1 class="settings-view__title">设置</h1>
-      <p class="settings-view__subtitle">调整启动器的外观、行为与数据选项</p>
-    </header>
 
     <main class="settings-view__content">
       <!-- 外观、通用、网络、日志与版本信息分组 -->
@@ -740,7 +739,7 @@ onMounted(() => {
   height: 100%;
   display: grid;
   grid-template-columns: var(--settings-sidebar-width) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -768,37 +767,9 @@ onMounted(() => {
 }
 
 .settings-sidebar,
-.settings-view__header,
 .settings-view__content {
   position: relative;
   z-index: 1;
-}
-
-.settings-view__header {
-  grid-column: 2;
-  width: calc(100% - 64px);
-  max-width: 824px;
-  box-sizing: border-box;
-  margin: 20px auto 0;
-  padding: 20px 32px;
-  border: 1px solid var(--app-glass-border);
-  border-radius: 20px;
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
-}
-
-.settings-view__title {
-  margin: 0;
-  font: var(--md-sys-typescale-headline-small);
-  color: var(--md-sys-color-on-surface);
-}
-
-.settings-view__subtitle {
-  margin: 4px 0 0;
-  font: var(--md-sys-typescale-body-medium);
-  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* 贴边导航抽屉使用较轻的内嵌玻璃层。 */
@@ -1396,13 +1367,6 @@ onMounted(() => {
 
   .settings-view::before {
     top: 61px;
-  }
-
-  .settings-view__header {
-    flex: 0 0 auto;
-    width: auto;
-    margin: 16px 20px 0;
-    padding: 16px 20px;
   }
 
   .settings-view__content {

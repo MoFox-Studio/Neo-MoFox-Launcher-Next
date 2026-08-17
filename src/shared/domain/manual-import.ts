@@ -14,3 +14,15 @@ export interface ManualImportRequest {
 export interface ManualImportResult {
   instanceId: string;
 }
+
+/** 路径探测结果：供输入目录时即时校验，不替代最终导入时的完整校验。 */
+export interface PathInspection {
+  /** 输入内容是否为绝对路径。 */
+  absolute: boolean;
+  /** 路径对应的文件系统条目是否存在。 */
+  exists: boolean;
+  /** 存在时是否为目录。 */
+  isDirectory: boolean;
+  /** 目录存在且为目录时，其中是否包含 main.py（Neo-MoFox 安装目录的标志）。 */
+  mainPyExists: boolean;
+}

@@ -47,6 +47,7 @@ describe('createMofoxApi', () => {
       instanceName: 'Existing instance',
       mofoxInstallDir: 'C:\\MoFox\\existing',
     });
+    await api.inspectImportPath('C:\\MoFox\\existing');
     await api.detectSystemEnv();
     await api.listBotPlatforms();
     await api.getSettings();

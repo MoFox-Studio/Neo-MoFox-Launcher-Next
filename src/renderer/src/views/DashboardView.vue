@@ -3,7 +3,7 @@ import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
-import PageHeader from '@/components/PageHeader.vue';
+import { useWindowTitle } from '@/composables/use-window-title';
 import InstanceCard from '@/components/InstanceCard.vue';
 
 // 概览页聚合实例运行数据，并将卡片交互委派给实例仓库或路由。
@@ -18,6 +18,9 @@ const greeting = computed(() => {
   if (hour < 18) return '下午好，运行状态一切正常';
   return '晚上好，来看看今天的实例情况';
 });
+
+// 概览页标题随问候语显示在窗口栏。
+useWindowTitle({ title: '概览', subtitle: greeting });
 
 const totalCount = computed(() => instancesStore.instances.length);
 const runningCount = computed(() => instancesStore.running.length);
@@ -53,14 +56,10 @@ function onOpenFolder(id: string): void {
 function onLogs(id: string): void {
   router.push({ name: 'instance-logs', params: { id } });
 }
-
 </script>
 
 <template>
   <div class="dashboard">
-    <!-- 页面标题、实例汇总与快捷统计 -->
-    <PageHeader title="概览" :subtitle="greeting" />
-
     <div class="dashboard__body">
       <section class="hero">
         <div class="hero__count">
@@ -133,7 +132,7 @@ function onLogs(id: string): void {
   display: flex;
   flex-direction: column;
   gap: 32px;
-  padding: 0 32px 32px;
+  padding: 24px 32px 32px;
 }
 
 /* 运行实例汇总与统计项 */
@@ -248,5 +247,4 @@ function onLogs(id: string): void {
   font: var(--md-sys-typescale-body-large);
   color: var(--md-sys-color-on-surface-variant);
 }
-
 </style>

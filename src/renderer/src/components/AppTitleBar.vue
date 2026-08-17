@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import { mofoxApi } from '@/services/mofox-api';
+import { useWindowTitleStore } from '@/stores/window-title';
 
 // Electron 窗口控制栏，监听主进程推送的最大化状态。
 const maximized = ref(false);
 let unsubscribe: (() => void) | undefined;
+
+// 页面通过窗口标题仓库写入各自的标题，格式为「页面标题丨Neo-MoFox Launcher」。
+const { title } = storeToRefs(useWindowTitleStore());
 
 // 初始化窗口状态并在卸载时清理事件订阅。
 onMounted(async () => {
@@ -19,10 +24,12 @@ onUnmounted(() => unsubscribe?.());
 
 <template>
   <header class="titlebar">
-    <!-- 品牌区与原生窗口控制按钮 -->
+    <!-- 品牌区与页面标题（标题丨应用名），原生窗口控制按钮 -->
     <div class="titlebar__brand">
       <span class="msr msr--fill titlebar__logo" aria-hidden="true">pets</span>
-      <span class="titlebar__name">Neo-MoFox Launcher</span>
+      <span class="titlebar__title">
+        {{ title ? `${title}丨Neo-MoFox Launcher` : 'Neo-MoFox Launcher' }}
+      </span>
     </div>
 
     <div class="titlebar__controls">
@@ -75,18 +82,24 @@ onUnmounted(() => unsubscribe?.());
 
 .titlebar__brand {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
 }
 
 .titlebar__logo {
+  flex: none;
   font-size: 18px;
   color: var(--md-sys-color-primary);
 }
 
-.titlebar__name {
-  font: var(--md-sys-typescale-label-medium);
-  letter-spacing: 0.04em;
+.titlebar__title {
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-title-medium);
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .titlebar__controls {

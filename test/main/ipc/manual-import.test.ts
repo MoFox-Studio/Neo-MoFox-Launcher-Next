@@ -21,9 +21,17 @@ function createIpcMain(): {
 }
 
 describe('registerManualImportIpc', () => {
-  it('registers and forwards the valid manual-import request', async () => {
+  it('registers both manual-import channels and forwards the valid request', async () => {
     const { handlers, ipcMain } = createIpcMain();
-    const actions = { importInstance: vi.fn(async () => ({ instanceId: 'mofox-new' })) };
+    const actions = {
+      importInstance: vi.fn(async () => ({ instanceId: 'mofox-new' })),
+      inspectImportPath: vi.fn(async () => ({
+        absolute: true,
+        exists: true,
+        isDirectory: true,
+        mainPyExists: true,
+      })),
+    };
     registerManualImportIpc(ipcMain, actions);
 
     const request = {
@@ -34,14 +42,57 @@ describe('registerManualImportIpc', () => {
     };
     const result = await handlers.get(IPC_INVOKE_CHANNELS.manualImportInstance)?.({}, request);
 
-    expect([...handlers.keys()]).toEqual([IPC_INVOKE_CHANNELS.manualImportInstance]);
+    expect([...handlers.keys()]).toEqual([
+      IPC_INVOKE_CHANNELS.manualImportInstance,
+      IPC_INVOKE_CHANNELS.inspectImportPath,
+    ]);
     expect(actions.importInstance).toHaveBeenCalledWith(request);
     expect(result).toEqual({ instanceId: 'mofox-new' });
   });
 
+  it('forwards path inspection to the service action', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = {
+      importInstance: vi.fn(),
+      inspectImportPath: vi.fn(async () => ({
+        absolute: false,
+        exists: false,
+        isDirectory: false,
+        mainPyExists: false,
+      })),
+    };
+    registerManualImportIpc(ipcMain, actions);
+
+    const result = await handlers
+      .get(IPC_INVOKE_CHANNELS.inspectImportPath)
+      ?.({}, '/bots/neo-mofox');
+
+    expect(actions.inspectImportPath).toHaveBeenCalledWith('/bots/neo-mofox');
+    expect(result).toEqual({
+      absolute: false,
+      exists: false,
+      isDirectory: false,
+      mainPyExists: false,
+    });
+  });
+
+  it('rejects malformed inspection arguments before calling the service', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = { importInstance: vi.fn(), inspectImportPath: vi.fn() };
+    registerManualImportIpc(ipcMain, actions);
+
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.inspectImportPath)?.(null),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.inspectImportPath)?.(null, 42),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    expect(actions.inspectImportPath).not.toHaveBeenCalled();
+  });
+
   it('rejects the removed MoFox version field before calling the service', async () => {
     const { handlers, ipcMain } = createIpcMain();
-    const actions = { importInstance: vi.fn() };
+    const actions = { importInstance: vi.fn(), inspectImportPath: vi.fn() };
     registerManualImportIpc(ipcMain, actions);
 
     await expect(
@@ -55,7 +106,7 @@ describe('registerManualImportIpc', () => {
 
   it('rejects malformed or extra manual-import arguments before calling the service', async () => {
     const { handlers, ipcMain } = createIpcMain();
-    const actions = { importInstance: vi.fn() };
+    const actions = { importInstance: vi.fn(), inspectImportPath: vi.fn() };
     registerManualImportIpc(ipcMain, actions);
 
     await expect(

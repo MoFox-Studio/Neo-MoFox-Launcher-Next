@@ -303,6 +303,17 @@ export const mockApi: MofoxApi = {
     return { instanceId };
   },
 
+  async inspectImportPath(path) {
+    await delay(120);
+    const absolute = /^[a-zA-Z]:[\\/]|\//.test(path);
+    return {
+      absolute,
+      exists: absolute,
+      isDirectory: absolute,
+      mainPyExists: absolute,
+    };
+  },
+
   async detectSystemEnv() {
     await delay(350);
     return {

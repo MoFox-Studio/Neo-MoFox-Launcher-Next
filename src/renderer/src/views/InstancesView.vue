@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import type { Instance, InstanceStatus } from '@shared/domain/instance';
 import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
-import PageHeader from '@/components/PageHeader.vue';
+import { useWindowTitle } from '@/composables/use-window-title';
 import InstanceCard from '@/components/InstanceCard.vue';
 import BaseDialog from '@/components/BaseDialog.vue';
 
@@ -26,6 +26,9 @@ const FILTERS: FilterOption[] = [
 const router = useRouter();
 const route = useRoute();
 const instancesStore = useInstancesStore();
+
+// 实例页标题显示在窗口栏。
+useWindowTitle({ title: '实例', subtitle: '管理并启动你的机器人实例' });
 
 // 筛选条件和待确认删除项只属于当前视图的临时响应式状态。
 const keyword = ref('');
@@ -101,14 +104,8 @@ async function confirmRemove(): Promise<void> {
 
 <template>
   <div class="instances-view">
-    <!-- 标题与搜索区共用带模糊背景和圆角的容器 -->
+    <!-- 搜索与筛选工具栏共用带模糊背景的容器 -->
     <section class="instances-view__panel">
-      <PageHeader title="实例">
-        <button class="icon-btn state-layer" type="button" title="刷新" aria-label="刷新" @click="onRefresh">
-          <span class="msr" aria-hidden="true">refresh</span>
-        </button>
-      </PageHeader>
-
       <div class="instances-view__toolbar">
         <label class="search-box">
           <span class="msr search-box__icon" aria-hidden="true">search</span>
@@ -120,22 +117,33 @@ async function confirmRemove(): Promise<void> {
           />
         </label>
 
-        <div class="filter-row">
-          <button
-            v-for="filter in FILTERS"
-            :key="filter.key"
-            class="filter-chip state-layer"
-            type="button"
-            :class="{ 'filter-chip--selected': activeFilter === filter.key }"
-            @click="activeFilter = filter.key"
-          >
-            <span
-              v-if="activeFilter === filter.key"
-              class="msr filter-chip__icon"
-              aria-hidden="true"
-              >check</span
+        <div class="instances-view__toolbar-row">
+          <div class="filter-row">
+            <button
+              v-for="filter in FILTERS"
+              :key="filter.key"
+              class="filter-chip state-layer"
+              type="button"
+              :class="{ 'filter-chip--selected': activeFilter === filter.key }"
+              @click="activeFilter = filter.key"
             >
-            {{ filter.label }}
+              <span
+                v-if="activeFilter === filter.key"
+                class="msr filter-chip__icon"
+                aria-hidden="true"
+                >check</span
+              >
+              {{ filter.label }}
+            </button>
+          </div>
+          <button
+            class="icon-btn state-layer"
+            type="button"
+            title="刷新"
+            aria-label="刷新"
+            @click="onRefresh"
+          >
+            <span class="msr" aria-hidden="true">refresh</span>
           </button>
         </div>
       </div>
@@ -178,9 +186,7 @@ async function confirmRemove(): Promise<void> {
         确定要删除实例「{{ pendingRemoveInstance.name }}」吗？此操作无法撤销。
       </p>
       <template #actions>
-        <button class="btn btn--text state-layer" type="button" @click="cancelRemove">
-          取消
-        </button>
+        <button class="btn btn--text state-layer" type="button" @click="cancelRemove">取消</button>
         <button class="btn btn--error state-layer" type="button" @click="confirmRemove">
           删除
         </button>
@@ -197,19 +203,14 @@ async function confirmRemove(): Promise<void> {
   position: relative;
 }
 
-/* 标题与搜索区共用的模糊容器：无圆角，整条覆盖顶部 */
+/* 搜索与筛选共用的模糊容器：无圆角，整条覆盖顶部 */
 .instances-view__panel {
-  padding: 20px 32px 24px;
+  padding: 24px 32px 24px;
   border-bottom: 1px solid var(--app-glass-border);
   background: var(--app-glass-card);
   box-shadow: var(--app-glass-card-shadow);
   backdrop-filter: var(--app-glass-filter);
   -webkit-backdrop-filter: var(--app-glass-filter);
-}
-
-/* 容器内的标题栏去掉自带内边距，由容器统一排版 */
-.instances-view__panel :deep(.page-header) {
-  padding: 0 0 16px;
 }
 
 .instances-view__body {
@@ -223,6 +224,13 @@ async function confirmRemove(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.instances-view__toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 /* 搜索框在模糊容器内使用实色底，避免嵌套玻璃造成重复模糊 */

@@ -9,6 +9,7 @@ import '@xterm/xterm/css/xterm.css';
 import type { InstanceProcessSource, InstanceStatus } from '@shared/domain/instance';
 import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
+import { useWindowTitle } from '@/composables/use-window-title';
 import StatusBadge from '@/components/StatusBadge.vue';
 
 // 实例日志页维护双终端、实时输出、进程控制和日志工具操作。
@@ -22,6 +23,9 @@ const instance = computed(() => instancesStore.byId(instanceId.value));
 const status = computed<InstanceStatus>(() => instance.value?.status ?? 'stopped');
 const isRunning = computed(() => status.value === 'running');
 const isBusy = computed(() => status.value === 'starting' || status.value === 'stopping');
+
+// 实例名称显示在窗口栏，跟随实例加载状态更新。
+useWindowTitle({ title: () => instance.value?.name ?? '实例日志', subtitle: '运行日志' });
 
 const PLATFORM_LABELS: Record<string, string> = { napcat: 'NapCat', snowluma: 'SnowLuma' };
 const platformLabel = computed(() => {
@@ -335,21 +339,18 @@ function goBack(): void {
 
 <template>
   <div class="log-view">
-    <!-- 实例标题、运行状态与进程控制 -->
+    <!-- 实例运行状态、运行时长与进程控制；实例名由窗口栏展示 -->
     <header class="log-view__header">
       <button class="icon-btn state-layer" type="button" title="返回" aria-label="返回" @click="goBack">
         <span class="msr" aria-hidden="true">arrow_back</span>
       </button>
 
-      <div class="log-view__title-block">
-        <h1 class="log-view__title">{{ instance?.name ?? '实例' }}</h1>
-        <div class="log-view__meta">
-          <StatusBadge :status="status" />
-          <span class="log-view__uptime" :title="`MoFox 运行时长`">
-            <span class="msr log-view__uptime-icon" aria-hidden="true">schedule</span>
-            {{ uptimes[activeTab] }}
-          </span>
-        </div>
+      <div class="log-view__meta">
+        <StatusBadge :status="status" />
+        <span class="log-view__uptime" :title="`MoFox 运行时长`">
+          <span class="msr log-view__uptime-icon" aria-hidden="true">schedule</span>
+          {{ uptimes[activeTab] }}
+        </span>
       </div>
 
       <div class="log-view__controls">
@@ -499,24 +500,9 @@ function goBack(): void {
   padding: 20px 32px 12px;
 }
 
-.log-view__title-block {
+.log-view__meta {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.log-view__title {
-  margin: 0;
-  font: var(--md-sys-typescale-headline-small);
-  color: var(--md-sys-color-on-surface);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.log-view__meta {
   display: flex;
   align-items: center;
   gap: 12px;

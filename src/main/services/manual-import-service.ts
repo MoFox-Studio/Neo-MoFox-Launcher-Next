@@ -1,7 +1,11 @@
-import { stat } from 'node:fs/promises';
+import { access, stat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { Instance } from '../../shared/domain/instance';
-import type { ManualImportRequest, ManualImportResult } from '../../shared/domain/manual-import';
+import type {
+  ManualImportRequest,
+  ManualImportResult,
+  PathInspection,
+} from '../../shared/domain/manual-import';
 import { MofoxError } from '../../shared/domain/error';
 import type { CreateInstanceInput } from '../../shared/domain/instance';
 
@@ -67,6 +71,16 @@ export class ManualImportService {
     });
     return { instanceId: instance.id };
   }
+
+  /**
+   * 探测输入路径的状态，供用户输入目录时立即反馈，不替代导入时的完整校验。
+   *
+   * @param value - 用户在输入框内填写的路径。
+   * @returns 路径的绝对性、存在性、目录类型与 main.py 标志。
+   */
+  async inspectImportPath(value: string): Promise<PathInspection> {
+    return inspectImportPath(value);
+  }
 }
 
 /** 读取并规范化目录路径，拒绝不存在或非目录的用户输入。 */
@@ -100,6 +114,30 @@ function requireText(value: string, message: string): string {
   const trimmed = value.trim();
   if (!trimmed) throw new MofoxError('INVALID_ARGUMENT', message);
   return trimmed;
+}
+
+/** 探测路径的绝对性、存在性、目录类型与 main.py 标志。 */
+async function inspectImportPath(value: string): Promise<PathInspection> {
+  const absolute = isAbsolute(value);
+  if (!absolute) {
+    return { absolute: false, exists: false, isDirectory: false, mainPyExists: false };
+  }
+  let isDirectory = false;
+  try {
+    isDirectory = (await stat(value)).isDirectory();
+  } catch {
+    return { absolute: true, exists: false, isDirectory: false, mainPyExists: false };
+  }
+  let mainPyExists = false;
+  if (isDirectory) {
+    try {
+      await access(join(value, 'main.py'));
+      mainPyExists = true;
+    } catch {
+      mainPyExists = false;
+    }
+  }
+  return { absolute: true, exists: true, isDirectory, mainPyExists };
 }
 
 /** Windows 文件系统路径不区分大小写，其余平台按原始规范化路径比较。 */

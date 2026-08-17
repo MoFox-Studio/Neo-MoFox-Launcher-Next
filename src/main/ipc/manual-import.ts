@@ -1,10 +1,15 @@
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
-import type { ManualImportRequest, ManualImportResult } from '../../shared/domain/manual-import';
+import type {
+  ManualImportRequest,
+  ManualImportResult,
+  PathInspection,
+} from '../../shared/domain/manual-import';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
-/** 手动导入 IPC 仅暴露将已有目录注册为实例的单一动作。 */
+/** 手动导入 IPC 暴露将已有目录注册为实例的动作，以及输入时探测目录的动作。 */
 interface ManualImportActions {
   importInstance(request: ManualImportRequest): Promise<ManualImportResult>;
+  inspectImportPath(value: string): Promise<PathInspection>;
 }
 
 interface IpcMainRegistrar {
@@ -30,6 +35,21 @@ export function registerManualImportIpc(
         );
       }
       return await actions.importInstance(requireRequest(args[0]));
+    } catch (error) {
+      throw serializeIpcError(error);
+    }
+  });
+
+  // 输入时目录探测：渲染层边输入边校验，不替代导入时服务层的完整校验。
+  ipcMain.handle(IPC_INVOKE_CHANNELS.inspectImportPath, async (_event, ...args) => {
+    try {
+      if (args.length !== 1 || typeof args[0] !== 'string') {
+        throw new MofoxError(
+          'INVALID_ARGUMENT',
+          'Inspect import path channel takes one string argument',
+        );
+      }
+      return await actions.inspectImportPath(args[0]);
     } catch (error) {
       throw serializeIpcError(error);
     }

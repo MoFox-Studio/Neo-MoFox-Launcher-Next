@@ -10,7 +10,7 @@ import type {
   InstanceStatus,
 } from './domain/instance';
 import type { InstallProgressEvent, InstallRequest } from './domain/install';
-import type { ManualImportRequest, ManualImportResult } from './domain/manual-import';
+import type { ManualImportRequest, ManualImportResult, PathInspection } from './domain/manual-import';
 import type { LauncherSettings } from './domain/settings';
 import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from './domain/migration';
 import type { OobeCompletionSummary, OobeDependencyStatus, OobeProgress } from './domain/oobe';
@@ -50,6 +50,7 @@ export const IPC_INVOKE_CHANNELS = {
   retryInstall: 'install:retry',
   cancelInstall: 'install:cancel',
   manualImportInstance: 'instances:manual-import',
+  inspectImportPath: 'instances:inspect-import-path',
   detectSystemEnv: 'environment:detect',
   listBotPlatforms: 'bot-platforms:list',
   getSettings: 'settings:get',
@@ -124,6 +125,8 @@ export interface MofoxApi {
   cancelInstall(taskId: string): Promise<void>;
   /** 注册本机已有的 Neo-MoFox 目录，不下载或移动其中的文件。 */
   manualImportInstance(request: ManualImportRequest): Promise<ManualImportResult>;
+  /** 探测输入路径的存在性、目录类型与 main.py 标志，供输入时即时校验。 */
+  inspectImportPath(path: string): Promise<PathInspection>;
 
   /** 系统探测与平台元数据查询。 */
   detectSystemEnv(): Promise<SystemEnvInfo>;
