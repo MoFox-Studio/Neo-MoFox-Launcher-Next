@@ -11,6 +11,11 @@ import type { InstallTaskContext } from './types';
 const MOFOX_REPOSITORY = 'MoFox-Studio/Neo-MoFox';
 /** 首次启动等待插件配置生成的超时时间（毫秒）。 */
 const CONFIG_GENERATION_TIMEOUT_MS = 240_000;
+/**
+ * Neo-MoFox 启动前需要交互确认 EULA 与遥测隐私协议；非交互安装场景下
+ * 设置该环境变量可让启动流程自动按「同意」落盘协议状态并继续生成配置。
+ */
+const STARTUP_AGREEMENT_ENV_VAR = 'MOFOX_ACCEPT_STARTUP_AGREEMENTS';
 
 /**
  * 安装 MoFox 本体：克隆仓库 → uv sync → 首次启动生成配置文件。
@@ -66,7 +71,10 @@ async function generateConfigOnFirstRun(repoDir: string, ctx: InstallTaskContext
   const venvPython = await findVenvPython(repoDir);
   const command = venvPython ?? 'uv';
   const args = venvPython ? ['main.py'] : ['run', 'main.py'];
-  const child = spawnProcess(command, args, { cwd: repoDir, env: buildSpawnEnv() });
+  const child = spawnProcess(command, args, {
+    cwd: repoDir,
+    env: buildSpawnEnv({ [STARTUP_AGREEMENT_ENV_VAR]: '1' }),
+  });
   child.stdout?.setEncoding('utf8');
   child.stderr?.setEncoding('utf8');
   child.stdout?.on('data', (data: string) => ctx.log(trimLogLine(data)));
