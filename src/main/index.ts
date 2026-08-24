@@ -263,11 +263,15 @@ if (!hasSingleInstanceLock) {
     registerOobeIpc(ipcMain, oobeService);
     mainWindow = createMainWindow();
 
-    // 活跃安装任务必须先收到取消与清理机会，防止关闭窗口留下临时安装状态。
+    // 关闭窗口时立即向活跃安装任务发出中止信号，并马上放行关闭，避免被单个长步骤
+    // （如下载/子进程）拖住导致窗口关不掉；后台流水线会尽快回收临时文件。
+    let installCloseDispatched = false;
     mainWindow.on('close', (event) => {
-      if (!installTasks.hasActiveTasks()) return;
+      if (!installTasks.hasActiveTasks() || installCloseDispatched) return;
       event.preventDefault();
-      void installTasks.cancelAll().then(() => mainWindow?.close());
+      installCloseDispatched = true;
+      installTasks.abortAll();
+      mainWindow?.close();
     });
 
     app.on('activate', () => {

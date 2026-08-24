@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { useSettingsStore } from '@/stores/settings';
+import { useInstallStore } from '@/stores/install';
 
 // Electron 渲染进程使用 Hash 路由，页面组件按路由懒加载。
 export const router = createRouter({
@@ -45,4 +46,14 @@ router.beforeEach((to) => {
     return { name: 'oobe' };
   }
   return true;
+});
+
+// 安装进行中拦截离开安装向导的导航（如点击主导航），交由向导弹出取消确认框，
+// 避免用户无确认地直接放弃正在执行的安装。
+router.beforeEach((to, from) => {
+  if (from.name !== 'install' || to.name === 'install') return true;
+  const installStore = useInstallStore();
+  if (!installStore.isInstalling) return true;
+  installStore.requestCancel();
+  return false;
 });

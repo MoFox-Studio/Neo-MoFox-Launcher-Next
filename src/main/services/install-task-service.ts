@@ -140,6 +140,20 @@ export class InstallTaskService {
   }
 
   /**
+   * 立即向所有未完成任务发出中止信号，不等待流水线收尾。
+   *
+   * 用于窗口关闭场景：先快速触发中止以便后台尽快清理，再由调用方立即关闭窗口，
+   * 避免关闭被单个长步骤（如下载/子进程）拖住。
+   */
+  abortAll(): void {
+    for (const task of this.tasks.values()) {
+      if (task.status === 'pending' || task.status === 'running') {
+        task.controller.abort();
+      }
+    }
+  }
+
+  /**
    * 判断是否存在仍可取消或正在执行的任务。
    *
    * @returns 存在 pending/running 状态任务时返回 `true`。

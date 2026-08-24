@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useInstallDraftStore } from '@/stores/install-draft';
 import { useInstallStore } from '@/stores/install';
 import type { InstallRequest } from '@shared/domain/install';
@@ -42,6 +42,16 @@ const contentRef = ref<HTMLElement | null>(null);
 const confirmingCancel = ref(false);
 // 取消安装期间展示“正在取消”弹窗，避免取消清理耗时较长时界面无反馈。
 const cancelling = ref(false);
+
+// 主导航离开被守卫拦截后，通过该标志请求弹出取消确认框。
+watch(
+  () => installStore.cancelRequested,
+  (requested) => {
+    if (!requested) return;
+    installStore.cancelRequested = false;
+    confirmingCancel.value = true;
+  },
+);
 
 // 恢复后台安装时直接回到执行页。
 onMounted(() => {

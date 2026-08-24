@@ -104,11 +104,6 @@ function cancel(): void {
           查看实例
         </button>
       </template>
-      <template v-else>
-        <div class="result-actions">
-          <button type="button" class="btn btn--text state-layer" @click="cancel">停止安装</button>
-        </div>
-      </template>
     </div>
   </section>
 </template>

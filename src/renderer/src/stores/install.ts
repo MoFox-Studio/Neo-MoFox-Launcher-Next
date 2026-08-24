@@ -18,6 +18,14 @@ export const useInstallStore = defineStore('install', () => {
   const isFailed = computed(() => progress.value?.status === 'failed');
   const isDone = computed(() => progress.value?.status === 'done');
 
+  // 由路由守卫置位，通知安装向导弹出取消确认框（例如安装期间点击主导航）。
+  const cancelRequested = ref(false);
+
+  /** 请求弹出取消确认框；向导监听该标志后展示确认弹窗。 */
+  function requestCancel(): void {
+    cancelRequested.value = true;
+  }
+
   // 只接收当前任务事件，并限制日志缓存以控制长期内存占用。
   const unsubscribe = mofoxApi.on('install-progress', (event) => {
     if (activeTaskId.value !== null && event.taskId !== activeTaskId.value) return;
@@ -58,6 +66,8 @@ export const useInstallStore = defineStore('install', () => {
     isInstalling,
     isFailed,
     isDone,
+    cancelRequested,
+    requestCancel,
     begin,
     retry,
     cancel,
