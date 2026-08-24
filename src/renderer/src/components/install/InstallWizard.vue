@@ -1,182 +1,101 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { useSettingsStore } from '@/stores/settings';
+import { computed, onMounted, ref } from 'vue';
+import { useInstallDraftStore } from '@/stores/install-draft';
 import { useInstallStore } from '@/stores/install';
-import { mofoxApi } from '@/services/mofox-api';
-import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
-import type { InstallRequest, InstallStepId } from '@shared/domain/install';
+import type { InstallRequest } from '@shared/domain/install';
+import InstallLicenseStep from './InstallLicenseStep.vue';
+import InstallInstanceStep from './InstallInstanceStep.vue';
+import InstallApiKeyStep from './InstallApiKeyStep.vue';
+import InstallPlatformStep from './InstallPlatformStep.vue';
+import InstallWebuiStep from './InstallWebuiStep.vue';
+import InstallLocationStep from './InstallLocationStep.vue';
+import InstallSummaryStep from './InstallSummaryStep.vue';
+import InstallExecuteStep from './InstallExecuteStep.vue';
+import '@/components/install/install-wizard.css';
 
-// 五步安装向导：收集请求参数，并持续呈现安装仓库中的后台进度；镜像源由安装器内部自动轮询。
-const STEP_TITLES = ['选择平台', '实例信息', '安装位置', '确认摘要', '执行安装'];
+// 安装向导主组件：负责左侧步骤导航、各步骤组件的调用编排与前进/回退控制。
+const STEPS = [
+  { id: 'license', title: '许可协议' },
+  { id: 'instance', title: '实例信息' },
+  { id: 'apiKey', title: '模型配置' },
+  { id: 'network', title: '网络配置' },
+  { id: 'webui', title: '组件选择' },
+  { id: 'location', title: '安装位置' },
+  { id: 'summary', title: '确认摘要' },
+  { id: 'execute', title: '执行安装' },
+] as const;
 
-const PLATFORM_LABELS: Record<string, string> = {
-  win32: 'Windows',
-  linux: 'Linux',
-  darwin: 'macOS',
-};
-
-const STEP_LABELS: Record<InstallStepId, string> = {
-  prepare: '准备',
-  download: '下载',
-  extract: '解压',
-  dependencies: '依赖',
-  configure: '配置',
-  finalize: '完成',
-};
-
-const settingsStore = useSettingsStore();
+const draftStore = useInstallDraftStore();
 const installStore = useInstallStore();
+
 const emit = defineEmits<{
   close: [];
   complete: [];
 }>();
 
-// 当前步骤与各步骤的局部输入共同控制校验和页面跳转。
 const currentStep = ref(1);
 const stepDirection = ref<'forward' | 'backward'>('forward');
+const licenseAgreed = ref(false);
 
-// ---- Step 1: platform ----
-const platforms = ref<BotPlatformMetadata[]>([]);
-const platformsLoading = ref(false);
-const selectedPlatformId = ref<string | null>(null);
-
-const selectedPlatform = computed<BotPlatformMetadata | null>(
-  () => platforms.value.find((p) => p.id === selectedPlatformId.value) ?? null,
-);
-
-function platformLabel(sys: string): string {
-  return PLATFORM_LABELS[sys] ?? sys;
-}
-
-// ---- Step 2: instance info ----
-const instanceName = ref('');
-const nameTouched = ref(false);
-const versionChoice = ref<'latest' | 'custom'>('latest');
-const customVersion = ref('');
-
-const nameError = computed(() => {
-  const trimmed = instanceName.value.trim();
-  if (!trimmed) return '实例名称不能为空';
-  if (trimmed.length > 32) return '实例名称不能超过 32 个字符';
-  return '';
+// 恢复后台安装时直接回到执行页。
+onMounted(() => {
+  if (installStore.isInstalling) {
+    currentStep.value = STEPS.length;
+  }
 });
 
-const resolvedVersion = computed(() =>
-  versionChoice.value === 'custom'
-    ? customVersion.value.trim()
-    : (selectedPlatform.value?.latestVersion ?? ''),
-);
-
-function onNameInput(): void {
-  nameTouched.value = true;
-}
-
-function onVersionChoiceChange(event: Event): void {
-  versionChoice.value = (event.target as HTMLSelectElement).value as 'latest' | 'custom';
-}
-
-watch(selectedPlatformId, () => {
-  versionChoice.value = 'latest';
-  customVersion.value = '';
+const canGoNext = computed(() => {
+  switch (currentStep.value) {
+    case 1:
+      return licenseAgreed.value;
+    case 2:
+      return (
+        draftStore.fieldErrors.instanceName === '' &&
+        draftStore.fieldErrors.botQQ === '' &&
+        draftStore.fieldErrors.ownerQQ === ''
+      );
+    case 3:
+      return draftStore.fieldErrors.apiKey === '';
+    case 4:
+      return draftStore.fieldErrors.wsPort === '';
+    case 5:
+      return draftStore.fieldErrors.webuiKey === '';
+    case 6:
+      return draftStore.fieldErrors.targetDir === '';
+    case 7:
+      return draftStore.allValid;
+    default:
+      return false;
+  }
 });
-
-// ---- Step 3: install location ----
-const targetDir = ref('');
-const targetDirTouched = ref(false);
-
-watch(
-  [instanceName, () => settingsStore.settings.defaultInstallDir],
-  () => {
-    if (targetDirTouched.value) return;
-    const base = settingsStore.settings.defaultInstallDir;
-    const name = instanceName.value.trim();
-    if (!base || !name) return;
-    const sep = base.endsWith('\\') || base.endsWith('/') ? '' : base.includes('\\') ? '\\' : '/';
-    targetDir.value = `${base}${sep}${name}`;
-  },
-  { immediate: true },
-);
-
-function onTargetDirInput(): void {
-  targetDirTouched.value = true;
-}
-
-async function chooseTargetDir(): Promise<void> {
-  const selected = await mofoxApi.pickDirectory({
-    title: '选择安装目录',
-    defaultPath: targetDir.value || settingsStore.settings.defaultInstallDir || undefined,
-  });
-  if (!selected) return;
-  targetDir.value = selected;
-  targetDirTouched.value = true;
-}
-
-// ---- Step validation & navigation ----
-// 每一步独立校验，导航只能前进到已满足条件的下一步。
-const stepValid = computed<Record<number, boolean>>(() => ({
-  1: selectedPlatformId.value !== null,
-  2: nameError.value === '' && resolvedVersion.value !== '',
-  3: targetDir.value.trim() !== '',
-  4: true,
-  5: true,
-}));
-
-const canGoNext = computed(() => stepValid.value[currentStep.value] ?? false);
 
 function goNext(): void {
-  if (!canGoNext.value || currentStep.value >= 4) return;
+  if (!canGoNext.value) return;
+  if (currentStep.value === STEPS.length - 1) {
+    void startInstall();
+    return;
+  }
   stepDirection.value = 'forward';
   currentStep.value += 1;
 }
 
 function goPrev(): void {
-  if (currentStep.value <= 1) return;
+  if (currentStep.value <= 1 || currentStep.value >= STEPS.length) return;
   stepDirection.value = 'backward';
   currentStep.value -= 1;
 }
 
 function goToStep(step: number): void {
-  if (step >= currentStep.value || currentStep.value >= 5) return;
+  if (step >= currentStep.value || currentStep.value >= STEPS.length) return;
   stepDirection.value = 'backward';
   currentStep.value = step;
 }
 
-// ---- Step 4/5: confirm & execute ----
-const progress = computed(() => installStore.progress);
-const progressPercent = computed(() => {
-  const p = progress.value;
-  if (!p || p.progress < 0) return 0;
-  return Math.round(p.progress * 100);
-});
-const isIndeterminate = computed(() => !progress.value || progress.value.progress < 0);
-
-const logPanelOpen = ref(true);
-const logPanelRef = ref<HTMLDivElement | null>(null);
-
-watch(
-  () => installStore.logLines.length,
-  async () => {
-    await nextTick();
-    const el = logPanelRef.value;
-    if (el) el.scrollTop = el.scrollHeight;
-  },
-);
-
 async function startInstall(): Promise<void> {
-  // 从已确认字段构造不可变安装请求，再切换到后台执行步骤；镜像源由安装器内部自动轮询。
-  const request: InstallRequest = {
-    instanceName: instanceName.value.trim(),
-    platformId: selectedPlatformId.value ?? '',
-    version: resolvedVersion.value,
-    targetDir: targetDir.value.trim(),
-  };
+  const request: InstallRequest = { ...draftStore.draft };
   stepDirection.value = 'forward';
-  currentStep.value = 5;
+  currentStep.value = STEPS.length;
   await installStore.begin(request);
-}
-
-async function retryInstall(): Promise<void> {
-  await installStore.retry();
 }
 
 async function cancelInstall(): Promise<void> {
@@ -184,32 +103,22 @@ async function cancelInstall(): Promise<void> {
   emit('close');
 }
 
+function leave(): void {
+  emit('close');
+}
+
 function goToInstances(): void {
   emit('complete');
 }
-
-onMounted(async () => {
-  // 恢复后台安装时直接回到执行页，并异步加载平台数据。
-  if (installStore.isInstalling) {
-    currentStep.value = 5;
-  }
-  platformsLoading.value = true;
-  try {
-    platforms.value = await mofoxApi.listBotPlatforms();
-  } finally {
-    platformsLoading.value = false;
-  }
-});
 </script>
 
 <template>
   <div class="wizard">
-    <!-- 左侧步骤导航与右侧动态内容面板 -->
     <aside class="wizard__rail">
       <ol class="stepper">
         <li
-          v-for="(title, idx) in STEP_TITLES"
-          :key="title"
+          v-for="(step, idx) in STEPS"
+          :key="step.id"
           class="stepper__item"
           :class="{
             'stepper__item--done': idx + 1 < currentStep,
@@ -225,255 +134,78 @@ onMounted(async () => {
             <span v-if="idx + 1 < currentStep" class="msr msr--fill" aria-hidden="true">check</span>
             <span v-else>{{ idx + 1 }}</span>
           </button>
-          <span class="stepper__title">{{ title }}</span>
-          <span v-if="idx < STEP_TITLES.length - 1" class="stepper__line"></span>
+          <span class="stepper__title">{{ step.title }}</span>
+          <span v-if="idx < STEPS.length - 1" class="stepper__line"></span>
         </li>
       </ol>
+
+      <!-- 返回/取消按钮固定在侧栏左下角，每个步骤都可停止安装并返回主菜单 -->
+      <div class="wizard__rail-back">
+        <button
+          v-if="currentStep === 1"
+          type="button"
+          class="btn btn--tonal state-layer"
+          @click="cancelInstall"
+        >
+          取消
+        </button>
+        <template v-else>
+          <button type="button" class="btn btn--text state-layer" @click="cancelInstall">
+            取消
+          </button>
+          <button
+            v-if="currentStep < STEPS.length"
+            type="button"
+            class="btn btn--tonal state-layer"
+            :disabled="installStore.isInstalling"
+            @click="goPrev"
+          >
+            上一步
+          </button>
+        </template>
+      </div>
     </aside>
 
     <div class="wizard__panel">
       <transition :name="`wizard-slide-${stepDirection}`" mode="out-in">
         <div :key="currentStep" class="wizard__content">
-          <!-- 平台、实例信息、目录和镜像配置步骤 -->
-          <section v-if="currentStep === 1" class="step">
-            <h2 class="step__title">选择平台</h2>
-            <p class="step__desc">选择要安装的机器人平台</p>
-
-            <div v-if="platformsLoading" class="step__loading">
-              <span class="spinner" aria-hidden="true"></span>
-              <span>加载平台列表…</span>
-            </div>
-            <div v-else class="platform-grid">
-              <button
-                v-for="p in platforms"
-                :key="p.id"
-                type="button"
-                class="platform-card state-layer"
-                :class="{ 'platform-card--selected': selectedPlatformId === p.id }"
-                @click="selectedPlatformId = p.id"
-              >
-                <span
-                  v-if="selectedPlatformId === p.id"
-                  class="msr msr--fill platform-card__check"
-                  aria-hidden="true"
-                  >check_circle</span
-                >
-                <h3 class="platform-card__name">{{ p.name }}</h3>
-                <p class="platform-card__desc">{{ p.description }}</p>
-                <div class="platform-card__chips">
-                  <span v-for="sys in p.supportedPlatforms" :key="sys" class="chip">{{
-                    platformLabel(sys)
-                  }}</span>
-                </div>
-                <div v-if="p.latestVersion" class="platform-card__version">
-                  最新版本 {{ p.latestVersion }}
-                </div>
-              </button>
-            </div>
-          </section>
-
-          <section v-else-if="currentStep === 2" class="step">
-            <h2 class="step__title">实例信息</h2>
-
-            <label class="field" :class="{ 'field--error': nameTouched && nameError }">
-              <input
-                v-model="instanceName"
-                class="field__input"
-                type="text"
-                placeholder=" "
-                maxlength="32"
-                @input="onNameInput"
-              />
-              <span class="field__label">实例名称</span>
-            </label>
-            <p v-if="nameTouched && nameError" class="field__support field__support--error">
-              {{ nameError }}
-            </p>
-
-            <md-outlined-select
-              class="version-select"
-              label="平台版本"
-              :value="versionChoice"
-              @change="onVersionChoiceChange"
-            >
-              <!-- Material Web Components 使用原生具名插槽，而不是 Vue 模板插槽。 -->
-              <!-- eslint-disable vue/no-deprecated-slot-attribute -->
-              <md-select-option value="latest" :disabled="!selectedPlatform?.latestVersion">
-                <div slot="headline">
-                  {{
-                    selectedPlatform?.latestVersion
-                      ? `最新版本 ${selectedPlatform.latestVersion}`
-                      : '暂无最新版本'
-                  }}
-                </div>
-              </md-select-option>
-              <md-select-option value="custom">
-                <div slot="headline">自定义</div>
-              </md-select-option>
-              <!-- eslint-enable vue/no-deprecated-slot-attribute -->
-            </md-outlined-select>
-
-            <label v-if="versionChoice === 'custom'" class="field">
-              <input v-model="customVersion" class="field__input" type="text" placeholder=" " />
-              <span class="field__label">自定义平台版本</span>
-            </label>
-          </section>
-
-          <section v-else-if="currentStep === 3" class="step">
-            <h2 class="step__title">安装位置</h2>
-
-            <div class="dir-row">
-              <label class="field field--grow">
-                <input
-                  v-model="targetDir"
-                  class="field__input"
-                  type="text"
-                  placeholder=" "
-                  @input="onTargetDirInput"
-                />
-                <span class="field__label">目标目录</span>
-              </label>
-              <button type="button" class="btn btn--tonal state-layer" @click="chooseTargetDir">
-                <span class="msr" aria-hidden="true">folder_open</span>
-                浏览
-              </button>
-            </div>
-
-            <div class="info-banner">
-              <span class="msr info-banner__icon" aria-hidden="true">info</span>
-              <span>安装先在临时目录完成，成功后原子移动到该目录。</span>
-            </div>
-          </section>
-
-          <!-- 安装请求确认摘要 -->
-          <section v-else-if="currentStep === 4" class="step">
-            <h2 class="step__title">确认摘要</h2>
-
-            <dl class="summary">
-              <div class="summary__row">
-                <dt>平台</dt>
-                <dd>{{ selectedPlatform?.name ?? '-' }}</dd>
-              </div>
-              <div class="summary__row">
-                <dt>实例名称</dt>
-                <dd>{{ instanceName || '-' }}</dd>
-              </div>
-              <div class="summary__row">
-                <dt>平台版本</dt>
-                <dd>{{ resolvedVersion || '-' }}</dd>
-              </div>
-              <div class="summary__row">
-                <dt>安装目录</dt>
-                <dd>{{ targetDir || '-' }}</dd>
-              </div>
-            </dl>
-
-            <button
-              type="button"
-              class="btn btn--filled btn--large state-layer"
-              @click="startInstall"
-            >
-              <span class="msr" aria-hidden="true">rocket_launch</span>
-              开始安装
-            </button>
-          </section>
-
-          <!-- 后台安装进度、日志和结果操作 -->
-          <section v-else class="step step--execute">
-            <h2 class="step__title">正在安装{{ instanceName ? ` ${instanceName}` : '' }}</h2>
-            <p class="step__step-label">
-              第 {{ (progress?.stepIndex ?? 0) + 1 }} / {{ progress?.stepCount ?? 6 }} 步 ·
-              {{ progress ? STEP_LABELS[progress.step] : '准备' }}
-            </p>
-
-            <div class="progress-track">
-              <div
-                class="progress-track__bar"
-                :class="{ 'progress-track__bar--indeterminate': isIndeterminate }"
-                :style="
-                  isIndeterminate ? undefined : { transform: `scaleX(${progressPercent / 100})` }
-                "
-              ></div>
-            </div>
-
-            <div class="log-panel">
-              <button
-                type="button"
-                class="log-panel__toggle state-layer"
-                @click="logPanelOpen = !logPanelOpen"
-              >
-                <span class="msr" aria-hidden="true">{{
-                  logPanelOpen ? 'expand_less' : 'expand_more'
-                }}</span>
-                安装日志
-              </button>
-              <Transition name="log-reveal">
-                <div v-show="logPanelOpen" class="log-panel__reveal">
-                  <div ref="logPanelRef" class="log-panel__body">
-                    <p
-                      v-for="(line, idx) in installStore.logLines"
-                      :key="idx"
-                      class="log-panel__line"
-                    >
-                      {{ line }}
-                    </p>
-                  </div>
-                </div>
-              </Transition>
-            </div>
-
-            <Transition name="execute-result">
-              <div
-                v-if="installStore.isFailed || installStore.isDone"
-                :key="installStore.isFailed ? 'failed' : 'done'"
-                class="execute-actions"
-              >
-                <template v-if="installStore.isFailed">
-                  <button type="button" class="btn btn--text state-layer" @click="cancelInstall">
-                    取消
-                  </button>
-                  <button type="button" class="btn btn--filled state-layer" @click="retryInstall">
-                    重试
-                  </button>
-                </template>
-                <template v-else>
-                  <span class="msr msr--fill execute-actions__done-icon" aria-hidden="true"
-                    >check_circle</span
-                  >
-                  <button type="button" class="btn btn--filled state-layer" @click="goToInstances">
-                    查看实例
-                  </button>
-                </template>
-              </div>
-            </Transition>
-            <div v-if="!installStore.isFailed && !installStore.isDone" class="execute-actions">
-              <button type="button" class="btn btn--text state-layer" @click="cancelInstall">
-                取消安装
-              </button>
-            </div>
-          </section>
+          <InstallLicenseStep v-if="currentStep === 1" v-model:agreed="licenseAgreed" />
+          <InstallInstanceStep v-else-if="currentStep === 2" />
+          <InstallApiKeyStep v-else-if="currentStep === 3" />
+          <InstallPlatformStep v-else-if="currentStep === 4" />
+          <InstallWebuiStep v-else-if="currentStep === 5" />
+          <InstallLocationStep v-else-if="currentStep === 6" />
+          <InstallSummaryStep v-else-if="currentStep === 7" />
+          <InstallExecuteStep
+            v-else
+            :instance-name="draftStore.draft.instanceName"
+            @close="leave"
+            @finish="goToInstances"
+          />
         </div>
       </transition>
 
-      <!-- 非执行步骤的前进与回退控制 -->
-      <div v-if="currentStep < 5" class="wizard__nav">
+      <!-- 前进/开始安装按钮固定在面板右下角 -->
+      <div v-if="currentStep < STEPS.length" class="wizard__nav">
+        <span class="wizard__nav-spacer"></span>
         <button
-          v-if="currentStep > 1"
-          type="button"
-          class="btn btn--text state-layer"
-          @click="goPrev"
-        >
-          上一步
-        </button>
-        <div class="wizard__nav-spacer"></div>
-        <button
-          v-if="currentStep < 4"
+          v-if="currentStep < STEPS.length - 1"
           type="button"
           class="btn btn--filled state-layer"
           :disabled="!canGoNext"
           @click="goNext"
         >
           下一步
+        </button>
+        <button
+          v-else-if="currentStep === STEPS.length - 1"
+          type="button"
+          class="btn btn--filled state-layer btn--large"
+          :disabled="!canGoNext"
+          @click="goNext"
+        >
+          <span class="msr" aria-hidden="true">rocket_launch</span>
+          开始安装
         </button>
       </div>
     </div>
@@ -487,22 +219,34 @@ onMounted(async () => {
   min-height: 0;
 }
 
-/* 左侧纵向步骤导航 */
 .wizard__rail {
   width: 260px;
   flex: 0 0 260px;
-  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 40px 24px 28px;
   border-right: 1px solid var(--app-glass-border);
   background: var(--app-subrail-surface);
   backdrop-filter: var(--app-subrail-filter);
   -webkit-backdrop-filter: var(--app-subrail-filter);
-  overflow-y: auto;
 }
 
 .stepper {
   list-style: none;
   margin: 0;
   padding: 0;
+  overflow-y: auto;
+}
+
+/* 返回/取消按钮固定在侧栏左下角 */
+.wizard__rail-back {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 24px;
 }
 
 .stepper__item {
@@ -575,7 +319,6 @@ onMounted(async () => {
   background: var(--md-sys-color-primary);
 }
 
-/* 右侧内容面板与通用步骤文本 */
 .wizard__panel {
   flex: 1;
   min-width: 0;
@@ -588,421 +331,22 @@ onMounted(async () => {
   overflow: hidden;
 }
 
+/* 步骤内容水平居中，按钮固定在面板底部（右下角） */
 .wizard__content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  max-width: 560px;
+  width: min(100%, 560px);
+  margin: 0 auto;
 }
 
-.step__title {
-  font: var(--md-sys-typescale-headline-small);
-  margin: 0 0 4px;
-}
-
-.step__desc {
-  font: var(--md-sys-typescale-body-medium);
-  color: var(--md-sys-color-on-surface-variant);
-  margin: 0 0 24px;
-}
-
-.step__loading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-medium);
-}
-
-/* 平台选择卡片 */
-.platform-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.platform-card {
-  position: relative;
-  text-align: left;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-low);
-  color: var(--md-sys-color-on-surface);
-  padding: 20px;
-  cursor: pointer;
-  transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.platform-card--selected {
-  background: var(--md-sys-color-secondary-container);
-  border-color: var(--md-sys-color-primary);
-}
-
-.platform-card__check {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  color: var(--md-sys-color-primary);
-}
-
-.platform-card__name {
-  font: var(--md-sys-typescale-title-medium);
-  margin: 0 0 4px;
-}
-
-.platform-card__desc {
-  font: var(--md-sys-typescale-body-medium);
-  color: var(--md-sys-color-on-surface-variant);
-  margin: 0 0 12px;
-}
-
-.platform-card__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.chip {
-  font: var(--md-sys-typescale-label-medium);
-  padding: 4px 10px;
-  border-radius: var(--md-sys-shape-corner-full);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.platform-card__version {
-  font: var(--md-sys-typescale-label-medium);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-/* 浮动标签输入框与校验提示 */
-.field {
-  position: relative;
-  display: block;
-  height: 56px;
-  margin-bottom: 20px;
-}
-
-.field--grow {
-  flex: 1;
-  margin-bottom: 0;
-}
-
-.field__input {
-  width: 100%;
-  height: 100%;
-  padding: 20px 16px 6px;
-  border-radius: var(--md-sys-shape-corner-small);
-  border: 1px solid var(--md-sys-color-outline);
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-large);
-  outline: none;
-  transition: border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.field__input:focus {
-  border: 2px solid var(--md-sys-color-primary);
-  padding: 19px 15px 5px;
-}
-
-.version-select {
-  display: block;
-  width: 100%;
-  margin-bottom: 20px;
-}
-
-.field__label {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  font: var(--md-sys-typescale-body-large);
-  color: var(--md-sys-color-on-surface-variant);
-  background: var(--md-sys-color-surface);
-  padding: 0 4px;
-  pointer-events: none;
-  transition:
-    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 200ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.field__input:focus + .field__label,
-.field__input:not(:placeholder-shown) + .field__label {
-  transform: translateY(calc(-50% - 28px)) scale(0.85);
-}
-
-.field__input:focus + .field__label {
-  color: var(--md-sys-color-primary);
-}
-
-.field--error .field__input {
-  border-color: var(--md-sys-color-error);
-}
-
-.field--error .field__label {
-  color: var(--md-sys-color-error);
-}
-
-.field__support {
-  margin: -14px 0 20px 16px;
-  font: var(--md-sys-typescale-body-small);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.field__support--error {
-  color: var(--md-sys-color-error);
-}
-
-/* 安装目录与说明横幅 */
-.dir-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.info-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  border-radius: var(--md-sys-shape-corner-medium);
-  background: var(--md-sys-color-surface-container-high);
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-medium);
-}
-
-.info-banner__icon {
-  color: var(--md-sys-color-primary);
-  font-size: 20px;
-}
-
-/* 安装请求确认摘要 */
-.summary {
-  margin: 0 0 32px;
-}
-
-.summary__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.summary__row dt {
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-medium);
-}
-
-.summary__row dd {
-  margin: 0;
-  font: var(--md-sys-typescale-title-small);
-  text-align: right;
-}
-
-/* 执行进度、实时日志和结果操作 */
-.step--execute .step__title {
-  margin-bottom: 4px;
-}
-
-.step__step-label {
-  font: var(--md-sys-typescale-body-medium);
-  color: var(--md-sys-color-on-surface-variant);
-  margin: 0 0 20px;
-}
-
-.progress-track {
-  height: 4px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-highest);
-  overflow: hidden;
-  position: relative;
-  margin-bottom: 24px;
-}
-
-.progress-track__bar {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-primary);
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
-}
-
-.progress-track__bar--indeterminate {
-  width: 40%;
-  position: absolute;
-  transform: translateX(-100%);
-  transform-origin: center;
-  animation: progress-indeterminate 1.4s linear infinite;
-  transition: none;
-}
-
-@keyframes progress-indeterminate {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(250%);
-  }
-}
-
-.log-panel {
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-medium);
-  overflow: hidden;
-  margin-bottom: 24px;
-}
-
-.log-panel__toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border: none;
-  background: var(--md-sys-color-surface-container-high);
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-label-large);
-  cursor: pointer;
-}
-
-.log-panel__reveal {
-  display: grid;
-  grid-template-rows: 1fr;
-  clip-path: inset(0 0 0 0);
-  opacity: 1;
-}
-
-.log-reveal-enter-active,
-.log-reveal-leave-active {
-  transition:
-    grid-template-rows var(--md-sys-motion-duration-short4)
-      var(--md-sys-motion-easing-emphasized-decelerate),
-    clip-path var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate),
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate);
-}
-
-.log-reveal-enter-from,
-.log-reveal-leave-to {
-  grid-template-rows: 0fr;
-  clip-path: inset(0 0 100% 0);
-  opacity: 0;
-}
-
-.log-panel__body {
-  min-height: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  background: var(--md-sys-color-surface-container-highest);
-  padding: 12px 16px;
-}
-
-.log-panel__line {
-  margin: 0 0 4px;
-  font-family: var(--md-ref-typeface-mono);
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.execute-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.execute-actions__done-icon {
-  color: var(--md-sys-color-tertiary);
-  font-size: 28px;
-}
-
-.execute-result-enter-active {
-  transition:
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate);
-}
-
-.execute-result-enter-from {
-  opacity: 0;
-  transform: scale(0.97);
-}
-
-/* 向导操作按钮与加载指示器 */
-.btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 24px;
-  border: none;
-  border-radius: var(--md-sys-shape-corner-full);
-  font: var(--md-sys-typescale-label-large);
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.btn:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-.btn--filled {
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-}
-
-.btn--tonal {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-}
-
-.btn--text {
-  background: transparent;
-  color: var(--md-sys-color-primary);
-  padding: 0 12px;
-}
-
-.btn--large {
-  height: 56px;
-  padding: 0 32px;
-  font: var(--md-sys-typescale-title-medium);
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--md-sys-shape-corner-full);
-  border: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
-  border-top-color: var(--md-sys-color-primary);
-  animation: spinner-spin 0.8s linear infinite;
-}
-
-.spinner--small {
-  width: 14px;
-  height: 14px;
-  border-width: 2px;
-}
-
-@keyframes spinner-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* 向导底部导航与步骤切换动画 */
 .wizard__nav {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
   padding-top: 24px;
-  max-width: 560px;
 }
 
 .wizard__nav-spacer {
@@ -1031,28 +375,6 @@ onMounted(async () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .field__label {
-    transition: color 200ms cubic-bezier(0.23, 1, 0.32, 1);
-  }
-
-  .log-reveal-enter-active,
-  .log-reveal-leave-active,
-  .execute-result-enter-active {
-    transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-  }
-
-  .log-reveal-enter-from,
-  .log-reveal-leave-to {
-    grid-template-rows: 1fr;
-    clip-path: none;
-  }
-
-  .execute-result-enter-from {
-    transform: none;
-  }
-
-  .wizard-slide-enter-active,
-  .wizard-slide-leave-active,
   .wizard-slide-forward-enter-active,
   .wizard-slide-forward-leave-active,
   .wizard-slide-backward-enter-active,
@@ -1060,21 +382,10 @@ onMounted(async () => {
     transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
 
-  .wizard-slide-enter-from,
-  .wizard-slide-leave-to,
   .wizard-slide-forward-enter-from,
   .wizard-slide-forward-leave-to,
   .wizard-slide-backward-enter-from,
   .wizard-slide-backward-leave-to {
-    transform: none;
-  }
-
-  .spinner,
-  .progress-track__bar--indeterminate {
-    animation: none;
-  }
-
-  .progress-track__bar--indeterminate {
     transform: none;
   }
 }
@@ -1087,15 +398,28 @@ onMounted(async () => {
   .wizard__rail {
     width: 100%;
     flex: 0 0 auto;
-    padding: 16px 20px;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
     border-right: none;
     border-bottom: 1px solid var(--app-glass-border);
   }
 
   .stepper {
+    flex: 1;
+    min-width: 0;
     display: flex;
     overflow-x: auto;
     gap: 16px;
+  }
+
+  .wizard__rail-back {
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding-top: 0;
+    padding-left: 12px;
+    border-left: 1px solid var(--app-glass-border);
   }
 
   .stepper__item {
@@ -1114,14 +438,6 @@ onMounted(async () => {
 
   .wizard__panel {
     padding: 24px 20px;
-  }
-
-  .dir-row {
-    flex-direction: column;
-  }
-
-  .dir-row .btn {
-    align-self: flex-end;
   }
 }
 </style>

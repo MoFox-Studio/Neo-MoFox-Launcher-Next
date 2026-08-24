@@ -1,18 +1,50 @@
-/** 安装流水线的固定步骤，`stepIndex` 按此顺序对应。 */
+/** 安装流水线可能执行的固定任务；未选择平台或 WebUI 时对应步骤会跳过。 */
 export type InstallStepId =
-  'prepare' | 'download' | 'extract' | 'dependencies' | 'configure' | 'finalize';
+  'install-mofox' | 'install-platform' | 'install-webui' | 'configure' | 'finalize';
 
 /** 可由安装任务发出的终态或进行中状态。 */
 export type InstallTaskStatus = 'pending' | 'running' | 'failed' | 'cancelled' | 'done';
 
-/** 发起安装任务所需的用户选择和目标路径。 */
+/** MoFox 本体仓库的跟踪分支；`main` 为稳定版，`dev` 为开发版。 */
+export type MofoxBranch = 'main' | 'dev';
+
+/**
+ * 发起安装任务所需的全部用户选择。
+ *
+ * `platformId` 为空字符串表示仅安装 MoFox 本体与可选 WebUI，不安装任何平台适配器。
+ */
 export interface InstallRequest {
   instanceName: string;
+  /** 平台适配器 ID（`napcat`/`snowluma`）；空字符串表示不安装平台。 */
   platformId: string;
-  /** 要安装的平台适配器版本。 */
-  version: string;
-  /** 平台适配器的最终安装目录绝对路径；安装完成后写入 `platforms[platformId].installDir`。 */
+  /** MoFox 本体仓库的跟踪分支。 */
+  mofoxBranch: MofoxBranch;
+  /** MoFox OneBot 服务监听端口，也是平台 WS 客户端要连接的目标端口。 */
+  wsPort: number;
+  /** 机器人账号 QQ 号；平台 WS 端点按此 QQ 号写入平台配置。 */
+  botQQ: string;
+  /** 具有管理权限的主人 QQ 号，写入 `core.toml` 的 `owner_list`。 */
+  ownerQQ: string;
+  /** 大语言模型 API 密钥，写入 `model.toml`。 */
+  apiKey: string;
+  /** 是否安装 WebUI 插件（`neo-mofox-webui`）。 */
+  installWebui: boolean;
+  /** WebUI 插件的 HTTP 路由访问密钥；仅在 `installWebui` 为真时写入。 */
+  webuiApiKey: string;
+  /** 实例安装目录绝对路径；安装完成后作为实例根目录。 */
   targetDir: string;
+}
+
+/** 单份协议文档；`source` 为实际命中的镜像源名称。 */
+export interface LicenseDocument {
+  source: string;
+  content: string;
+}
+
+/** 拉取 MoFox 许可协议的结果：最终用户许可协议（EULA）与隐私政策。 */
+export interface LicenseFetchResult {
+  eula: LicenseDocument;
+  privacy: LicenseDocument;
 }
 
 /**

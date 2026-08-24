@@ -9,7 +9,11 @@ import type {
   InstanceStats,
   InstanceStatus,
 } from './domain/instance';
-import type { InstallProgressEvent, InstallRequest } from './domain/install';
+import type {
+  InstallProgressEvent,
+  InstallRequest,
+  LicenseFetchResult,
+} from './domain/install';
 import type {
   ManualImportRequest,
   ManualImportResult,
@@ -54,6 +58,8 @@ export const IPC_INVOKE_CHANNELS = {
   startInstall: 'install:start',
   retryInstall: 'install:retry',
   cancelInstall: 'install:cancel',
+  fetchLicense: 'install:fetch-license',
+  openExternal: 'shell:open-external',
   manualImportInstance: 'instances:manual-import',
   inspectImportPath: 'instances:inspect-import-path',
   inspectPlatformImportPath: 'instances:inspect-platform-import-path',
@@ -129,6 +135,10 @@ export interface MofoxApi {
   startInstall(request: InstallRequest): Promise<string>;
   retryInstall(taskId: string): Promise<void>;
   cancelInstall(taskId: string): Promise<void>;
+  /** 经主进程镜像轮询拉取 Neo-MoFox 许可协议文本。 */
+  fetchLicense(): Promise<LicenseFetchResult>;
+  /** 在系统默认浏览器中打开外部链接（如获取 API Key 的注册页）。 */
+  openExternal(url: string): Promise<void>;
   /** 注册本机已有的 Neo-MoFox 目录，不下载或移动其中的文件。 */
   manualImportInstance(request: ManualImportRequest): Promise<ManualImportResult>;
   /** 探测输入路径的存在性、目录类型与 main.py 标志，供 Neo-MoFox 目录输入时校验。 */

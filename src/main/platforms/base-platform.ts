@@ -3,6 +3,7 @@ import type {
   InstallContext,
   InstallResult,
   PlatformAvailability,
+  PlatformConfigureInput,
   StartCommand,
 } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
@@ -30,11 +31,15 @@ export abstract class BaseBotPlatform implements BotPlatform {
     const platform = process.platform as 'win32' | 'linux' | 'darwin';
     const arch = process.arch === 'x64' || process.arch === 'arm64' ? process.arch : process.arch;
     // 平台实现声明支持矩阵，基础层据当前宿主生成可直接展示给用户的检测结果。
-    const available = this.supportedPlatforms.includes(platform) && this.supportedArch.includes(arch as 'x64' | 'arm64');
+    const available =
+      this.supportedPlatforms.includes(platform) &&
+      this.supportedArch.includes(arch as 'x64' | 'arm64');
     return {
       available,
       reason: available ? undefined : `${this.name} 不支持当前系统 ${platform} ${arch}`,
-      requirements: [{ label: `${this.name} 运行环境`, satisfied: available, detail: `${platform} ${arch}` }],
+      requirements: [
+        { label: `${this.name} 运行环境`, satisfied: available, detail: `${platform} ${arch}` },
+      ],
     };
   }
 
@@ -55,9 +60,14 @@ export abstract class BaseBotPlatform implements BotPlatform {
    *
    * @param _instanceId - 当前实例 ID。
    * @param _platformPath - 平台适配器的安装根目录。
+   * @param _options - 平台安装后配置所需的业务数据（端口、QQ 号、适配器目录等）。
    * @throws {MofoxError} 始终抛出 `UNAVAILABLE`，提示未配置配置器。
    */
-  async configure(_instanceId: string, _platformPath: string): Promise<void> {
+  async configure(
+    _instanceId: string,
+    _platformPath: string,
+    _options: PlatformConfigureInput,
+  ): Promise<void> {
     throw new MofoxError('UNAVAILABLE', `${this.name} 配置器尚未配置`);
   }
 

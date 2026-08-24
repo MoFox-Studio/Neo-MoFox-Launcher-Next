@@ -2,12 +2,13 @@ import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BotPlatform } from '../../../src/shared/domain/bot-platform';
+import type { InstallRequest } from '../../../src/shared/domain/install';
 import type { MirrorSource } from '../../../src/shared/domain/mirror';
+import type { InstallTaskContext } from '../../../src/main/utils/install-tasks';
 import { PlatformRegistry } from '../../../src/main/platforms/registry';
 import { InstallTaskService } from '../../../src/main/services/install-task-service';
 
-/** 覆盖安装提交的原子边界、失败步骤续试，以及 AbortSignal 取消后的临时目录清理。 */
+/** 覆盖流水线编排：临时目录逐级复制、条件步骤、失败重试、取消清理与进度事件。 */
 const temporaryDirectories: string[] = [];
 
 const TEST_MIRRORS: readonly MirrorSource[] = [
@@ -16,9 +17,31 @@ const TEST_MIRRORS: readonly MirrorSource[] = [
 
 const mirrorsProvider = { list: () => [...TEST_MIRRORS] };
 
+// 编排服务会按请求解析平台实例；测试覆盖执行器但未安装真实平台，因此注入最小桩平台。
+const platformStub = {
+  id: 'test',
+  name: 'Test',
+  description: 'Test',
+  supportedPlatforms: ['win32'] as Array<'win32' | 'linux' | 'darwin'>,
+  supportedArch: ['x64'] as Array<'x64' | 'arm64'>,
+  latestVersion: '2.0.0',
+  install: vi.fn(),
+  configure: vi.fn(),
+  update: vi.fn(),
+  getLatestVersion: vi.fn(),
+  getStartCommand: vi.fn(),
+  isAvailable: vi.fn(),
+};
+
+function registry(): PlatformRegistry {
+  return new PlatformRegistry([platformStub]);
+}
+
 afterEach(async () => {
   const { rm } = await import('node:fs/promises');
-  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  await Promise.all(
+    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+  );
 });
 
 describe('InstallTaskService', () => {
@@ -26,93 +49,189 @@ describe('InstallTaskService', () => {
     const root = await createTempRoot();
     const target = join(root, 'installed');
     const repository = { create: vi.fn(async () => undefined) };
-    const platform = createPlatform(async (context) => {
-      const payload = join(context.workDir, 'payload');
-      await mkdir(payload, { recursive: true });
-      await writeFile(join(payload, 'ready.txt'), 'ready');
-      return { version: '2.0.0', installPath: payload };
-    });
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        await mkdir(join(ctx.stageDir, 'mofox', 'config'), { recursive: true });
+        await writeFile(join(ctx.stageDir, 'mofox', 'main.py'), 'main');
+        await writeFile(join(ctx.stageDir, 'mofox', 'config', 'core.toml'), 'core');
+      },
+      'install-platform': async (ctx: InstallTaskContext) => {
+        await mkdir(join(ctx.stageDir, 'platform'), { recursive: true });
+        await writeFile(join(ctx.stageDir, 'platform', 'ready.txt'), 'ready');
+        return { version: '2.0.0' };
+      },
+      'install-webui': async () => undefined,
+      configure: async () => undefined,
+    };
     const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository, mirrors: mirrorsProvider, tempRoot: root }, { progress });
+    const service = new InstallTaskService(
+      registry(),
+      { repository, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { progress },
+    );
 
     const taskId = await service.start(request(target));
     await service.wait(taskId);
 
-    expect(await readFile(join(target, 'ready.txt'), 'utf8')).toBe('ready');
-    // 安装向导只装平台：只传业务字段，mofoxInstallDir 等其余字段由仓库内部补齐。
+    expect(await readFile(join(target, 'mofox', 'main.py'), 'utf8')).toBe('main');
+    expect(await readFile(join(target, 'platform', 'ready.txt'), 'utf8')).toBe('ready');
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         id: taskId,
         name: 'Test',
-        platform: { id: 'test', installDir: target, version: '2.0.0' },
+        mofoxInstallDir: join(target, 'mofox'),
+        platform: { id: 'test', installDir: join(target, 'platform'), version: '2.0.0' },
       }),
     );
-    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done', step: 'finalize' }));
+    expect(progress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'done', step: 'finalize' }),
+    );
   });
 
-  it('retries the failed configure step without downloading again', async () => {
+  it('copies the working folder between steps so each executor starts from a fresh snapshot', async () => {
     const root = await createTempRoot();
-    const install = vi.fn(async (context) => {
-      const payload = join(context.workDir, 'payload');
-      await mkdir(payload, { recursive: true });
-      await writeFile(join(payload, 'ready.txt'), 'ready');
-      return { version: '2.0.0', installPath: payload };
-    });
-    const platform = createPlatform(install);
-    platform.configure = vi.fn().mockRejectedValueOnce(new Error('config failed')).mockResolvedValue(undefined);
-    const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root }, { progress });
+    const target = join(root, 'installed');
+    const seen = { webuiSawPlatform: false, configureSawMofox: false, configureSawPlatform: false };
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'mofox');
+      },
+      'install-platform': async (ctx: InstallTaskContext) => {
+        await writeFile(join(ctx.stageDir, 'platform.txt'), 'platform');
+      },
+      'install-webui': async (ctx: InstallTaskContext) => {
+        // 上一步（平台）的产物必须已通过复制进入本步骤快照。
+        seen.webuiSawPlatform = await exists(join(ctx.stageDir, 'platform.txt'));
+        await writeFile(join(ctx.stageDir, 'webui.txt'), 'webui');
+      },
+      configure: async (ctx: InstallTaskContext) => {
+        seen.configureSawMofox = await exists(join(ctx.stageDir, 'mofox.txt'));
+        seen.configureSawPlatform = await exists(join(ctx.stageDir, 'platform.txt'));
+        await writeFile(join(ctx.stageDir, 'configured.txt'), 'ok');
+      },
+    };
+    const service = new InstallTaskService(
+      registry(),
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { progress: vi.fn() },
+    );
 
-    const taskId = await service.start(request(join(root, 'installed')));
+    const taskId = await service.start(request(target));
     await service.wait(taskId);
-    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'failed', step: 'configure' }));
+
+    expect(seen.webuiSawPlatform).toBe(true);
+    expect(seen.configureSawMofox).toBe(true);
+    expect(seen.configureSawPlatform).toBe(true);
+  });
+
+  it('skips optional platform and webui steps when not selected', async () => {
+    const root = await createTempRoot();
+    const target = join(root, 'installed');
+    const calls: string[] = [];
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        calls.push('mofox');
+        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
+      },
+      'install-platform': async () => {
+        calls.push('platform');
+      },
+      'install-webui': async () => {
+        calls.push('webui');
+      },
+      configure: async () => {
+        calls.push('configure');
+      },
+    };
+    const service = new InstallTaskService(
+      registry(),
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { progress: vi.fn() },
+    );
+
+    const taskId = await service.start(request(target, { platformId: '', installWebui: false }));
+    await service.wait(taskId);
+
+    expect(calls).toEqual(['mofox', 'configure']);
+  });
+
+  it('retries a failed task from a fresh workspace', async () => {
+    const root = await createTempRoot();
+    const target = join(root, 'installed');
+    let configureCalls = 0;
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
+      },
+      configure: async (ctx: InstallTaskContext) => {
+        configureCalls += 1;
+        if (configureCalls === 1) throw new Error('config failed');
+        await writeFile(join(ctx.stageDir, 'ok.txt'), 'ok');
+      },
+    };
+    const progress = vi.fn();
+    const service = new InstallTaskService(
+      registry(),
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { progress },
+    );
+
+    const taskId = await service.start(request(target, { platformId: '', installWebui: false }));
+    await service.wait(taskId);
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'failed' }));
 
     await service.retry(taskId);
 
-    expect(install).toHaveBeenCalledTimes(1);
-    expect(platform.configure).toHaveBeenCalledTimes(2);
+    expect(configureCalls).toBe(2);
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
   });
 
-  it('aborts an active platform install and removes its temporary directory', async () => {
+  it('aborts an active install and removes its temporary workspace', async () => {
     const root = await createTempRoot();
-    let workDir = '';
-    const platform = createPlatform(async (context) => {
-      workDir = context.workDir;
-      await new Promise<void>((resolve) => context.signal?.addEventListener('abort', () => resolve(), { once: true }));
-      throw new Error('aborted');
-    });
-    const progress = vi.fn();
-    const service = new InstallTaskService(new PlatformRegistry([platform]), { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root }, { progress });
-
-    const taskId = await service.start(request(join(root, 'installed')));
-    await service.cancel(taskId);
-
-    await expect(access(workDir)).rejects.toMatchObject({ code: 'ENOENT' });
-    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'cancelled' }));
-  });
-
-  it('passes the configured mirror list through to the platform install context', async () => {
-    const root = await createTempRoot();
-    let receivedMirrors: readonly MirrorSource[] = [];
-    const platform = createPlatform(async (context) => {
-      receivedMirrors = context.mirrors;
-      const payload = join(context.workDir, 'payload');
-      await mkdir(payload, { recursive: true });
-      await writeFile(join(payload, 'ready.txt'), 'ready');
-      return { version: '2.0.0', installPath: payload };
-    });
+    let stageDir = '';
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        stageDir = ctx.stageDir;
+        await new Promise<void>((resolve) =>
+          ctx.signal.addEventListener('abort', () => resolve(), { once: true }),
+        );
+        throw new Error('aborted');
+      },
+    };
     const progress = vi.fn();
     const service = new InstallTaskService(
-      new PlatformRegistry([platform]),
-      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root },
+      registry(),
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
       { progress },
     );
 
     const taskId = await service.start(request(join(root, 'installed')));
+    await service.cancel(taskId);
+
+    await expect(access(stageDir)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(join(root, 'installed'))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'cancelled' }));
+  });
+
+  it('passes the configured mirror list through to executors', async () => {
+    const root = await createTempRoot();
+    let received: readonly MirrorSource[] = [];
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        received = ctx.mirrors;
+        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
+      },
+    };
+    const service = new InstallTaskService(
+      registry(),
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { progress: vi.fn() },
+    );
+
+    const taskId = await service.start(request(join(root, 'installed')));
     await service.wait(taskId);
 
-    expect(receivedMirrors).toEqual(TEST_MIRRORS);
+    expect(received).toEqual(TEST_MIRRORS);
   });
 });
 
@@ -122,18 +241,27 @@ async function createTempRoot(): Promise<string> {
   return path;
 }
 
-function request(targetDir: string) {
-  return { instanceName: 'Test', platformId: 'test', version: 'latest', targetDir };
+function request(targetDir: string, overrides: Partial<InstallRequest> = {}): InstallRequest {
+  return {
+    instanceName: 'Test',
+    platformId: 'test',
+    mofoxBranch: 'main',
+    wsPort: 8095,
+    botQQ: '12345678901',
+    ownerQQ: '12345678901',
+    apiKey: 'sk-test-1234',
+    installWebui: true,
+    webuiApiKey: 'abcdefgh',
+    targetDir,
+    ...overrides,
+  };
 }
 
-function createPlatform(install: BotPlatform['install']): BotPlatform {
-  return {
-    id: 'test', name: 'Test', description: 'Test', supportedPlatforms: ['win32'], supportedArch: ['x64'], latestVersion: '2.0.0',
-    install,
-    configure: vi.fn(async () => undefined),
-    update: vi.fn(),
-    getLatestVersion: vi.fn(async () => '2.0.0'),
-    getStartCommand: vi.fn(),
-    isAvailable: vi.fn(),
-  };
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }

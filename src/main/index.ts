@@ -9,6 +9,7 @@ import { registerInstallIpc } from './ipc/install';
 import { registerMigrationIpc } from './ipc/migration';
 import { registerManualImportIpc } from './ipc/manual-import';
 import { registerOobeIpc } from './ipc/oobe';
+import { registerShellIpc } from './ipc/shell';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
@@ -240,6 +241,11 @@ if (!hasSingleInstanceLock) {
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
     registerInstallIpc(ipcMain, installTasks);
+    registerShellIpc(ipcMain, {
+      openExternal: async (url) => {
+        await shell.openExternal(url);
+      },
+    });
     registerManualImportIpc(ipcMain, new ManualImportService(instances, platforms));
     // 旧启动器迁移：默认指向与当前 userData 同级的 Neo-MoFox-Launcher 目录。
     const legacyDataDir = resolveLegacyLauncherDataDir({

@@ -57,9 +57,23 @@ export interface PlatformInstaller {
   install(context: InstallContext): Promise<InstallResult>;
 }
 
+/** 平台安装后配置所需的业务数据；由安装配置任务在调用平台 `configure` 时注入。 */
+export interface PlatformConfigureInput {
+  /** MoFox OneBot 服务监听端口；平台 WS 客户端与适配器配置都要与此一致。 */
+  wsPort: number;
+  /** 机器人账号 QQ 号；平台 WS 端点按此 QQ 号写入平台配置。 */
+  botQQ: string;
+  /** MoFox 的 config 目录绝对路径，供平台写入 OneBot 适配器配置。 */
+  mofoxConfigDir: string;
+}
+
 /** 安装完成后写入实例专属配置的能力契约。 */
 export interface PlatformConfig {
-  configure(instanceId: string, platformPath: string): Promise<void>;
+  configure(
+    instanceId: string,
+    platformPath: string,
+    options: PlatformConfigureInput,
+  ): Promise<void>;
 }
 
 /** 查询版本与执行更新的能力契约。 */

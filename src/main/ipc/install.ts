@@ -1,4 +1,4 @@
-import type { InstallRequest } from '../../shared/domain/install';
+import type { InstallRequest, LicenseFetchResult } from '../../shared/domain/install';
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
@@ -7,6 +7,7 @@ interface InstallActions {
   start(request: InstallRequest): Promise<string>;
   retry(taskId: string): Promise<void>;
   cancel(taskId: string): Promise<void>;
+  fetchLicense(): Promise<LicenseFetchResult>;
 }
 
 interface IpcMainRegistrar {
@@ -29,6 +30,7 @@ export function registerInstallIpc(ipcMain: IpcMainRegistrar, actions: InstallAc
   register(ipcMain, IPC_INVOKE_CHANNELS.cancelInstall, (taskId) =>
     actions.cancel(requireId(taskId)),
   );
+  register(ipcMain, IPC_INVOKE_CHANNELS.fetchLicense, () => actions.fetchLicense());
 }
 
 /**
@@ -48,7 +50,13 @@ function requireRequest(value: unknown): InstallRequest {
   if (
     typeof request.instanceName !== 'string' ||
     typeof request.platformId !== 'string' ||
-    typeof request.version !== 'string' ||
+    typeof request.mofoxBranch !== 'string' ||
+    typeof request.wsPort !== 'number' ||
+    typeof request.botQQ !== 'string' ||
+    typeof request.ownerQQ !== 'string' ||
+    typeof request.apiKey !== 'string' ||
+    typeof request.installWebui !== 'boolean' ||
+    typeof request.webuiApiKey !== 'string' ||
     typeof request.targetDir !== 'string'
   ) {
     throw new MofoxError('INVALID_ARGUMENT', 'Install request fields are invalid');

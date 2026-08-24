@@ -237,16 +237,15 @@ export const mockApi: MofoxApi = {
     const taskId = `task-${Date.now()}`;
     void (async () => {
       const steps = [
-        'prepare',
-        'download',
-        'extract',
-        'dependencies',
+        'install-mofox',
+        'install-platform',
+        'install-webui',
         'configure',
         'finalize',
       ] as const;
       for (let s = 0; s < steps.length; s += 1) {
         for (let p = 0; p <= 10; p += 1) {
-          await delay(steps[s] === 'download' ? 260 : 90);
+          await delay(steps[s] === 'install-mofox' ? 260 : 90);
           emit('install-progress', {
             taskId,
             instanceName: request.instanceName,
@@ -272,8 +271,10 @@ export const mockApi: MofoxApi = {
       instances.push({
         id: `ins-${Date.now()}`,
         name: request.instanceName,
-        mofoxInstallDir: '',
-        platform: { id: request.platformId, installDir: request.targetDir, version: request.version },
+        mofoxInstallDir: `${request.targetDir}/mofox`,
+        platform: request.platformId
+          ? { id: request.platformId, installDir: `${request.targetDir}/platform`, version: null }
+          : { id: null, installDir: null, version: null },
         status: 'stopped',
         createdAt: Date.now(),
         lastStartedAt: null,
@@ -284,6 +285,22 @@ export const mockApi: MofoxApi = {
   },
   async retryInstall() {},
   async cancelInstall() {},
+  async fetchLicense() {
+    await delay(200);
+    return {
+      eula: {
+        source: 'GitHub',
+        content:
+          '# Neo-MoFox 最终用户许可协议（EULA）\n\n这是演示构建返回的模拟许可协议文本。\n\n请仔细阅读后勾选同意。',
+      },
+      privacy: {
+        source: 'GitHub',
+        content:
+          '# Neo-MoFox 隐私政策\n\n这是演示构建返回的模拟隐私政策文本。\n\n我们尊重并保护你的数据。',
+      },
+    };
+  },
+  async openExternal() {},
   async manualImportInstance(request) {
     await delay(160);
     const instanceId = `ins-${Date.now()}`;

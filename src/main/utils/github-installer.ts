@@ -6,8 +6,9 @@ import extractZip from 'extract-zip';
 import type { InstallContext, InstallResult } from '../../shared/domain/bot-platform';
 import type { MirrorSource } from '../../shared/domain/mirror';
 import { MofoxError } from '../../shared/domain/error';
-import { downloadRange } from '../utils/range-downloader';
-import { runOneShot } from '../utils/process-service';
+import { downloadRange } from './range-downloader';
+import { runOneShot } from './process-service';
+import { resolveGithubUrl, tryEachGithubMirror } from './mirror';
 
 // GitHub Release 安装流水线的最小元数据结构，仅保留选择资产与校验所需字段。
 interface ReleaseAsset {
@@ -40,10 +41,7 @@ export async function installGithubRelease(
   selectAsset: (release: Release) => ReleaseAsset | undefined,
   isRoot: (path: string) => Promise<boolean>,
 ): Promise<InstallResult> {
-  // 发行版查询、资产选择、下载校验、解压和根目录确认依次完成；各镜像在每一步按序轮询。
-  // GitHub 流水线只消费 github 类镜像，python-ftp 类镜像留给后续依赖安装阶段使用。
-  const githubMirrors = mirrors.filter((mirror) => mirror.type === 'github');
-  const release = await fetchRelease(githubMirrors, repository, context.signal);
+  const release = await fetchRelease(mirrors, repository, context.signal);
   const asset = selectAsset(release);
   if (!asset)
     throw new MofoxError('UNAVAILABLE', `发行版 ${release.tag_name} 没有适合当前系统的完整包`);
@@ -51,7 +49,7 @@ export async function installGithubRelease(
   const archive = join(context.workDir, basename(asset.name));
   const payload = join(context.workDir, 'payload');
   await mkdir(payload, { recursive: true });
-  await downloadAsset(githubMirrors, asset, archive, context.signal);
+  await downloadAsset(mirrors, asset, archive, context.signal);
   if (asset.digest?.startsWith('sha256:')) {
     // 仅在发布元数据提供 SHA-256 时校验，失败时不允许进入解压阶段。
     const actual = await sha256(archive);
@@ -81,6 +79,29 @@ export async function installGithubRelease(
 }
 
 /**
+ * 仅下载指定仓库发行版中的某个资产，不执行解压。
+ *
+ * 供需要保留原始文件（如 `.mfp` 插件包）的场景复用同一套镜像轮询逻辑。
+ *
+ * @param options - 镜像、仓库、资产选择回调、目标路径与取消信号。
+ * @returns 命中的资产名与发行版版本号。
+ */
+export async function downloadReleaseAsset(options: {
+  mirrors: readonly MirrorSource[];
+  repository: string;
+  selectAsset: (release: Release) => ReleaseAsset | undefined;
+  destination: string;
+  signal?: AbortSignal;
+}): Promise<{ assetName: string; version: string }> {
+  const { mirrors, repository, selectAsset, destination, signal } = options;
+  const release = await fetchRelease(mirrors, repository, signal);
+  const asset = selectAsset(release);
+  if (!asset) throw new MofoxError('UNAVAILABLE', `发行版 ${release.tag_name} 没有匹配的资产`);
+  await downloadAsset(mirrors, asset, destination, signal);
+  return { assetName: asset.name, version: release.tag_name };
+}
+
+/**
  * 顺序尝试每个镜像获取 GitHub 发行版元数据，首个成功即采用。
  *
  * @param mirrors - 仅消费 `github` 类型的镜像列表。
@@ -94,11 +115,11 @@ async function fetchRelease(
   repository: string,
   signal?: AbortSignal,
 ): Promise<Release> {
-  if (mirrors.length === 0) throw new MofoxError('UNAVAILABLE', '未配置任何镜像源');
-  let lastError: unknown;
-  for (const mirror of mirrors) {
-    try {
-      const url = resolveProxiedUrl(
+  return tryEachGithubMirror(
+    mirrors,
+    signal,
+    async (mirror) => {
+      const url = resolveGithubUrl(
         mirror,
         `https://api.github.com/repos/${repository}/releases/latest`,
       );
@@ -109,14 +130,9 @@ async function fetchRelease(
       if (!response.ok)
         throw new MofoxError('IO_ERROR', `GitHub release 请求失败: HTTP ${response.status}`);
       return (await response.json()) as Release;
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      lastError = error;
-    }
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new MofoxError('UNAVAILABLE', `所有镜像均无法获取 ${repository} 发行版信息`);
+    },
+    `所有镜像均无法获取 ${repository} 发行版信息`,
+  );
 }
 
 /**
@@ -134,35 +150,49 @@ async function downloadAsset(
   destination: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  if (mirrors.length === 0) throw new MofoxError('UNAVAILABLE', '未配置任何镜像源');
-  let lastError: unknown;
-  for (const mirror of mirrors) {
-    try {
-      const url = resolveProxiedUrl(mirror, asset.browser_download_url);
+  return tryEachGithubMirror(
+    mirrors,
+    signal,
+    async (mirror) => {
+      const url = resolveGithubUrl(mirror, asset.browser_download_url);
       await downloadRange(url, destination, signal ? { signal } : {});
-      return;
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      lastError = error;
-    }
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new MofoxError('IO_ERROR', `所有镜像均无法下载 ${asset.name}`);
+    },
+    `所有镜像均无法下载 ${asset.name}`,
+  );
 }
 
 /**
- * 根据镜像类型解析实际下载地址。
+ * 拉取指定仓库中指定分支下的单个文件内容。
  *
- * 直连镜像使用原始地址；代理镜像以 `${baseUrl}/${originalUrl}` 形式包装。
+ * 供许可协议等只读文本的展示使用；按 `raw.githubusercontent.com` 原始地址镜像轮询。
  *
- * @param mirror - 当前镜像源。
- * @param originalUrl - GitHub 原始地址。
- * @returns 用于发起请求的最终 URL。
+ * @param options - 镜像、仓库、文件路径、分支与取消信号。
+ * @returns 命中的镜像源名称与文件内容。
  */
-function resolveProxiedUrl(mirror: MirrorSource, originalUrl: string): string {
-  if (mirror.baseUrl === 'https://github.com') return originalUrl;
-  return `${mirror.baseUrl}/${originalUrl}`;
+export async function fetchRepositoryFile(options: {
+  mirrors: readonly MirrorSource[];
+  repository: string;
+  path: string;
+  branch?: string;
+  signal?: AbortSignal;
+}): Promise<{ source: string; content: string }> {
+  const { mirrors, repository, path, branch = 'main', signal } = options;
+  return tryEachGithubMirror(
+    mirrors,
+    signal,
+    async (mirror) => {
+      const original = `https://raw.githubusercontent.com/${repository}/${branch}/${path}`;
+      const url = resolveGithubUrl(mirror, original);
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Neo-MoFox-Launcher' },
+        signal,
+      });
+      if (!response.ok)
+        throw new MofoxError('IO_ERROR', `拉取 ${path} 失败: HTTP ${response.status}`);
+      return { source: mirror.name, content: await response.text() };
+    },
+    `所有镜像均无法获取 ${repository}/${path}`,
+  );
 }
 
 /**
@@ -173,7 +203,6 @@ function resolveProxiedUrl(mirror: MirrorSource, originalUrl: string): string {
  * @returns 所有文件均可访问时返回 `true`，任一缺失则返回 `false`。
  */
 export async function hasFiles(root: string, names: string[]): Promise<boolean> {
-  // 必需文件的访问检查可并发进行，任一缺失即视为该目录不符合安装根定义。
   return (
     await Promise.all(
       names.map((name) =>
@@ -203,13 +232,10 @@ async function childDirectories(path: string): Promise<string[]> {
 /**
  * 流式计算文件的 SHA-256 摘要。
  *
- * 通过 `createReadStream` 分块读取，避免大体积 Release 完整载入主进程内存。
- *
  * @param path - 待校验的文件路径。
  * @returns 文件内容的十六进制 SHA-256 字符串。
  */
 async function sha256(path: string): Promise<string> {
-  // 流式读取归档，避免大体积 Release 完整载入主进程内存。
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
   return hash.digest('hex');

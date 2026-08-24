@@ -38,11 +38,19 @@ describe('createMofoxApi', () => {
     await api.startInstall({
       instanceName: 'Test',
       platformId: 'napcat',
-      version: 'latest',
+      mofoxBranch: 'main',
+      wsPort: 8095,
+      botQQ: '12345678901',
+      ownerQQ: '12345678901',
+      apiKey: 'sk-test-1234',
+      installWebui: true,
+      webuiApiKey: 'abcdefgh',
       targetDir: 'C:\\MoFox',
     });
     await api.retryInstall('task-1');
     await api.cancelInstall('task-1');
+    await api.fetchLicense();
+    await api.openExternal('https://example.com');
     await api.manualImportInstance({
       instanceName: 'Existing instance',
       mofoxInstallDir: 'C:\\MoFox\\existing',

@@ -1,10 +1,15 @@
-import { access, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { access, mkdir, readdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { BaseBotPlatform } from '../base-platform';
 import type { StartCommand } from '../../../shared/domain/bot-platform';
-import type { InstallContext, InstallResult } from '../../../shared/domain/bot-platform';
+import type {
+  InstallContext,
+  InstallResult,
+  PlatformConfigureInput,
+} from '../../../shared/domain/bot-platform';
 import { MofoxError } from '../../../shared/domain/error';
-import { hasFiles, installGithubRelease } from '../github-installer';
+import { hasFiles, installGithubRelease } from '../../utils/github-installer';
+import { writeOnebotAdapterConfig } from '../onebot-adapter';
 
 // NapCat 平台适配器：固定 Windows Release 资产，并解析当前及旧版目录中的启动入口。
 export class NapCatPlatform extends BaseBotPlatform {
@@ -37,9 +42,46 @@ export class NapCatPlatform extends BaseBotPlatform {
   }
 
   /**
-   * 当前平台无需安装后配置，故有意 no-op。
+   * 写入 NapCat 的 OneBot 网络配置，并同步 MoFox 的 OneBot 适配器端口。
+   *
+   * NapCat 按 QQ 号存放 `config/onebot11_<qq>.json`，其中的 WebSocket 客户端
+   * 主动连接 MoFox 的 OneBot 服务，因此端口必须与适配器配置保持一致。
+   *
+   * @param _instanceId - 当前实例 ID（保留，当前版本未使用）。
+   * @param platformPath - NapCat 安装根目录。
+   * @param options - 端口、QQ 号与 MoFox config 目录等配置数据。
    */
-  override async configure(): Promise<void> {}
+  override async configure(
+    _instanceId: string,
+    platformPath: string,
+    options: PlatformConfigureInput,
+  ): Promise<void> {
+    const configRoot = join(platformPath, 'config');
+    await writeJson(join(configRoot, `onebot11_${options.botQQ}.json`), {
+      network: {
+        httpServers: [],
+        httpClients: [],
+        websocketServers: [],
+        websocketClients: [
+          {
+            name: 'MoFox',
+            enable: true,
+            url: `ws://127.0.0.1:${options.wsPort}`,
+            messagePostFormat: 'array',
+            reportSelfMessage: false,
+            reconnectInterval: 5000,
+            token: '',
+            debug: false,
+            heartInterval: 30000,
+          },
+        ],
+      },
+      musicSignUrl: '',
+      enableLocalFile2Url: false,
+      parseMultMsg: false,
+    });
+    await writeOnebotAdapterConfig(options.mofoxConfigDir, options.wsPort);
+  }
 
   /**
    * 在平台安装路径中探测 NapCat 启动命令。
@@ -55,16 +97,20 @@ export class NapCatPlatform extends BaseBotPlatform {
    */
   async getStartCommand(platformPath: string, instanceId = ''): Promise<StartCommand> {
     // 同时探测根目录和 Release 可能生成的 Shell 子目录，兼容不同版本的解压结构。
-    const roots = [platformPath, ...(await childDirectories(platformPath))
-      .filter((name) => name.startsWith('NapCat') && name.includes('Shell'))
-      .map((name) => join(platformPath, name))];
+    const roots = [
+      platformPath,
+      ...(await childDirectories(platformPath))
+        .filter((name) => name.startsWith('NapCat') && name.includes('Shell'))
+        .map((name) => join(platformPath, name)),
+    ];
     for (const root of roots) {
       // 实例专用批处理优先；缺失时退回内置 Node 和入口文件直接启动。
       const batch = join(root, `start_napcat_${instanceId}.bat`);
       if (await exists(batch)) return { command: batch, args: [], cwd: root };
       const node = join(root, 'node.exe');
       const entry = join(root, 'index.js');
-      if (await exists(node) && await exists(entry)) return { command: node, args: [entry, '-q', instanceId], cwd: root };
+      if ((await exists(node)) && (await exists(entry)))
+        return { command: node, args: [entry, '-q', instanceId], cwd: root };
     }
     throw new MofoxError('NOT_FOUND', `未找到 NapCat 实例启动入口: ${platformPath}`);
   }
@@ -77,7 +123,22 @@ export class NapCatPlatform extends BaseBotPlatform {
  * @returns 子项名称数组。
  */
 async function childDirectories(path: string): Promise<string[]> {
-  try { return await readdir(path); } catch { return []; }
+  try {
+    return await readdir(path);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 以 JSON 格式写入文件，自动创建父目录。
+ *
+ * @param path - 目标文件路径。
+ * @param data - 待序列化的对象。
+ */
+async function writeJson(path: string, data: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(data, null, 2), 'utf8');
 }
 
 /**
@@ -87,5 +148,10 @@ async function childDirectories(path: string): Promise<string[]> {
  * @returns 路径存在返回 `true`，否则返回 `false`。
  */
 async function exists(path: string): Promise<boolean> {
-  try { await access(path); return true; } catch { return false; }
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
