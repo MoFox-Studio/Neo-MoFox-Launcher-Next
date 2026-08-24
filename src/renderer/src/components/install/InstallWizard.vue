@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useInstallDraftStore } from '@/stores/install-draft';
 import { useInstallStore } from '@/stores/install';
 import type { InstallRequest } from '@shared/domain/install';
@@ -36,13 +36,59 @@ const emit = defineEmits<{
 const currentStep = ref(1);
 const stepDirection = ref<'forward' | 'backward'>('forward');
 const licenseAgreed = ref(false);
+const contentRef = ref<HTMLElement | null>(null);
 
 // 恢复后台安装时直接回到执行页。
 onMounted(() => {
   if (installStore.isInstalling) {
     currentStep.value = STEPS.length;
   }
+  window.addEventListener('keydown', onKeydownEnter);
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydownEnter);
+});
+
+/**
+ * 智能处理回车键：单个输入框直接进入下一步，多个输入框则切换到下一个，
+ * 最后一个输入框时进入下一步；焦点不在任何输入控件上时也进入下一步。
+ */
+function onKeydownEnter(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' || event.isComposing) return;
+  const active = document.activeElement as HTMLElement | null;
+  if (!active || !contentRef.value) return;
+  const tag = active.tagName;
+
+  // 按钮/链接自己处理回车；执行步骤由按钮操作，不触发自动下一步。
+  if (tag === 'BUTTON' || tag === 'A') return;
+
+  const isInputLike = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+  if (!isInputLike) {
+    event.preventDefault();
+    goNext();
+    return;
+  }
+
+  const input = active as HTMLInputElement | HTMLSelectElement;
+  if (input.type === 'checkbox' || input.type === 'hidden' || input.disabled) return;
+
+  const focusables = Array.from(
+    contentRef.value.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+      'input:not([type="checkbox"]):not([type="hidden"]), select',
+    ),
+  ).filter((el) => !el.disabled && el.offsetParent !== null);
+
+  const index = focusables.indexOf(input);
+  // 单个输入框或位于最后一个时进入下一步；否则聚焦到下一个输入框。
+  if (focusables.length <= 1 || index === focusables.length - 1) {
+    event.preventDefault();
+    goNext();
+  } else if (index >= 0) {
+    event.preventDefault();
+    focusables[index + 1].focus();
+  }
+}
 
 const canGoNext = computed(() => {
   switch (currentStep.value) {
@@ -139,7 +185,7 @@ function goToInstances(): void {
         </li>
       </ol>
 
-      <!-- 返回/取消按钮固定在侧栏左下角，每个步骤都可停止安装并返回主菜单 -->
+      <!-- 返回/取消按钮固定在侧栏左下角：第一步为取消，中间步骤为上一步，执行步骤返回主界面 -->
       <div class="wizard__rail-back">
         <button
           v-if="currentStep === 1"
@@ -149,26 +195,25 @@ function goToInstances(): void {
         >
           取消
         </button>
-        <template v-else>
-          <button type="button" class="btn btn--text state-layer" @click="cancelInstall">
-            取消
-          </button>
-          <button
-            v-if="currentStep < STEPS.length"
-            type="button"
-            class="btn btn--tonal state-layer"
-            :disabled="installStore.isInstalling"
-            @click="goPrev"
-          >
-            上一步
-          </button>
-        </template>
+        <button
+          v-else-if="currentStep < STEPS.length"
+          type="button"
+          class="btn btn--tonal state-layer"
+          @click="goPrev"
+        >
+          <span class="msr" aria-hidden="true">arrow_back</span>
+          上一步
+        </button>
+        <button v-else type="button" class="btn btn--tonal state-layer" @click="cancelInstall">
+          <span class="msr" aria-hidden="true">home</span>
+          返回主界面
+        </button>
       </div>
     </aside>
 
     <div class="wizard__panel">
       <transition :name="`wizard-slide-${stepDirection}`" mode="out-in">
-        <div :key="currentStep" class="wizard__content">
+        <div :key="currentStep" ref="contentRef" class="wizard__content">
           <InstallLicenseStep v-if="currentStep === 1" v-model:agreed="licenseAgreed" />
           <InstallInstanceStep v-else-if="currentStep === 2" />
           <InstallApiKeyStep v-else-if="currentStep === 3" />
@@ -336,7 +381,7 @@ function goToInstances(): void {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  width: min(100%, 560px);
+  width: min(100%, 720px);
   margin: 0 auto;
 }
 

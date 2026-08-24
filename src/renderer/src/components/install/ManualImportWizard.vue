@@ -298,10 +298,7 @@ onMounted(async () => {
             </Transition>
 
             <div class="path-field">
-              <label
-                class="field field--grow"
-                :class="{ 'field--error': showMofoxDirError }"
-              >
+              <label class="field field--grow" :class="{ 'field--error': showMofoxDirError }">
                 <input
                   v-model="mofoxInstallDir"
                   class="field__input"
@@ -321,11 +318,7 @@ onMounted(async () => {
               </button>
             </div>
             <Transition name="field-error" mode="out-in">
-              <p
-                v-if="showMofoxDirError"
-                key="error"
-                class="field__support field__support--error"
-              >
+              <p v-if="showMofoxDirError" key="error" class="field__support field__support--error">
                 {{ mofoxDirError }}
               </p>
               <p v-else key="hint" class="field__support">
@@ -666,9 +659,6 @@ onMounted(async () => {
 }
 
 .field {
-  position: relative;
-  display: block;
-  height: 56px;
   margin-bottom: 20px;
 }
 
@@ -678,62 +668,7 @@ onMounted(async () => {
 }
 
 .field--grow {
-  min-width: 0;
-  flex: 1;
   margin-bottom: 0;
-}
-
-.field__input {
-  width: 100%;
-  height: 100%;
-  padding: 20px 16px 6px;
-  border: 1px solid var(--md-sys-color-outline);
-  border-radius: var(--md-sys-shape-corner-small);
-  outline: none;
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-large);
-}
-
-.field__input:focus {
-  padding: 19px 15px 5px;
-  border: 2px solid var(--md-sys-color-primary);
-}
-
-.field__label {
-  position: absolute;
-  top: 50%;
-  left: 16px;
-  padding: 0 4px;
-  transform: translateY(-50%);
-  background: var(--md-sys-color-surface-container-high);
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-large);
-  pointer-events: none;
-  transition:
-    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 200ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.field__input:focus + .field__label,
-.field__input:not(:placeholder-shown) + .field__label {
-  transform: translateY(calc(-50% - 28px)) scale(0.85);
-}
-
-.field__input:focus + .field__label {
-  color: var(--md-sys-color-primary);
-}
-
-.field--error .field__input {
-  border-color: var(--md-sys-color-error);
-}
-
-.field--error .field__input:focus {
-  border-color: var(--md-sys-color-error);
-}
-
-.field--error .field__label {
-  color: var(--md-sys-color-error);
 }
 
 .path-field {
@@ -750,24 +685,11 @@ onMounted(async () => {
 
 .field__support {
   margin: 4px 0 20px;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-small);
-}
-
-.field__support--error {
-  padding: 8px 12px;
-  border-radius: var(--md-sys-shape-corner-small);
-  background: var(--md-sys-color-error-container);
-  color: var(--md-sys-color-on-error-container);
 }
 
 /* 平台分栏内由 flex gap 承担间距，说明文字只需紧贴所在输入。 */
 .platform-fields .field__support {
   margin: 4px 0 0;
-}
-
-.field__support code {
-  font-family: var(--md-ref-typeface-mono);
 }
 
 .platform-toggle {
@@ -945,8 +867,7 @@ onMounted(async () => {
 /* 字段错误提示：淡入 + 轻微水平抖动的动效，与红色圆角背景同步呈现。 */
 .field-error-enter-active,
 .field-error-leave-active {
-  transition:
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
+  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
 }
 
 .field-error-enter-from,

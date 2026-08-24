@@ -25,8 +25,12 @@ const inspectionError = ref<string | null>(null);
 const installationSkipped = ref(false);
 const showErrorDialog = ref(false);
 
-const hasMissing = computed(() => oobe.dependencies.some((dependency) => dependency.status === 'pending'));
-const hasFailure = computed(() => oobe.dependencies.some((dependency) => dependency.status === 'failed'));
+const hasMissing = computed(() =>
+  oobe.dependencies.some((dependency) => dependency.status === 'pending'),
+);
+const hasFailure = computed(() =>
+  oobe.dependencies.some((dependency) => dependency.status === 'failed'),
+);
 const allDone = computed(
   () =>
     oobe.dependencies.length > 0 &&
@@ -183,16 +187,23 @@ onUnmounted(() => {
       <div v-if="inspectionError" class="inspection-error">
         <span class="msr" aria-hidden="true">error</span>
         <span>{{ inspectionError }}</span>
-        <button type="button" class="btn btn--text state-layer" @click="inspectDependencies">重新检查</button>
+        <button type="button" class="btn btn--text state-layer" @click="inspectDependencies">
+          重新检查
+        </button>
       </div>
 
       <ul v-else class="dep-list">
         <li
-v-for="dep in oobe.dependencies" :key="dep.id" class="dep-list__item"
-          :class="`dep-list__item--${dep.status}`">
+          v-for="dep in oobe.dependencies"
+          :key="dep.id"
+          class="dep-list__item"
+          :class="`dep-list__item--${dep.status}`"
+        >
           <span
-class="msr dep-list__icon" :class="{ 'dep-list__icon--spin': dep.status === 'installing' }"
-            aria-hidden="true">
+            class="msr dep-list__icon"
+            :class="{ 'dep-list__icon--spin': dep.status === 'installing' }"
+            aria-hidden="true"
+          >
             {{ statusIcon(dep.status) }}
           </span>
           <div class="dep-list__body">
@@ -212,77 +223,124 @@ class="msr dep-list__icon" :class="{ 'dep-list__icon--spin': dep.status === 'ins
           <p class="install-choice__desc">可现在安装，也可稍后自行配置后继续使用。</p>
         </div>
         <div class="install-choice__actions">
-          <button type="button" class="btn btn--text state-layer" @click="skipInstallation">暂不安装</button>
-          <button type="button" class="btn btn--filled state-layer" @click="requestInstall">安装缺失依赖</button>
+          <button type="button" class="btn btn--text state-layer" @click="skipInstallation">
+            暂不安装
+          </button>
+          <button type="button" class="btn btn--filled state-layer" @click="requestInstall">
+            安装缺失依赖
+          </button>
         </div>
       </div>
 
       <div v-if="awaitingSudo && !sudoVerified" class="sudo-block">
         <p class="sudo-block__hint">
-          Linux 安装系统依赖需要 sudo 权限。密码只在本次安装期间保留于主进程内存，完成后会立即清除，不会写入磁盘。
+          Linux 安装系统依赖需要 sudo
+          权限。密码只在本次安装期间保留于主进程内存，完成后会立即清除，不会写入磁盘。
         </p>
         <label class="field">
           <input
-v-model="password" class="field__input" type="password" placeholder=" " autocomplete="current-password"
-            @keyup.enter="submitPassword" />
+            v-model="password"
+            class="field__input"
+            type="password"
+            placeholder=" "
+            autocomplete="current-password"
+            @keyup.enter="submitPassword"
+          />
           <span class="field__label">sudo 密码</span>
         </label>
-        <p v-if="sudoErrorMessage" class="field__support field__support--error">{{ sudoErrorMessage }}</p>
+        <p v-if="sudoErrorMessage" class="field__support field__support--error">
+          {{ sudoErrorMessage }}
+        </p>
         <div class="sudo-actions">
           <button
-type="button" class="btn btn--text state-layer" :disabled="verifying"
-            @click="awaitingSudo = false">
-取消
-</button>
+            type="button"
+            class="btn btn--text state-layer"
+            :disabled="verifying"
+            @click="awaitingSudo = false"
+          >
+            取消
+          </button>
           <button
-type="button" class="btn btn--filled state-layer" :disabled="!canSubmitPassword"
-            @click="submitPassword">
+            type="button"
+            class="btn btn--filled state-layer"
+            :disabled="!canSubmitPassword"
+            @click="submitPassword"
+          >
             <span v-if="verifying" class="spinner spinner--small" aria-hidden="true"></span>
             验证并安装
           </button>
         </div>
       </div>
 
-      <p v-if="oobe.currentMessage && oobe.installing" class="dep-current">{{ oobe.currentMessage }}</p>
+      <p v-if="oobe.currentMessage && oobe.installing" class="dep-current">
+        {{ oobe.currentMessage }}
+      </p>
 
       <div class="dep-actions">
         <button
-type="button" class="btn btn--text state-layer" :disabled="oobe.installing"
-          @click="emit('back')">
-上一步
-</button>
-        <button v-if="hasFailure" type="button" class="btn btn--text state-layer" @click="showErrorDialog = true">
+          type="button"
+          class="btn btn--text state-layer"
+          :disabled="oobe.installing"
+          @click="emit('back')"
+        >
+          上一步
+        </button>
+        <button
+          v-if="hasFailure"
+          type="button"
+          class="btn btn--text state-layer"
+          @click="showErrorDialog = true"
+        >
           <span class="msr" aria-hidden="true">description</span>
           查看日志
         </button>
         <button
-v-if="hasFailure" type="button" class="btn btn--filled state-layer" :disabled="oobe.installing"
-          @click="retryInstall">
-重新检查
-</button>
+          v-if="hasFailure"
+          type="button"
+          class="btn btn--filled state-layer"
+          :disabled="oobe.installing"
+          @click="retryInstall"
+        >
+          重新检查
+        </button>
         <button
-v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue || oobe.installing"
-          @click="requestContinue">
-继续
-</button>
+          v-else
+          type="button"
+          class="btn btn--filled state-layer"
+          :disabled="!canContinue || oobe.installing"
+          @click="requestContinue"
+        >
+          继续
+        </button>
       </div>
     </template>
 
     <ErrorDialog
-:open="showErrorDialog" :description="oobe.installError ? describeError(oobe.installError) : '依赖安装失败'"
-      :stack="errorLogText || undefined" title="依赖安装失败" @close="showErrorDialog = false" />
+      :open="showErrorDialog"
+      :description="oobe.installError ? describeError(oobe.installError) : '依赖安装失败'"
+      :stack="errorLogText || undefined"
+      title="依赖安装失败"
+      @close="showErrorDialog = false"
+    />
 
     <BaseDialog
-:open="showRestartDialog" :dismissible="false" :show-actions="false" title="请重启电脑以完成安装"
-      :width="440">
+      :open="showRestartDialog"
+      :dismissible="false"
+      :show-actions="false"
+      title="请重启电脑以完成安装"
+      :width="440"
+    >
       <div class="restart-dialog">
         <span class="msr restart-dialog__icon" aria-hidden="true">restart_alt</span>
         <p class="restart-dialog__message">
-          部分依赖（如新加入系统 PATH 的可执行文件）需要重启系统后才能生效。请保存当前工作并手动重启电脑，重启后再次打开启动器即可继续。
+          部分依赖（如新加入系统 PATH
+          的可执行文件）需要重启系统后才能生效。请保存当前工作并手动重启电脑，重启后再次打开启动器即可继续。
         </p>
       </div>
       <template #actions>
-        <button type="button" class="btn btn--filled state-layer" @click="confirmRestarted">知道了</button>
+        <button type="button" class="btn btn--filled state-layer" @click="confirmRestarted">
+          知道了
+        </button>
       </template>
     </BaseDialog>
   </section>
@@ -424,61 +482,20 @@ v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue
   margin-bottom: 20px;
 }
 
+/* 依赖安装块的字段与说明文字间距略有加大，其余样式复用全局 forms.css。 */
 .field {
-  position: relative;
-  display: block;
-  height: 56px;
   margin-top: 16px;
-}
-
-.field__input {
-  width: 100%;
-  height: 100%;
-  padding: 20px 16px 6px;
-  border-radius: var(--md-sys-shape-corner-small);
-  border: 1px solid var(--md-sys-color-outline);
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-large);
-  outline: none;
-}
-
-.field__input:focus {
-  border: 2px solid var(--md-sys-color-primary);
-  padding: 19px 15px 5px;
-}
-
-.field__label {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  font: var(--md-sys-typescale-body-large);
-  color: var(--md-sys-color-on-surface-variant);
-  background: var(--md-sys-color-surface-container-high);
-  padding: 0 4px;
-  pointer-events: none;
-  transition:
-    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 200ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.field__input:focus+.field__label,
-.field__input:not(:placeholder-shown)+.field__label {
-  transform: translateY(calc(-50% - 28px)) scale(.85);
-}
-
-.field__input:focus+.field__label {
-  color: var(--md-sys-color-primary);
 }
 
 .field__support {
   margin: 8px 0 0 16px;
-  font: var(--md-sys-typescale-body-small);
 }
 
 .field__support--error {
+  padding: 0;
+  background: transparent;
   color: var(--md-sys-color-error);
+  font-weight: 400;
 }
 
 .sudo-actions,
@@ -529,7 +546,7 @@ v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue
 }
 
 .btn:disabled {
-  opacity: .38;
+  opacity: 0.38;
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -550,7 +567,7 @@ v-else type="button" class="btn btn--filled state-layer" :disabled="!canContinue
   border-radius: 50%;
   border: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
   border-top-color: var(--md-sys-color-primary);
-  animation: spinner-spin .8s linear infinite;
+  animation: spinner-spin 0.8s linear infinite;
 }
 
 .spinner--small {

@@ -39,108 +39,88 @@ watch(justGenerated, (value) => {
 
 <template>
   <section class="step">
-    <h2 class="step__title">组件选择</h2>
-    <p class="step__desc">选择是否安装 WebUI 可视化控制台，并设置它的访问密钥。</p>
+    <div class="step-header">
+      <h1>组件选择</h1>
+      <p>选择是否安装 WebUI 可视化控制台，并设置它的访问密钥。</p>
+    </div>
 
-    <label class="checkbox-row" :class="{ 'checkbox-row--checked': draft.installWebui }">
-      <input
-        type="checkbox"
-        :checked="draft.installWebui"
-        @change="toggleWebui(($event.target as HTMLInputElement).checked)"
-      />
-      <span>
-        <span class="checkbox-row__title">安装 WebUI（Web 管理控制台）</span>
-        <span class="checkbox-row__desc">浏览器可视化配置与管理界面，强烈建议安装</span>
-      </span>
-    </label>
+    <form class="config-form" @submit.prevent>
+      <div class="form-group">
+        <label class="checkbox-group">
+          <input
+            type="checkbox"
+            :checked="draft.installWebui"
+            @change="toggleWebui(($event.target as HTMLInputElement).checked)"
+          />
+          <span class="checkbox-label">安装 WebUI（Web 管理控制台）</span>
+        </label>
+        <span class="form-hint">可视化配置与管理界面，支持一键更新，推荐安装</span>
+      </div>
 
-    <template v-if="draft.installWebui">
-      <label class="field" :class="{ 'field--error': store.isInvalid('webuiKey') }">
-        <input
-          v-model="draft.webuiApiKey"
-          class="field__input"
-          :type="keyType"
-          placeholder=" "
-          autocomplete="off"
-          spellcheck="false"
-          @input="store.touch('webuiApiKey')"
-        />
-        <span class="field__label">WebUI 访问密钥</span>
-        <button
-          type="button"
-          class="field__reveal state-layer"
-          :title="showKey ? '隐藏' : '显示'"
-          @click="showKey = !showKey"
-        >
-          <span class="msr" aria-hidden="true">{{ keyIcon }}</span>
-        </button>
-      </label>
-      <p v-if="store.isInvalid('webuiKey')" class="field__support field__support--error">
-        {{ store.fieldErrors.webuiKey }}
-      </p>
-
-      <div class="password-strength">
-        <div class="strength-bar">
-          <div
-            class="strength-fill"
-            :class="strength.level"
-            :style="{ width: strength.level === 'none' ? '0%' : undefined }"
-          ></div>
+      <template v-if="draft.installWebui">
+        <div class="form-section-divider">
+          <span class="msr" aria-hidden="true">security</span>
+          <span>插件 HTTP 路由 访问控制</span>
         </div>
-        <span class="strength-text" :class="strength.level">{{ strength.text }}</span>
-      </div>
 
-      <button type="button" class="btn btn--tonal state-layer" @click="generate">
-        <span class="msr" aria-hidden="true">casino</span>
-        随机生成
-      </button>
-      <p class="field__support">密钥用于保护 WebUI 与插件 HTTP 路由认证，请妥善保管。</p>
+        <div class="form-group">
+          <div class="api-key-row">
+            <label class="field" :class="{ 'field--error': store.isInvalid('webuiKey') }">
+              <input
+                id="input-webui-api-key"
+                v-model="draft.webuiApiKey"
+                class="field__input"
+                :type="keyType"
+                placeholder=" "
+                autocomplete="off"
+                spellcheck="false"
+                @input="store.touch('webuiApiKey')"
+              />
+              <span class="field__label">WebUI / HTTP 路由访问密钥 *</span>
+              <button
+                type="button"
+                class="btn-toggle-password"
+                :title="showKey ? '隐藏' : '显示'"
+                @click="showKey = !showKey"
+              >
+                <span class="msr" aria-hidden="true">{{ keyIcon }}</span>
+              </button>
+            </label>
+            <button
+              type="button"
+              class="btn btn--tonal btn-get-api-key state-layer"
+              @click="generate"
+            >
+              <span class="msr" aria-hidden="true">casino</span>
+              随机生成
+            </button>
+          </div>
+          <p v-if="store.isInvalid('webuiKey')" class="field__support field__support--error">
+            {{ store.fieldErrors.webuiKey }}
+          </p>
+          <p v-else class="field__support">
+            至少 8 位字符，用于访问 WebUI 控制台与插件 HTTP 路由认证
+          </p>
 
-      <div class="info-banner">
-        <span class="msr info-banner__icon" aria-hidden="true">info</span>
-        <span
-          >安装完成后可通过 <code>config/core.toml</code> 的
-          <code>[http_router]</code> 修改密钥。</span
-        >
-      </div>
-    </template>
+          <div class="password-strength">
+            <div class="strength-bar">
+              <div class="strength-fill" :class="strength.level"></div>
+            </div>
+            <span class="strength-text" :class="strength.level">{{ strength.text }}</span>
+          </div>
+        </div>
+
+        <div class="info-box">
+          <span class="msr" aria-hidden="true">info</span>
+          <div>
+            <strong>安全提示</strong>
+            <p>
+              此密钥用于访问 WebUI 管理界面和插件 HTTP
+              路由认证，请妥善保管，不要分享给他人。安装完成后可在配置文件中修改。
+            </p>
+          </div>
+        </div>
+      </template>
+    </form>
   </section>
 </template>
-
-<style scoped>
-.field__reveal {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  transform: translateY(-50%);
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-}
-
-.field__reveal .msr {
-  font-size: 20px;
-}
-
-.field__input {
-  padding-right: 48px;
-}
-
-code {
-  font-family: var(--md-ref-typeface-mono);
-  font-size: 0.8em;
-  background: var(--md-sys-color-surface-container-highest);
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-
-.checkbox-row {
-  margin-bottom: 20px;
-}
-</style>

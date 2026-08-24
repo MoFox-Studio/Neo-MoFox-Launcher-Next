@@ -35,45 +35,46 @@ async function chooseTargetDir(): Promise<void> {
 
 <template>
   <section class="step">
-    <h2 class="step__title">安装位置</h2>
-    <p class="step__desc">选择实例文件存放的目标目录。</p>
-
-    <div class="dir-row">
-      <label class="field field--grow" :class="{ 'field--error': store.isInvalid('targetDir') }">
-        <input
-          v-model="draft.targetDir"
-          class="field__input"
-          type="text"
-          placeholder=" "
-          @input="store.touch('targetDir')"
-        />
-        <span class="field__label">目标目录</span>
-      </label>
-      <button type="button" class="btn btn--tonal state-layer" @click="chooseTargetDir">
-        <span class="msr" aria-hidden="true">folder_open</span>
-        浏览
-      </button>
+    <div class="step-header">
+      <h1>安装位置</h1>
+      <p>选择实例文件存放的目标目录。</p>
     </div>
-    <p v-if="store.isInvalid('targetDir')" class="field__support field__support--error">
-      {{ store.fieldErrors.targetDir }}
-    </p>
-    <p v-else class="field__support">建议不要包含中文或空格</p>
 
-    <div class="info-banner">
-      <span class="msr info-banner__icon" aria-hidden="true">info</span>
-      <span>安装会先在临时目录完成，成功后再原子移动到该目录。</span>
-    </div>
+    <form class="config-form" @submit.prevent>
+      <div class="form-group">
+        <div class="path-field">
+          <label
+            class="field field--grow"
+            :class="{ 'field--error': store.isInvalid('targetDir') }"
+          >
+            <input
+              id="input-install-dir"
+              v-model="draft.targetDir"
+              class="field__input"
+              type="text"
+              placeholder=" "
+              @input="store.touch('targetDir')"
+            />
+            <span class="field__label">安装目录 *</span>
+          </label>
+          <button type="button" class="btn btn--tonal state-layer" @click="chooseTargetDir">
+            <span class="msr" aria-hidden="true">folder_open</span>
+            浏览
+          </button>
+        </div>
+        <p v-if="store.isInvalid('targetDir')" class="field__support field__support--error">
+          {{ store.fieldErrors.targetDir }}
+        </p>
+        <p v-else class="field__support">不建议包含中文或空格</p>
+      </div>
+
+      <div class="info-box">
+        <span class="msr" aria-hidden="true">info</span>
+        <div>
+          <strong>安装方式</strong>
+          <p>安装会先在临时目录完成，成功后再原子移动到该目录。</p>
+        </div>
+      </div>
+    </form>
   </section>
 </template>
-
-<style scoped>
-.dir-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.dir-row .btn {
-  margin-top: 8px;
-}
-</style>

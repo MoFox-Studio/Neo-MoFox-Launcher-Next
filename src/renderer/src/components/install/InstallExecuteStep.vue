@@ -29,17 +29,17 @@ const progressPercent = computed(() => {
 const isIndeterminate = computed(() => !progress.value || progress.value.progress < 0);
 const stepLabel = computed(() => {
   const p = progress.value;
-  return p ? STEP_LABELS[p.step] : '准备';
+  return p ? STEP_LABELS[p.step] : '准备中...';
 });
 
-const logPanelOpen = ref(true);
-const logPanelRef = ref<HTMLDivElement | null>(null);
+const logOpen = ref(true);
+const logRef = ref<HTMLDivElement | null>(null);
 
 watch(
   () => installStore.logLines.length,
   async () => {
     await nextTick();
-    const el = logPanelRef.value;
+    const el = logRef.value;
     if (el) el.scrollTop = el.scrollHeight;
   },
 );
@@ -55,96 +55,96 @@ async function cancel(): Promise<void> {
 </script>
 
 <template>
-  <section class="step step--execute">
-    <h2 class="step__title">正在安装{{ instanceName ? ` ${instanceName}` : '' }}</h2>
-    <p class="step__step-label">
-      第 {{ (progress?.stepIndex ?? 0) + 1 }} / {{ progress?.stepCount ?? 1 }} 步 · {{ stepLabel }}
-    </p>
-
-    <div class="progress-track">
-      <div
-        class="progress-track__bar"
-        :class="{ 'progress-track__bar--indeterminate': isIndeterminate }"
-        :style="isIndeterminate ? undefined : { transform: `scaleX(${progressPercent / 100})` }"
-      ></div>
+  <section class="step">
+    <div class="step-header">
+      <h1>正在安装{{ instanceName ? ` ${instanceName}` : '' }}</h1>
+      <p>
+        第 {{ (progress?.stepIndex ?? 0) + 1 }} / {{ progress?.stepCount ?? 1 }} 步 ·
+        {{ stepLabel }}
+      </p>
     </div>
 
-    <div class="log-panel">
-      <button
-        type="button"
-        class="log-panel__toggle state-layer"
-        @click="logPanelOpen = !logPanelOpen"
-      >
-        <span class="msr" aria-hidden="true">{{
-          logPanelOpen ? 'expand_less' : 'expand_more'
-        }}</span>
-        安装日志
-      </button>
-      <div v-show="logPanelOpen" class="log-panel__body">
-        <div ref="logPanelRef" class="log-panel__scroll">
-          <p v-for="(line, idx) in installStore.logLines" :key="idx" class="log-panel__line">
-            {{ line }}
-          </p>
-        </div>
+    <div class="install-progress-bar">
+      <div
+        class="progress-fill"
+        :class="{ 'progress-fill--indeterminate': isIndeterminate }"
+        :style="isIndeterminate ? undefined : { width: `${progressPercent}%` }"
+      ></div>
+    </div>
+    <div class="progress-info">
+      <span>{{ stepLabel }}</span>
+      <span>{{ progressPercent }}%</span>
+    </div>
+
+    <div class="install-log" :class="{ collapsed: !logOpen }">
+      <div class="log-header">
+        <span>安装日志</span>
+        <button type="button" class="log-toggle state-layer" @click="logOpen = !logOpen">
+          <span class="msr" aria-hidden="true">{{ logOpen ? 'expand_less' : 'expand_more' }}</span>
+        </button>
+      </div>
+      <div ref="logRef" class="log-content">
+        <p v-for="(line, idx) in installStore.logLines" :key="idx" class="log-line">{{ line }}</p>
       </div>
     </div>
 
-    <div class="execute-actions">
+    <div class="install-result">
       <template v-if="installStore.isFailed">
-        <button type="button" class="btn btn--text state-layer" @click="cancel">取消</button>
-        <button type="button" class="btn btn--filled state-layer" @click="retry">重试</button>
+        <span class="msr result-icon result-icon--error" aria-hidden="true">error</span>
+        <div class="result-actions">
+          <button type="button" class="btn btn--tonal state-layer" @click="cancel">取消</button>
+          <button type="button" class="btn btn--filled state-layer" @click="retry">重试</button>
+        </div>
       </template>
       <template v-else-if="installStore.isDone">
-        <span class="msr msr--fill execute-actions__done-icon" aria-hidden="true"
-          >check_circle</span
-        >
+        <span class="msr result-icon result-icon--success" aria-hidden="true">celebration</span>
+        <h2>安装完成！</h2>
+        <p>Neo-MoFox 已成功安装，你可以开始使用了。</p>
         <button type="button" class="btn btn--filled state-layer" @click="emit('finish')">
           查看实例
         </button>
       </template>
       <template v-else>
-        <button type="button" class="btn btn--text state-layer" @click="cancel">停止安装</button>
+        <div class="result-actions">
+          <button type="button" class="btn btn--text state-layer" @click="cancel">停止安装</button>
+        </div>
       </template>
     </div>
   </section>
 </template>
 
 <style scoped>
-.step__step-label {
-  font: var(--md-sys-typescale-body-medium);
-  color: var(--md-sys-color-on-surface-variant);
-  margin: 0 0 20px;
-}
-
-.progress-track {
-  height: 4px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-highest);
+.install-progress-bar {
+  height: 8px;
+  background: var(--md-sys-color-surface-variant);
+  border-radius: 4px;
   overflow: hidden;
-  position: relative;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
-.progress-track__bar {
-  width: 100%;
+.progress-fill {
   height: 100%;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-primary);
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+  background: linear-gradient(90deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
+  width: 0%;
+  transition: width 0.5s;
+  position: relative;
 }
 
-.progress-track__bar--indeterminate {
-  width: 40%;
+.progress-fill::after {
+  content: '';
   position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transform: translateX(-100%);
-  transform-origin: center;
-  animation: install-progress-indeterminate 1.4s linear infinite;
-  transition: none;
+  animation: install-shimmer 2s infinite;
 }
 
-@keyframes install-progress-indeterminate {
+.progress-fill--indeterminate {
+  width: 40%;
+  animation: install-indeterminate 1.4s linear infinite;
+}
+
+@keyframes install-indeterminate {
   from {
     transform: translateX(-100%);
   }
@@ -153,60 +153,115 @@ async function cancel(): Promise<void> {
   }
 }
 
-.log-panel {
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-medium);
+@keyframes install-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 24px;
+  color: var(--md-sys-color-on-surface);
+}
+
+.install-log {
+  background: #111;
+  border-radius: 12px;
   overflow: hidden;
+  border: 1px solid var(--md-sys-color-outline-variant);
   margin-bottom: 24px;
 }
 
-.log-panel__toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.install-log.collapsed .log-content {
+  display: none;
+}
+
+.log-header {
   padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface);
+}
+
+.log-toggle {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   border: none;
-  background: var(--md-sys-color-surface-container-high);
+  border-radius: 50%;
+  background: transparent;
   color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-label-large);
   cursor: pointer;
+  transition: all 0.2s;
 }
 
-.log-panel__body {
-  max-height: 240px;
-  overflow-y: auto;
-  background: var(--md-sys-color-surface-container-highest);
-  padding: 12px 16px;
+.log-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.log-panel__scroll {
-  min-height: 0;
-}
-
-.log-panel__line {
-  margin: 0 0 4px;
+.log-content {
+  max-height: 200px;
+  padding: 16px;
   font-family: var(--md-ref-typeface-mono);
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+  color: #a5d6a7;
+  overflow-y: auto;
+  white-space: pre-wrap;
 }
 
-.execute-actions {
+.log-line {
+  margin: 0 0 4px;
+}
+
+.install-result {
+  padding: 24px 0;
+  text-align: center;
+}
+
+.install-result h2 {
+  font-size: 24px;
+  margin: 8px 0;
+  color: var(--md-sys-color-on-surface);
+}
+
+.install-result p {
+  font-size: 14px;
+  color: var(--md-sys-color-on-surface-variant);
+  margin-bottom: 20px;
+}
+
+.result-icon {
+  font-size: 64px;
+}
+
+.result-icon--success {
+  color: var(--md-sys-color-tertiary);
+}
+
+.result-icon--error {
+  color: var(--md-sys-color-error);
+}
+
+.result-actions {
   display: flex;
-  align-items: center;
+  justify-content: center;
   gap: 12px;
 }
 
-.execute-actions__done-icon {
-  color: var(--md-sys-color-tertiary);
-  font-size: 28px;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .progress-track__bar--indeterminate {
+  .progress-fill,
+  .progress-fill--indeterminate {
     animation: none;
-    transform: none;
+    transition: none;
   }
 }
 </style>

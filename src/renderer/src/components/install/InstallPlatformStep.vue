@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { mofoxApi } from '@/services/mofox-api';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
 import type { MofoxBranch } from '@shared/domain/install';
@@ -17,14 +17,23 @@ const PLATFORM_LABELS: Record<string, string> = {
 
 const platforms = ref<BotPlatformMetadata[]>([]);
 const loading = ref(false);
+const platformError = ref('');
+
+const selectedPlatform = computed<BotPlatformMetadata | null>(
+  () => platforms.value.find((p) => p.id === draft.platformId) ?? null,
+);
 
 function platformLabel(sys: string): string {
   return PLATFORM_LABELS[sys] ?? sys;
 }
 
-function selectPlatform(id: string): void {
-  store.set('platformId', id);
+function onPlatformChange(event: Event): void {
+  store.set('platformId', (event.target as HTMLSelectElement).value);
   store.touch('platformId');
+}
+
+function onBranchChange(event: Event): void {
+  store.set('mofoxBranch', (event.target as HTMLSelectElement).value as MofoxBranch);
 }
 
 function onPortInput(event: Event): void {
@@ -37,6 +46,8 @@ onMounted(async () => {
   loading.value = true;
   try {
     platforms.value = await mofoxApi.listBotPlatforms();
+  } catch (error) {
+    platformError.value = error instanceof Error ? error.message : '平台列表加载失败';
   } finally {
     loading.value = false;
   }
@@ -45,106 +56,90 @@ onMounted(async () => {
 
 <template>
   <section class="step">
-    <h2 class="step__title">网络配置</h2>
-    <p class="step__desc">选择平台适配器、MoFox 更新通道以及机器人监听的 WebSocket 端口。</p>
-
-    <div v-if="loading" class="step__loading">
-      <span class="spinner" aria-hidden="true"></span>
-      <span>加载平台列表…</span>
+    <div class="step-header">
+      <h1>网络配置</h1>
+      <p>选择平台适配器、MoFox 更新通道以及机器人监听的 WebSocket 端口。</p>
     </div>
-    <div v-else class="platform-grid">
-      <button
-        v-for="p in platforms"
-        :key="p.id"
-        type="button"
-        class="platform-card state-layer"
-        :class="{ 'platform-card--selected': draft.platformId === p.id }"
-        @click="selectPlatform(p.id)"
-      >
-        <span
-          v-if="draft.platformId === p.id"
-          class="msr msr--fill platform-card__check"
-          aria-hidden="true"
-          >check_circle</span
+
+    <form class="config-form" @submit.prevent>
+      <div class="form-group">
+        <md-outlined-select
+          id="input-platform"
+          class="platform-select"
+          label="安装平台"
+          :value="draft.platformId"
+          :disabled="loading || Boolean(platformError)"
+          @change="onPlatformChange"
         >
-        <h3 class="platform-card__name">{{ p.name }}</h3>
-        <p class="platform-card__desc">{{ p.description }}</p>
-        <div class="platform-card__chips">
-          <span v-for="sys in p.supportedPlatforms" :key="sys" class="chip">{{
-            platformLabel(sys)
-          }}</span>
+          <!-- Material Web Components 使用原生具名插槽，而不是 Vue 模板插槽。 -->
+          <!-- eslint-disable vue/no-deprecated-slot-attribute -->
+          <md-select-option value="">
+            <div slot="headline">不安装平台</div>
+          </md-select-option>
+          <md-select-option v-for="p in platforms" :key="p.id" :value="p.id">
+            <div slot="headline">{{ p.name }}</div>
+          </md-select-option>
+          <!-- eslint-enable vue/no-deprecated-slot-attribute -->
+        </md-outlined-select>
+        <template v-if="loading">
+          <span class="platform-hint">正在加载可用平台…</span>
+        </template>
+        <template v-else-if="platformError">
+          <span class="platform-hint">{{ platformError }}</span>
+        </template>
+        <template v-else>
+          <span class="platform-hint">
+            <template v-if="selectedPlatform">
+              {{ selectedPlatform.description }}（{{
+                selectedPlatform.supportedPlatforms.map(platformLabel).join(' / ')
+              }}）
+            </template>
+            <template v-else>不安装任何平台适配器，仅安装 Neo-MoFox 核心与已选组件</template>
+          </span>
+        </template>
+      </div>
+
+      <div class="form-row two-cols">
+        <div class="form-group">
+          <md-outlined-select
+            id="input-branch"
+            class="platform-select"
+            label="更新通道"
+            :value="draft.mofoxBranch"
+            @change="onBranchChange"
+          >
+            <!-- eslint-disable vue/no-deprecated-slot-attribute -->
+            <md-select-option :value="'main' as MofoxBranch">
+              <div slot="headline">稳定版 (main)</div>
+            </md-select-option>
+            <md-select-option :value="'dev' as MofoxBranch">
+              <div slot="headline">开发版 (dev)</div>
+            </md-select-option>
+            <!-- eslint-enable vue/no-deprecated-slot-attribute -->
+          </md-outlined-select>
+          <p class="field__support">选择跟踪的 GitHub 分支</p>
         </div>
-      </button>
-      <button
-        type="button"
-        class="platform-card state-layer"
-        :class="{ 'platform-card--selected': draft.platformId === '' }"
-        @click="selectPlatform('')"
-      >
-        <span
-          v-if="draft.platformId === ''"
-          class="msr msr--fill platform-card__check"
-          aria-hidden="true"
-          >check_circle</span
-        >
-        <h3 class="platform-card__name">不安装平台</h3>
-        <p class="platform-card__desc">仅安装 Neo-MoFox 本体与已选组件，不连接 QQ。</p>
-      </button>
-    </div>
 
-    <div class="field__row">
-      <div>
-        <label class="field">
-          <select v-model="draft.mofoxBranch" class="field__select">
-            <option :value="'main' as MofoxBranch">稳定版 (main)</option>
-            <option :value="'dev' as MofoxBranch">开发版 (dev)</option>
-          </select>
-          <span class="field__label field__label--select">MoFox 分支</span>
-        </label>
-        <p class="field__support">选择跟踪的 GitHub 分支</p>
+        <div class="form-group">
+          <label class="field" :class="{ 'field--error': store.isInvalid('wsPort') }">
+            <input
+              id="input-ws-port"
+              class="field__input"
+              type="number"
+              :value="draft.wsPort"
+              min="1024"
+              max="65535"
+              placeholder=" "
+              @input="onPortInput"
+            />
+            <span class="field__label">WebSocket 端口 *</span>
+          </label>
+          <p v-if="store.isInvalid('wsPort')" class="field__support field__support--error">
+            {{ store.fieldErrors.wsPort }}
+          </p>
+          <p v-else class="field__support">1024-65535，平台 WS 客户端将连接到此端口</p>
+        </div>
       </div>
-
-      <div>
-        <label class="field" :class="{ 'field--error': store.isInvalid('wsPort') }">
-          <input
-            class="field__input"
-            type="number"
-            :value="draft.wsPort"
-            min="1024"
-            max="65535"
-            @input="onPortInput"
-          />
-          <span class="field__label">WebSocket 端口</span>
-        </label>
-        <p v-if="store.isInvalid('wsPort')" class="field__support field__support--error">
-          {{ store.fieldErrors.wsPort }}
-        </p>
-        <p v-else class="field__support">平台 WS 客户端将连接到此端口</p>
-      </div>
-    </div>
+    </form>
   </section>
 </template>
-
-<style scoped>
-.field__select {
-  width: 100%;
-  height: 100%;
-  padding: 20px 16px 6px;
-  border-radius: var(--md-sys-shape-corner-small);
-  border: 1px solid var(--md-sys-color-outline);
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-large);
-  outline: none;
-  appearance: none;
-}
-
-.field__select:focus {
-  border: 2px solid var(--md-sys-color-primary);
-  padding: 19px 15px 5px;
-}
-
-.field__label--select {
-  pointer-events: none;
-}
-</style>

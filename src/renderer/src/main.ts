@@ -5,6 +5,7 @@ import '@material/web/select/outlined-select.js';
 import '@material/web/select/select-option.js';
 import '@/styles/tokens.css';
 import '@/styles/base.css';
+import '@/styles/forms.css';
 import App from '@/App.vue';
 import { router } from '@/router';
 import { applyTheme, watchSystemScheme } from '@/services/theme';

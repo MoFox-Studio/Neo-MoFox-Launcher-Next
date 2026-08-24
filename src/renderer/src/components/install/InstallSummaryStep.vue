@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useInstallDraftStore } from '@/stores/install-draft';
 
-// 确认摘要步骤：汇总展示用户的所有选择，供开始安装前复核。
+// 确认摘要步骤：以分组卡片汇总展示用户的所有选择，供开始安装前复核。
 const store = useInstallDraftStore();
 const draft = store.draft;
 
@@ -21,46 +21,88 @@ const webuiLabel = computed(() => (draft.installWebui ? '是' : '否'));
 
 <template>
   <section class="step">
-    <h2 class="step__title">确认摘要</h2>
-    <p class="step__desc">请确认以下配置信息，无误后开始安装。</p>
+    <div class="step-header">
+      <h1>确认摘要</h1>
+      <p>请确认以下配置信息，无误后点击「开始安装」。</p>
+    </div>
 
-    <dl class="summary">
-      <div class="summary__row">
-        <dt>实例名称</dt>
-        <dd>{{ draft.instanceName || '-' }}</dd>
+    <div class="summary-content">
+      <div class="summary-section">
+        <div class="summary-section-header">
+          <h3>实例信息</h3>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"><span class="msr" aria-hidden="true">label</span></span>
+          <span class="summary-item-label">实例名称</span>
+          <span class="summary-item-value">{{ draft.instanceName || '-' }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"
+            ><span class="msr" aria-hidden="true">smart_toy</span></span
+          >
+          <span class="summary-item-label">Bot QQ 号</span>
+          <span class="summary-item-value">{{ draft.botQQ || '-' }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"
+            ><span class="msr" aria-hidden="true">admin_panel_settings</span></span
+          >
+          <span class="summary-item-label">主人 QQ</span>
+          <span class="summary-item-value">{{ draft.ownerQQ || '-' }}</span>
+        </div>
       </div>
-      <div class="summary__row">
-        <dt>Bot QQ 号</dt>
-        <dd>{{ draft.botQQ || '-' }}</dd>
+
+      <div class="summary-section">
+        <div class="summary-section-header">
+          <h3>网络配置</h3>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"
+            ><span class="msr" aria-hidden="true">extension</span></span
+          >
+          <span class="summary-item-label">安装平台</span>
+          <span class="summary-item-value">{{ platformName }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"
+            ><span class="msr" aria-hidden="true">cloud_sync</span></span
+          >
+          <span class="summary-item-label">更新通道</span>
+          <span class="summary-item-value">{{ branchLabel }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"
+            ><span class="msr" aria-hidden="true">settings_ethernet</span></span
+          >
+          <span class="summary-item-label">WS 端口</span>
+          <span class="summary-item-value">{{ draft.wsPort }}</span>
+        </div>
       </div>
-      <div class="summary__row">
-        <dt>主人 QQ 号</dt>
-        <dd>{{ draft.ownerQQ || '-' }}</dd>
+
+      <div class="summary-section">
+        <div class="summary-section-header">
+          <h3>安装选项</h3>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"
+            ><span class="msr" aria-hidden="true">dashboard</span></span
+          >
+          <span class="summary-item-label">安装 WebUI</span>
+          <span class="summary-item-value">{{ webuiLabel }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"><span class="msr" aria-hidden="true">key</span></span>
+          <span class="summary-item-label">API Key</span>
+          <span class="summary-item-value">{{ draft.apiKey ? '••••••••' : '-' }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"><span class="msr" aria-hidden="true">folder</span></span>
+          <span class="summary-item-label">安装目录</span>
+          <span class="summary-item-value" :title="draft.targetDir">{{
+            draft.targetDir || '-'
+          }}</span>
+        </div>
       </div>
-      <div class="summary__row">
-        <dt>平台</dt>
-        <dd>{{ platformName }}</dd>
-      </div>
-      <div class="summary__row">
-        <dt>MoFox 分支</dt>
-        <dd>{{ branchLabel }}</dd>
-      </div>
-      <div class="summary__row">
-        <dt>WebSocket 端口</dt>
-        <dd>{{ draft.wsPort }}</dd>
-      </div>
-      <div class="summary__row">
-        <dt>安装 WebUI</dt>
-        <dd>{{ webuiLabel }}</dd>
-      </div>
-      <div class="summary__row">
-        <dt>API Key</dt>
-        <dd>{{ draft.apiKey ? '••••••••' : '-' }}</dd>
-      </div>
-      <div class="summary__row">
-        <dt>安装目录</dt>
-        <dd>{{ draft.targetDir || '-' }}</dd>
-      </div>
-    </dl>
+    </div>
   </section>
 </template>

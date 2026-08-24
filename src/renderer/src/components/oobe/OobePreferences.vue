@@ -4,7 +4,12 @@ import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
 import { MofoxError } from '@shared/domain/error';
 import type { ThemeMode } from '@shared/domain/settings';
-import { extractColorsFromImage, clearWallpaperColors, loadWallpaperColors, saveWallpaperColors } from '@/utils/wallpaper-color-manager';
+import {
+  extractColorsFromImage,
+  clearWallpaperColors,
+  loadWallpaperColors,
+  saveWallpaperColors,
+} from '@/utils/wallpaper-color-manager';
 import { extractFirstFrameAsFile } from '@/utils/video-frame-extractor';
 import { getWallpaperMediaUrl, loadWallpaperFile } from '@/utils/wallpaper-media';
 
@@ -54,10 +59,14 @@ const wallpaperError = ref<string | null>(null);
 const wallpaperColors = ref<string[]>(loadWallpaperColors() ?? []);
 
 const hasWallpaper = computed(
-  () => settingsStore.settings.wallpaperType !== 'none' && settingsStore.settings.wallpaperFileName !== '',
+  () =>
+    settingsStore.settings.wallpaperType !== 'none' &&
+    settingsStore.settings.wallpaperFileName !== '',
 );
 
-const wallpaperMediaUrl = computed(() => getWallpaperMediaUrl(settingsStore.settings.wallpaperFileName));
+const wallpaperMediaUrl = computed(() =>
+  getWallpaperMediaUrl(settingsStore.settings.wallpaperFileName),
+);
 
 function describeError(error: unknown): string {
   if (error instanceof MofoxError) return error.message;
@@ -151,7 +160,12 @@ function applyWallpaperColor(color: string): void {
           }"
           @click="selectTheme(opt.value)"
         >
-          <span v-if="settingsStore.settings.themeMode === opt.value" class="msr segmented__check" aria-hidden="true">check</span>
+          <span
+            v-if="settingsStore.settings.themeMode === opt.value"
+            class="msr segmented__check"
+            aria-hidden="true"
+            >check</span
+          >
           <span class="msr" aria-hidden="true">{{ opt.icon }}</span>
           {{ opt.label }}
         </button>
@@ -177,7 +191,8 @@ function applyWallpaperColor(color: string): void {
     <div class="pref-block">
       <span class="pref-block__label">壁纸</span>
       <p class="pref-block__hint pref-block__hint--lead">
-        支持 JPG、PNG、WebP、MP4 和 WebM，图片不超过 10 MiB，视频不超过 50 MiB；可留空稍后在设置页配置。
+        支持 JPG、PNG、WebP、MP4 和 WebM，图片不超过 10 MiB，视频不超过 50
+        MiB；可留空稍后在设置页配置。
       </p>
 
       <div class="wallpaper-preview" :class="{ 'wallpaper-preview--empty': !hasWallpaper }">
@@ -207,7 +222,12 @@ function applyWallpaperColor(color: string): void {
       </div>
 
       <div class="wallpaper-actions">
-        <button type="button" class="btn btn--filled state-layer" :disabled="wallpaperBusy" @click="selectWallpaper">
+        <button
+          type="button"
+          class="btn btn--filled state-layer"
+          :disabled="wallpaperBusy"
+          @click="selectWallpaper"
+        >
           <span v-if="wallpaperBusy" class="spinner spinner--small" aria-hidden="true"></span>
           {{ wallpaperBusy ? '正在导入' : hasWallpaper ? '更换壁纸' : '选择壁纸' }}
         </button>
@@ -247,7 +267,9 @@ function applyWallpaperColor(color: string): void {
             :disabled="!hasWallpaper || wallpaperBusy"
             @input="updateWallpaperOpacity"
           />
-          <span class="wallpaper-slider__value">{{ Math.round(settingsStore.settings.wallpaperOpacity * 100) }}%</span>
+          <span class="wallpaper-slider__value"
+            >{{ Math.round(settingsStore.settings.wallpaperOpacity * 100) }}%</span
+          >
         </label>
       </div>
 
@@ -258,7 +280,9 @@ function applyWallpaperColor(color: string): void {
             v-for="(color, index) in wallpaperColors"
             :key="color"
             class="wallpaper-color state-layer"
-            :class="{ 'wallpaper-color--selected': settingsStore.settings.seedColor.toLowerCase() === color }"
+            :class="{
+              'wallpaper-color--selected': settingsStore.settings.seedColor.toLowerCase() === color,
+            }"
             :style="{ backgroundColor: color }"
             type="button"
             :title="`壁纸取色 ${index + 1}: ${color}`"
@@ -325,7 +349,8 @@ function applyWallpaperColor(color: string): void {
   color: var(--md-sys-color-on-surface);
   font: var(--md-sys-typescale-label-large);
   cursor: pointer;
-  transition: background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  transition: background-color var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
 }
 
 .segmented__item--first {
@@ -356,59 +381,17 @@ function applyWallpaperColor(color: string): void {
   box-shadow: 0 0 0 2px var(--md-sys-color-surface);
   outline: 2px solid transparent;
   outline-offset: 2px;
-  transition: outline-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  transition: outline-color var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
 }
 
 .swatch--selected {
   outline-color: var(--md-sys-color-primary);
 }
 
-.field {
-  position: relative;
-  display: block;
-  height: 56px;
-}
-
-.field__input {
-  width: 100%;
-  height: 100%;
-  padding: 20px 16px 6px;
-  border-radius: var(--md-sys-shape-corner-small);
-  border: 1px solid var(--md-sys-color-outline);
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-large);
-  outline: none;
-  transition: border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.field__input:focus {
-  border: 2px solid var(--md-sys-color-primary);
-  padding: 19px 15px 5px;
-}
-
+/* 引导页铺在纯 surface 上，浮动标签底色改为与之匹配，避免出现接缝。 */
 .field__label {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  font: var(--md-sys-typescale-body-large);
-  color: var(--md-sys-color-on-surface-variant);
-  background: var(--md-sys-color-surface);
-  padding: 0 4px;
-  pointer-events: none;
-  transition:
-    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 200ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.field__input:focus + .field__label,
-.field__input:not(:placeholder-shown) + .field__label {
-  transform: translateY(calc(-50% - 28px)) scale(0.85);
-}
-
-.field__input:focus + .field__label {
-  color: var(--md-sys-color-primary);
+  --field-label-background: var(--md-sys-color-surface);
 }
 
 .pref-actions {
