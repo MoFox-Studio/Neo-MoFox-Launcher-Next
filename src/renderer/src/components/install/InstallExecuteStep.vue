@@ -7,7 +7,7 @@ import type { InstallStepId } from '@shared/domain/install';
 defineProps<{ instanceName: string }>();
 
 const emit = defineEmits<{
-  close: [];
+  cancel: [];
   finish: [];
 }>();
 
@@ -48,9 +48,9 @@ async function retry(): Promise<void> {
   await installStore.retry();
 }
 
-async function cancel(): Promise<void> {
-  await installStore.cancel();
-  emit('close');
+// 取消交由向导统一处理：向导先展示“正在取消”弹窗，再执行取消与返回主界面。
+function cancel(): void {
+  emit('cancel');
 }
 </script>
 

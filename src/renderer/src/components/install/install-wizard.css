@@ -116,7 +116,7 @@
   background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
 }
 
-.btn-get-api-key {
+.api-key-row .btn-get-api-key {
   white-space: nowrap;
   flex-shrink: 0;
   height: 56px;

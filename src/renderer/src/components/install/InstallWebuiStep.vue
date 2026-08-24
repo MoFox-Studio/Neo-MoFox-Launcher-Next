@@ -65,7 +65,7 @@ watch(justGenerated, (value) => {
 
         <div class="form-group">
           <div class="api-key-row">
-            <label class="field" :class="{ 'field--error': store.isInvalid('webuiKey') }">
+            <label class="field field--grow" :class="{ 'field--error': store.isInvalid('webuiKey') }">
               <input
                 id="input-webui-api-key"
                 v-model="draft.webuiApiKey"

@@ -11,6 +11,7 @@ import InstallWebuiStep from './InstallWebuiStep.vue';
 import InstallLocationStep from './InstallLocationStep.vue';
 import InstallSummaryStep from './InstallSummaryStep.vue';
 import InstallExecuteStep from './InstallExecuteStep.vue';
+import BaseDialog from '@/components/BaseDialog.vue';
 import '@/components/install/install-wizard.css';
 
 // 安装向导主组件：负责左侧步骤导航、各步骤组件的调用编排与前进/回退控制。
@@ -37,6 +38,10 @@ const currentStep = ref(1);
 const stepDirection = ref<'forward' | 'backward'>('forward');
 const licenseAgreed = ref(false);
 const contentRef = ref<HTMLElement | null>(null);
+// 取消确认弹窗；确认后才进入“正在取消”弹窗与真正的取消流程。
+const confirmingCancel = ref(false);
+// 取消安装期间展示“正在取消”弹窗，避免取消清理耗时较长时界面无反馈。
+const cancelling = ref(false);
 
 // 恢复后台安装时直接回到执行页。
 onMounted(() => {
@@ -144,12 +149,21 @@ async function startInstall(): Promise<void> {
   await installStore.begin(request);
 }
 
-async function cancelInstall(): Promise<void> {
-  await installStore.cancel();
-  emit('close');
+// 点击取消/返回主界面时先弹确认框，避免误触直接丢弃正在进行的安装。
+function cancelInstall(): void {
+  confirmingCancel.value = true;
 }
 
-function leave(): void {
+/** 确认取消：先展示“正在取消”弹窗，等待任务中止与临时目录清理后返回主界面。 */
+async function confirmCancel(): Promise<void> {
+  confirmingCancel.value = false;
+  // 有活动任务时取消会等待任务中止与临时目录清理，期间先展示弹窗提示。
+  if (installStore.activeTaskId) cancelling.value = true;
+  try {
+    await installStore.cancel();
+  } finally {
+    cancelling.value = false;
+  }
   emit('close');
 }
 
@@ -224,7 +238,7 @@ function goToInstances(): void {
           <InstallExecuteStep
             v-else
             :instance-name="draftStore.draft.instanceName"
-            @close="leave"
+            @cancel="cancelInstall"
             @finish="goToInstances"
           />
         </div>
@@ -254,6 +268,33 @@ function goToInstances(): void {
         </button>
       </div>
     </div>
+
+    <BaseDialog
+      :open="confirmingCancel"
+      title="确认取消安装"
+      :width="360"
+      confirm-text="确定取消"
+      cancel-text="继续安装"
+      @close="confirmingCancel = false"
+      @confirm="confirmCancel"
+    >
+      <p class="cancel-confirm__message">
+        取消将中止当前安装并清理已下载的临时文件，此操作不可恢复。确定要取消吗？
+      </p>
+    </BaseDialog>
+
+    <BaseDialog
+      :open="cancelling"
+      :dismissible="false"
+      :show-actions="false"
+      title="正在取消安装"
+      :width="360"
+    >
+      <div class="cancelling-dialog">
+        <span class="spinner" aria-hidden="true"></span>
+        <p class="cancelling-dialog__message">正在取消并清理临时文件，请稍候…</p>
+      </div>
+    </BaseDialog>
   </div>
 </template>
 
@@ -396,6 +437,48 @@ function goToInstances(): void {
 
 .wizard__nav-spacer {
   flex: 1;
+}
+
+/* “正在取消”弹窗内容：旋转指示器 + 说明文字 */
+.cancel-confirm__message {
+  margin: 0;
+  font: var(--md-sys-typescale-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.cancelling-dialog {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cancelling-dialog__message {
+  margin: 0;
+  font: var(--md-sys-typescale-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.spinner {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
+  border-top-color: var(--md-sys-color-primary);
+  animation: spinner-spin 0.8s linear infinite;
+}
+
+@keyframes spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
 }
 
 .wizard-slide-forward-enter-active,

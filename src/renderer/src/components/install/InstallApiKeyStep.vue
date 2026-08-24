@@ -26,7 +26,7 @@ async function jumpToGetKey(): Promise<void> {
     <form class="config-form" @submit.prevent>
       <div class="form-group">
         <div class="api-key-row">
-          <label class="field" :class="{ 'field--error': store.isInvalid('apiKey') }">
+          <label class="field field--grow" :class="{ 'field--error': store.isInvalid('apiKey') }">
             <input
               id="input-api-key"
               v-model="draft.apiKey"
