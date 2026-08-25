@@ -140,7 +140,7 @@ jobs:
               echo "${ext} 产物已存在：$(basename "$target")"
               continue
             fi
-            file=$(find release -name "*.${ext}" ! -name "*-nightly-linux-*" | head -1)
+            file=$(find release -name "*.${ext}" ! -name "Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.${ext}" | head -1)
             if [ -n "$file" ]; then
               cp "$file" "$target"
               echo "${ext} 产物：$(basename "$target")"
