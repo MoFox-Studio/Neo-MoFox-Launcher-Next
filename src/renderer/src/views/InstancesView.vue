@@ -220,6 +220,12 @@ async function confirmRemove(): Promise<void> {
   padding: 0 32px 32px;
 }
 
+/* 仅在壁纸背景存在时为内容区铺设固定可读底衬（不随内容遮罩变化），
+   遮罩归零时空态与网格区域仍保持可读；无壁纸时沿用外壳表面。 */
+:global(.shell--has-wallpaper) .instances-view__body {
+  background: var(--app-wallpaper-content-backing);
+}
+
 .instances-view__toolbar {
   display: flex;
   flex-direction: column;

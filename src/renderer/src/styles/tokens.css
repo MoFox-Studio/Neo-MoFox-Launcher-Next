@@ -66,6 +66,9 @@
   --app-glass-card-shadow: 0 4px 16px rgb(24 28 32 / 0.04);
   --app-glass-card-shadow-hover: 0 6px 20px rgb(24 28 32 / 0.08);
 
+  /* 壁纸存在时页面内容区域的固定可读底衬：独立于内容遮罩，遮罩归零时仍保证内容可读。 */
+  --app-wallpaper-content-backing: color-mix(in srgb, var(--md-sys-color-surface) 82%, transparent);
+
   /* 窗口框架只轻微露出桌面；标题栏和导航栏在有无壁纸时保持同一透明度。 */
   --app-shell-content-surface: color-mix(in srgb, var(--md-sys-color-surface) 92%, transparent);
   --app-shell-chrome-surface: color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent);

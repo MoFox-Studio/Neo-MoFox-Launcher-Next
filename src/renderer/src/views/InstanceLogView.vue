@@ -493,6 +493,29 @@ function goBack(): void {
   position: relative;
 }
 
+/* 仅在壁纸背景存在时铺设固定可读底衬（不随内容遮罩变化），
+   遮罩归零时标题、标签与搜索区仍保持可读；无壁纸时沿用外壳表面。 */
+.log-view::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+:global(.shell--has-wallpaper) .log-view::before {
+  background: var(--app-wallpaper-content-backing);
+}
+
+/* 抬升内容层以位于底衬之上；终端本身为不透明底色，不受影响。 */
+.log-view__header,
+.log-view__tabs,
+.log-view__search,
+.log-view__terminals {
+  position: relative;
+  z-index: 1;
+}
+
 .log-view__header {
   display: flex;
   align-items: center;

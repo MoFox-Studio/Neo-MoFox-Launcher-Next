@@ -588,7 +588,7 @@ onMounted(async () => {
 }
 
 :global(.shell--has-wallpaper) .manual-import__panel::before {
-  background: color-mix(in srgb, var(--md-sys-color-surface) 82%, transparent);
+  background: var(--app-wallpaper-content-backing);
 }
 
 .manual-import__panel > .step,

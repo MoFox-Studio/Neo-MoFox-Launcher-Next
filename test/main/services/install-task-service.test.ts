@@ -1,6 +1,7 @@
 import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { InstallRequest } from '../../../src/shared/domain/install';
 import type { MirrorSource } from '../../../src/shared/domain/mirror';
@@ -155,17 +156,61 @@ describe('InstallTaskService', () => {
     expect(calls).toEqual(['mofox', 'configure']);
   });
 
-  it('retries a failed task from a fresh workspace', async () => {
+  it('retries a failed task by resuming from the failed step instead of restarting', async () => {
     const root = await createTempRoot();
     const target = join(root, 'installed');
+    const calls: string[] = [];
     let configureCalls = 0;
     const executors = {
       'install-mofox': async (ctx: InstallTaskContext) => {
+        calls.push('mofox');
         await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
       },
       configure: async (ctx: InstallTaskContext) => {
+        calls.push('configure');
         configureCalls += 1;
         if (configureCalls === 1) throw new Error('config failed');
+        await writeFile(join(ctx.stageDir, 'ok.txt'), 'ok');
+      },
+    };
+    const progress = vi.fn();
+    const service = new InstallTaskService(
+      registry(),
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { progress },
+    );
+
+    const taskId = await service.start(request(target, { platformId: '', installWebui: false }));
+    await service.wait(taskId);
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'failed' }));
+    // 失败保留工作区，供重试从断点续跑。
+    await expect(access(join(root, `neo-mofox-install-${taskId}`))).resolves.toBeUndefined();
+
+    await service.retry(taskId);
+
+    // 已完成的步骤不重复执行，仅续跑失败的配置步骤并最终落地。
+    expect(calls).toEqual(['mofox', 'configure', 'configure']);
+    expect(await readFile(join(target, 'ok.txt'), 'utf8')).toBe('ok');
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
+  });
+
+  it('resumes from the next step when the copy between steps failed', async () => {
+    const root = await createTempRoot();
+    const target = join(root, 'installed');
+    const calls: string[] = [];
+    let configureCalls = 0;
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        calls.push('mofox');
+        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
+        // 把下一步快照路径占位成普通文件，让流水线的「复制给下一步」动作失败。
+        await writeFile(join(dirname(ctx.stageDir), 'stage-1'), 'block');
+      },
+      configure: async (ctx: InstallTaskContext) => {
+        calls.push('configure');
+        configureCalls += 1;
+        // 断点续跑时应从上一步完成品重新复制，配置步骤能看到 mofox 产物。
+        expect(await exists(join(ctx.stageDir, 'mofox.txt'))).toBe(true);
         await writeFile(join(ctx.stageDir, 'ok.txt'), 'ok');
       },
     };
@@ -182,8 +227,43 @@ describe('InstallTaskService', () => {
 
     await service.retry(taskId);
 
-    expect(configureCalls).toBe(2);
+    // 复制失败时已完成的步骤不再执行，重试撤销残留并续跑下一步。
+    expect(calls).toEqual(['mofox', 'configure']);
+    expect(configureCalls).toBe(1);
+    expect(await readFile(join(target, 'ok.txt'), 'utf8')).toBe('ok');
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
+  });
+
+  it('retries the first step from a clean snapshot when it fails', async () => {
+    const root = await createTempRoot();
+    const target = join(root, 'installed');
+    let mofoxCalls = 0;
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        mofoxCalls += 1;
+        // 首次执行留下残留产物后失败，重试应清除残留再从头开始该步骤。
+        if (mofoxCalls === 1) {
+          await writeFile(join(ctx.stageDir, 'partial.txt'), 'junk');
+          throw new Error('mofox download failed');
+        }
+        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
+      },
+    };
+    const service = new InstallTaskService(
+      registry(),
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { progress: vi.fn() },
+    );
+
+    const taskId = await service.start(request(target, { platformId: '', installWebui: false }));
+    await service.wait(taskId);
+
+    await service.retry(taskId);
+
+    expect(mofoxCalls).toBe(2);
+    // 残留的 partial.txt 已被撤销，最终落地只有干净产物。
+    await expect(access(join(target, 'mofox.txt'))).resolves.toBeUndefined();
+    await expect(access(join(target, 'partial.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('aborts an active install and removes its temporary workspace', async () => {

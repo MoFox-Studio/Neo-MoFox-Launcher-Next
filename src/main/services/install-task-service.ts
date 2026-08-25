@@ -26,8 +26,9 @@ import {
  * 安装任务编排服务：把安装拆为「安装 MoFox → 安装平台 → 安装 WebUI → 配置」四个任务
  * 加一个收尾步骤，所有产物在临时工作区内的 stage 目录完成。
  *
- * 每一步完成后会把当前目录整体复制给下一步使用（设计文档要求），失败、取消或完成时
- * 一律回收整个临时工作区；主服务只负责调度与状态发布，具体逻辑全部委托给
+ * 每一步完成后会把当前目录整体复制给下一步使用（设计文档要求），完成或取消时
+ * 回收整个临时工作区；失败时保留工作区，供重试撤销本步骤残留并从上一步完成品
+ * 重新复制后续跑。主服务只负责调度与状态发布，具体逻辑全部委托给
  * `utils/install-tasks` 下的执行器。
  */
 
@@ -48,6 +49,8 @@ interface TaskRecord {
   /** 当前步骤内最近一次报告的 0..1 进度，日志行复用该值避免进度条闪烁。 */
   lastFraction: number;
   failedStep?: InstallStepId;
+  /** 失败后续跑的起始步骤索引；由失败时刻的最近完成步骤推导，重试按此断点恢复。 */
+  resumeIndex?: number;
   /** 平台发行版本号；安装平台任务成功后记录，供注册实例回填。 */
   platformVersion?: string;
   running: Promise<void>;
@@ -96,9 +99,10 @@ export class InstallTaskService {
   }
 
   /**
-   * 重新执行失败任务。
+   * 重新执行失败任务，从失败步骤的断点续跑而非重头再来。
    *
-   * 由于流水线使用逐级复制的快照目录，重试从全新工作区重新开始。
+   * 失败时工作区被保留，重试会撤销失败步骤残留的临时目录，并重新从上一步的
+   * 完成品（快照）复制出干净工作区，再继续执行该步骤；已完成的步骤不会重复执行。
    *
    * @param taskId - 待重试的任务 ID。
    * @throws {MofoxError} 任务不存在或非失败状态时抛出 `CONFLICT`/`NOT_FOUND`。
@@ -235,22 +239,28 @@ export class InstallTaskService {
   }
 
   /**
-   * 按步骤列表执行安装流水线；任一步骤抛错或取消时标记任务终态并回收工作区。
+   * 按步骤列表执行安装流水线；任一步骤抛错或取消时标记任务终态。
    *
    * 每个非最终步骤完成后把当前 stage 目录整体复制给下一步，保证每步从干净快照开始；
    * 最终步骤把最后一份快照移动到目标路径。
+   *
+   * 失败时记录断点并保留工作区：重试从断点步骤的起始状态恢复——撤销该步骤已落地的
+   * 残留目录，再从上一步完成品复制出干净快照——然后继续执行；完成或取消时回收工作区。
    *
    * @param task - 待执行的任务记录（原地更新其状态）。
    */
   private async execute(task: TaskRecord): Promise<void> {
     const workspace = task.workspace;
     const steps = this.buildSteps(task.request);
-    let stageDir = join(workspace, 'stage-0');
+    const startIndex = task.resumeIndex ?? 0;
+    task.resumeIndex = undefined;
     task.status = 'running';
+    // 最近一次成功执行完成（其产物已写入当前 stage）的步骤索引；-1 表示尚无任何完成品。
+    let lastCompletedStep = startIndex - 1;
 
     try {
-      await mkdir(stageDir, { recursive: true });
-      for (let index = 0; index < steps.length; index += 1) {
+      let stageDir = await this.restoreStage(workspace, startIndex);
+      for (let index = startIndex; index < steps.length; index += 1) {
         this.throwIfCancelled(task);
         const { step, label } = steps[index];
         task.currentStep = step;
@@ -258,6 +268,7 @@ export class InstallTaskService {
         task.lastFraction = 0;
         this.emit(task, step, index, steps.length, 0, 'running', `开始${label}`);
         await this.runStep(task, stageDir, steps, index);
+        lastCompletedStep = index;
         this.emit(task, step, index, steps.length, 1, 'running', `${label}完成`);
         if (index < steps.length - 1) {
           const nextStage = join(workspace, `stage-${index + 1}`);
@@ -284,6 +295,9 @@ export class InstallTaskService {
       } else {
         task.status = 'failed';
         task.failedStep = task.currentStep;
+        // 断点取「最近成功步骤的后一步」：执行器失败时回退到该步骤开头续跑，
+        // 复制到下一步失败时直接从下一步继续，两者都只重做失败的动作。
+        task.resumeIndex = lastCompletedStep + 1;
         this.emit(
           task,
           task.currentStep,
@@ -295,8 +309,34 @@ export class InstallTaskService {
         );
       }
     } finally {
-      await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+      // 失败保留工作区供重试续跑；完成或取消一律回收。
+      if (task.status !== 'failed') {
+        await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+      }
     }
+  }
+
+  /**
+   * 准备重试起始用的工作目录快照：撤销上次失败残留，重新从上一步完成品复制。
+   *
+   * 先删除起始 stage 的残留目录；从第 0 步开始时再直接新建 `stage-0`，从断点续跑时
+   * 则把上一步完成品整体复制过来，保证该步骤从干净起始状态执行。
+   *
+   * @param workspace - 临时工作区根目录。
+   * @param startIndex - 本次执行要开始的步骤索引。
+   * @returns 起始步骤的工作目录快照。
+   */
+  private async restoreStage(workspace: string, startIndex: number): Promise<string> {
+    const stageDir = join(workspace, `stage-${startIndex}`);
+    // 先撤销失败步骤已落地的残留目录，无论断点是哪一步都恢复到干净起始状态。
+    await rm(stageDir, { recursive: true, force: true });
+    if (startIndex === 0) {
+      await mkdir(stageDir, { recursive: true });
+      return stageDir;
+    }
+    const previous = join(workspace, `stage-${startIndex - 1}`);
+    await cp(previous, stageDir, { recursive: true, force: true });
+    return stageDir;
   }
 
   /**

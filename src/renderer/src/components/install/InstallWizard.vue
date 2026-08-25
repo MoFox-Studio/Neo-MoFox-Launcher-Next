@@ -416,6 +416,7 @@ function goToInstances(): void {
 }
 
 .wizard__panel {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -425,6 +426,26 @@ function goToInstances(): void {
   backdrop-filter: var(--app-current-content-filter);
   -webkit-backdrop-filter: var(--app-current-content-filter);
   overflow: hidden;
+}
+
+/* 仅在启用壁纸背景时为内容画布铺设固定不透明度的底色，避免壁纸透明度被调为零时内容失去衬底；
+   无背景时不铺设，内容区直接沿用外壳表面即可，不再叠加不透明度。 */
+.wizard__panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+:global(.shell--has-wallpaper) .wizard__panel::before {
+  background: var(--app-wallpaper-content-backing);
+}
+
+.wizard__panel > .wizard__content,
+.wizard__panel > .wizard__nav {
+  position: relative;
+  z-index: 1;
 }
 
 /* 步骤内容水平居中，按钮固定在面板底部（右下角） */
