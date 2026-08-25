@@ -132,6 +132,18 @@ jobs:
       - name: 打包 Linux (${{ matrix.arch }})
         run: npx electron-builder --linux --${{ matrix.arch }} --publish never --config electron-builder.yml
 
+      - name: 规范化产物文件名
+        run: |
+          for ext in deb rpm AppImage; do
+            file=$(find release -name "*.${ext}" | head -1)
+            if [ -n "$file" ]; then
+              cp "$file" "release/Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.${ext}"
+              echo "${ext} 产物：Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.${ext}"
+            else
+              echo "警告：未找到 .${ext} 文件！"
+            fi
+          done
+
       - name: 上传产物
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
