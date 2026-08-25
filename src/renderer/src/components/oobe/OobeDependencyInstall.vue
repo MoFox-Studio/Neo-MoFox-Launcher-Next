@@ -297,15 +297,6 @@ onUnmounted(() => {
         <button
           v-if="hasFailure"
           type="button"
-          class="btn btn--text state-layer"
-          @click="showErrorDialog = true"
-        >
-          <span class="msr" aria-hidden="true">description</span>
-          查看日志
-        </button>
-        <button
-          v-if="hasFailure"
-          type="button"
           class="btn btn--filled state-layer"
           :disabled="oobe.installing"
           @click="retryInstall"
