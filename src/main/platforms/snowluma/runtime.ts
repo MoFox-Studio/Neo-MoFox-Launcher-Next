@@ -15,7 +15,7 @@ import { writeOnebotAdapterConfig } from '../onebot-adapter';
 export class SnowLumaPlatform extends BaseBotPlatform {
   readonly id = 'snowluma';
   readonly name = 'SnowLuma';
-  readonly description = '基于 SnowLuma 的 OneBot 11 平台接入。';
+  readonly description = '基于 SnowLuma 的 OneBot 11 接入，跨平台轻量，推荐使用。';
   readonly supportedPlatforms = ['win32', 'linux'] as Array<'win32' | 'linux'>;
   readonly supportedArch = ['x64', 'arm64'] as Array<'x64' | 'arm64'>;
 

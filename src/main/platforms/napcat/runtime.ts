@@ -15,7 +15,7 @@ import { writeOnebotAdapterConfig } from '../onebot-adapter';
 export class NapCatPlatform extends BaseBotPlatform {
   readonly id = 'napcat';
   readonly name = 'NapCat';
-  readonly description = '基于 NapCatQQ 的 OneBot 11 平台接入。';
+  readonly description = '基于 NapCatQQ 的 OneBot 11 接入，仅支持 Windows，不推荐使用。';
   readonly supportedPlatforms = ['win32'] as Array<'win32'>;
   readonly supportedArch = ['x64'] as Array<'x64'>;
 

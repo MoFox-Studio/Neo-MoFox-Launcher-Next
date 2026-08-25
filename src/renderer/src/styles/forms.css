@@ -91,6 +91,7 @@
 }
 
 .field__support--error {
+  margin-left: 0;
   padding: 8px 12px;
   border-radius: var(--md-sys-shape-corner-small);
   background: var(--md-sys-color-error-container);

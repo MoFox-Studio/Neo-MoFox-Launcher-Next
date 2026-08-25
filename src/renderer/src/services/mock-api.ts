@@ -382,7 +382,7 @@ export const mockApi: MofoxApi = {
       {
         id: 'napcat',
         name: 'NapCat',
-        description: '基于 NapCatQQ 的 OneBot 11 接入，稳定成熟。',
+        description: '基于 NapCatQQ 的 OneBot 11 接入，仅支持 Windows，不推荐使用。',
         supportedPlatforms: ['win32'],
         supportedArch: ['x64'],
         latestVersion: '4.2.19',
@@ -390,10 +390,10 @@ export const mockApi: MofoxApi = {
       {
         id: 'snowluma',
         name: 'SnowLuma',
-        description: '跨平台轻量适配器，支持 Windows / Linux / macOS。',
+        description: '基于 SnowLuma 的 OneBot 11 接入，跨平台轻量，推荐使用。',
         supportedPlatforms: ['win32', 'linux', 'darwin'],
         supportedArch: ['x64', 'arm64'],
-        latestVersion: '1.3.0',
+        latestVersion: '1.9.2',
       },
     ];
   },

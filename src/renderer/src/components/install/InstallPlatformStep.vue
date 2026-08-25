@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { mofoxApi } from '@/services/mofox-api';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
 import type { MofoxBranch } from '@shared/domain/install';
@@ -18,13 +18,23 @@ const PLATFORM_LABELS: Record<string, string> = {
 const platforms = ref<BotPlatformMetadata[]>([]);
 const loading = ref(false);
 const platformError = ref('');
+// 平台下拉框引用：选项异步渲染后需手动同步值，否则 Material select 不显示选中项。
+const platformSelect = ref<{ value: string } | null>(null);
 
+// 后端已按当前系统过滤，返回的平台均可安装；SnowLuma 优先推荐，作为默认选择。
 const selectedPlatform = computed<BotPlatformMetadata | null>(
   () => platforms.value.find((p) => p.id === draft.platformId) ?? null,
 );
 
 function platformLabel(sys: string): string {
   return PLATFORM_LABELS[sys] ?? sys;
+}
+
+// 默认选择：用户尚未选择时，优先 SnowLuma，其次第一个可用平台。
+function applyRecommendedPlatform(): void {
+  if (platforms.value.some((p) => p.id === draft.platformId)) return;
+  const target = platforms.value.find((p) => p.id === 'snowluma') ?? platforms.value[0];
+  if (target) store.set('platformId', target.id);
 }
 
 function onPlatformChange(event: Event): void {
@@ -46,6 +56,11 @@ onMounted(async () => {
   loading.value = true;
   try {
     platforms.value = await mofoxApi.listBotPlatforms();
+    applyRecommendedPlatform();
+    // Material select 的 value setter 会立即查询已渲染的选项；选项是异步渲染的，
+    // 需等 DOM 就绪后把当前值同步给它，否则下拉框不显示选中项。
+    await nextTick();
+    if (platformSelect.value) platformSelect.value.value = draft.platformId;
   } catch (error) {
     platformError.value = error instanceof Error ? error.message : '平台列表加载失败';
   } finally {
@@ -65,6 +80,7 @@ onMounted(async () => {
       <div class="form-group">
         <md-outlined-select
           id="input-platform"
+          ref="platformSelect"
           class="platform-select"
           label="安装平台"
           :value="draft.platformId"
@@ -86,6 +102,9 @@ onMounted(async () => {
         </template>
         <template v-else-if="platformError">
           <span class="platform-hint">{{ platformError }}</span>
+        </template>
+        <template v-else-if="platforms.length === 0">
+          <span class="platform-hint">当前系统没有可用的平台适配器</span>
         </template>
         <template v-else>
           <span class="platform-hint">
