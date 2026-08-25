@@ -493,6 +493,17 @@ function goBack(): void {
   position: relative;
 }
 
+/* 仅在壁纸背景存在时为日志页整面铺设遮罩驱动的半透明底衬，并保留 82% 下限，
+   遮罩归零时标题、标签与搜索区仍保持可读；无壁纸时沿用外壳表面。 */
+:global(.shell--has-wallpaper .log-view) {
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-surface)
+      max(calc(var(--app-wallpaper-content-opacity) * 100%), 82%),
+    transparent
+  );
+}
+
 .log-view__header {
   display: flex;
   align-items: center;
