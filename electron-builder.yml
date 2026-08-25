@@ -18,11 +18,11 @@ win:
     - portable
   icon: assets/images/icon.ico
 nsis:
-  artifactName: 'Neo-MoFox-Launcher-${env.BUILD_DATE}-nightly-${arch}-setup.${ext}'
+  artifactName: 'Neo-MoFox-Launcher-${env.BUILD_DATE}-nightly-win-${arch}-setup.${ext}'
   oneClick: false
   allowToChangeInstallationDirectory: true
 portable:
-  artifactName: 'Neo-MoFox-Launcher-${env.BUILD_DATE}-nightly-${arch}-portable.${ext}'
+  artifactName: 'Neo-MoFox-Launcher-${env.BUILD_DATE}-nightly-win-${arch}-portable.${ext}'
 linux:
   target:
     - AppImage
