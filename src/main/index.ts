@@ -20,7 +20,12 @@ import { InstallTaskService } from './services/install-task-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
 import { InstanceManageService } from './services/instance-manage-service';
-import { pickDirectory, pickFile } from './services/filepicker-service';
+import {
+  inspectImportPath,
+  inspectPlatformPath,
+  pickDirectory,
+  pickFile,
+} from './services/common-service';
 import {
   LegacyMigrationService,
   resolveLegacyLauncherDataDir,
@@ -134,11 +139,6 @@ if (!hasSingleInstanceLock) {
 } else {
   // 窗口控制先注册，其余依赖存储和平台注册表的 IPC 在 Electron ready 后构造。
   registerWindowIpc(ipcMain, () => mainWindow);
-  // 通用对话框（选择文件/文件夹）仅依赖主窗口句柄，提前注册以供 OOBE 与设置页共同复用。
-  registerCommonIpc(ipcMain, {
-    pickFile: (options) => pickFile(() => mainWindow, options),
-    pickDirectory: (options) => pickDirectory(() => mainWindow, options),
-  });
 
   app.on('second-instance', () => {
     if (!mainWindow) return;
@@ -164,6 +164,13 @@ if (!hasSingleInstanceLock) {
     const instances = new InstanceRepository(dataDirectory, report);
     const platforms = new PlatformRegistry();
     const mirrors = new MirrorService();
+    // 通用服务（对话框 + 目录校验）依赖平台注册表，因此在 ready 后随其余 IPC 一并注册。
+    registerCommonIpc(ipcMain, {
+      pickFile: (options) => pickFile(() => mainWindow, options),
+      pickDirectory: (options) => pickDirectory(() => mainWindow, options),
+      inspectImportPath: (value) => inspectImportPath(value),
+      inspectPlatformPath: (platformId, value) => inspectPlatformPath(platforms, platformId, value),
+    });
     logger = createLogger({
       directory: join(dataDirectory, 'logs'),
       getSettings: async () => {

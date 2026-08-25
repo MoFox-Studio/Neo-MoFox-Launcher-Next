@@ -24,17 +24,31 @@ function createActions() {
   return {
     pickFile: vi.fn(async () => ['/tmp/a.txt'] as string[]),
     pickDirectory: vi.fn(async () => '/tmp/selected'),
+    inspectImportPath: vi.fn(async () => ({
+      absolute: true,
+      exists: true,
+      isDirectory: true,
+      mainPyExists: true,
+    })),
+    inspectPlatformPath: vi.fn(async () => ({
+      absolute: true,
+      exists: true,
+      isDirectory: true,
+      valid: true,
+    })),
   };
 }
 
 describe('registerCommonIpc', () => {
-  it('registers the two dialog channels', () => {
+  it('registers the four service channels', () => {
     const { handlers, ipcMain } = createIpcMain();
     registerCommonIpc(ipcMain, createActions());
 
     expect([...handlers.keys()]).toEqual([
       IPC_INVOKE_CHANNELS.pickFile,
       IPC_INVOKE_CHANNELS.pickDirectory,
+      IPC_INVOKE_CHANNELS.inspectImportPath,
+      IPC_INVOKE_CHANNELS.inspectPlatformImportPath,
     ]);
   });
 
@@ -59,6 +73,45 @@ describe('registerCommonIpc', () => {
     expect(dirResult).toBe('/tmp/selected');
     expect(fileDefault).toEqual(['/tmp/a.txt']);
     expect(dirDefault).toBe('/tmp/selected');
+  });
+
+  it('forwards path inspections to the service actions', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = createActions();
+    registerCommonIpc(ipcMain, actions);
+
+    const mofox = await handlers.get(IPC_INVOKE_CHANNELS.inspectImportPath)?.(
+      {},
+      '/bots/neo-mofox',
+    );
+    const platform = await handlers.get(IPC_INVOKE_CHANNELS.inspectPlatformImportPath)?.(
+      {},
+      'napcat',
+      '/bots/napcat',
+    );
+
+    expect(actions.inspectImportPath).toHaveBeenCalledWith('/bots/neo-mofox');
+    expect(actions.inspectPlatformPath).toHaveBeenCalledWith('napcat', '/bots/napcat');
+    expect(mofox).toEqual({ absolute: true, exists: true, isDirectory: true, mainPyExists: true });
+    expect(platform).toEqual({ absolute: true, exists: true, isDirectory: true, valid: true });
+  });
+
+  it('rejects malformed inspection arguments before calling the service', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = createActions();
+    registerCommonIpc(ipcMain, actions);
+
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.inspectImportPath)?.({}, '')).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.inspectPlatformImportPath)?.({}, 'napcat', ''),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.inspectPlatformImportPath)?.({}, 42, '/bots/napcat'),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    expect(actions.inspectImportPath).not.toHaveBeenCalled();
+    expect(actions.inspectPlatformPath).not.toHaveBeenCalled();
   });
 
   it('rejects non-object file picker options', async () => {
@@ -97,9 +150,9 @@ describe('registerCommonIpc', () => {
     const actions = createActions();
     registerCommonIpc(ipcMain, actions);
 
-    await expect(
-      handlers.get(IPC_INVOKE_CHANNELS.pickFile)?.({}, { title: 1 }),
-    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.pickFile)?.({}, { title: 1 })).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
     await expect(
       handlers.get(IPC_INVOKE_CHANNELS.pickFile)?.({}, { defaultPath: 1 }),
     ).rejects.toThrow('MOFOX_ERROR:');
@@ -116,7 +169,10 @@ describe('registerCommonIpc', () => {
       handlers.get(IPC_INVOKE_CHANNELS.pickFile)?.({}, { filters: [{ name: 1, extensions: [] }] }),
     ).rejects.toThrow('MOFOX_ERROR:');
     await expect(
-      handlers.get(IPC_INVOKE_CHANNELS.pickFile)?.({}, { filters: [{ name: 'X', extensions: [1] }] }),
+      handlers.get(IPC_INVOKE_CHANNELS.pickFile)?.(
+        {},
+        { filters: [{ name: 'X', extensions: [1] }] },
+      ),
     ).rejects.toThrow('MOFOX_ERROR:');
     expect(actions.pickFile).not.toHaveBeenCalled();
   });

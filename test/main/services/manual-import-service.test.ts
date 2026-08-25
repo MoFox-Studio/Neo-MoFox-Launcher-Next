@@ -64,9 +64,9 @@ function createFakePlatform(id: string, name: string): BotPlatform {
 }
 
 /** 构造按 ID 查找平台的解析器；查找失败即模拟导入时的未知平台错误。 */
-function createPlatformResolver(
-  platforms: BotPlatform[] = [],
-): { get(platformId: string): BotPlatform } {
+function createPlatformResolver(platforms: BotPlatform[] = []): {
+  get(platformId: string): BotPlatform;
+} {
   return {
     get(platformId: string): BotPlatform {
       const platform = platforms.find((candidate) => candidate.id === platformId);
@@ -156,23 +156,6 @@ describe('ManualImportService', () => {
       }),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     expect(repository.create).not.toHaveBeenCalled();
-  });
-
-  it('inspects a platform directory against its own start entry', async () => {
-    const root = await createTemporaryDirectory();
-    const platformDirectory = await createPlatformDirectory(root, 'snowluma');
-    const service = new ManualImportService(
-      { list: vi.fn(async () => []), create: vi.fn() },
-      createPlatformResolver([createFakePlatform('snowluma', 'SnowLuma')]),
-    );
-
-    await expect(
-      service.inspectPlatformPath('snowluma', platformDirectory),
-    ).resolves.toMatchObject({ absolute: true, exists: true, isDirectory: true, valid: true });
-
-    await expect(
-      service.inspectPlatformPath('snowluma', join(root, 'missing')),
-    ).resolves.toMatchObject({ exists: false, isDirectory: false, valid: false });
   });
 
   it('rejects an already registered Neo-MoFox directory', async () => {

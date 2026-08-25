@@ -1,15 +1,10 @@
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import type { Instance } from '../../shared/domain/instance';
-import type {
-  ManualImportRequest,
-  ManualImportResult,
-  PathInspection,
-  PlatformPathInspection,
-} from '../../shared/domain/manual-import';
+import type { ManualImportRequest, ManualImportResult } from '../../shared/domain/manual-import';
 import type { BotPlatform } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { CreateInstanceInput } from '../../shared/domain/instance';
-import { inspectPath, requireDirectory, requireFile, samePath } from '../utils/path-inspection';
+import { requireDirectory, requireFile, samePath } from '../utils/path-inspection';
 
 /** 已有实例导入时依赖的最小仓库能力。 */
 interface InstanceRepository {
@@ -92,42 +87,6 @@ export class ManualImportService {
           : { id: null, installDir: null, version: null },
     });
     return { instanceId: instance.id };
-  }
-
-  /**
-   * 探测输入路径的状态，供用户导入前立即反馈，不替代导入时的完整校验。
-   *
-   * @param value - 用户在输入框内填写的路径。
-   * @returns 路径的绝对性、存在性、目录类型与 main.py 标志。
-   */
-  async inspectImportPath(value: string): Promise<PathInspection> {
-    return inspectPath(value);
-  }
-
-  /**
-   * 探测平台安装目录是否有效，与 Neo-MoFox 探测相互独立。
-   *
-   * 平台 ID 由调用方先选定，这里按该平台的启动入口探测目录；
-   * 只用于导入前校验，导入时仍会对平台目录做一次完整核验。
-   *
-   * @param platformId - 所选平台的 ID。
-   * @param value - 用户在输入框内填写的平台目录路径。
-   * @returns 路径的绝对性、存在性与该平台的启动入口是否可解析。
-   */
-  async inspectPlatformPath(platformId: string, value: string): Promise<PlatformPathInspection> {
-    const inspection = await inspectPath(value);
-    if (!inspection.absolute || !inspection.exists || !inspection.isDirectory) {
-      return { ...inspection, valid: false };
-    }
-    const platform = this.platforms.get(platformId);
-    let valid: boolean;
-    try {
-      await platform.getStartCommand(resolve(value));
-      valid = true;
-    } catch {
-      valid = false;
-    }
-    return { ...inspection, valid };
   }
 }
 

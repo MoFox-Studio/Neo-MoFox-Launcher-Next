@@ -4,18 +4,19 @@ import type {
   FilePickerOptions,
   FilePickerResult,
 } from '../../shared/domain/file-picker';
+import type { PathInspection, PlatformPathInspection } from '../../shared/domain/manual-import';
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
 /**
- * 通用对话框服务：仅暴露渲染进程需要的选择文件/文件夹能力。
+ * 通用服务动作：渲染进程需要的选择文件/文件夹与目录校验能力。
  * 所有具体窗口句柄与 Electron API 在适配器中实现，便于单元测试。
  */
-export interface DialogActions {
+export interface CommonActions {
   pickFile(options: FilePickerOptions | undefined): Promise<FilePickerResult>;
-  pickDirectory(
-    options: DirectoryPickerOptions | undefined,
-  ): Promise<DirectoryPickerResult>;
+  pickDirectory(options: DirectoryPickerOptions | undefined): Promise<DirectoryPickerResult>;
+  inspectImportPath(value: string): Promise<PathInspection>;
+  inspectPlatformPath(platformId: string, value: string): Promise<PlatformPathInspection>;
 }
 
 export interface IpcMainRegistrar {
@@ -23,19 +24,28 @@ export interface IpcMainRegistrar {
 }
 
 /**
- * 注册通用对话框 IPC 通道。
+ * 注册通用服务 IPC 通道。
  *
- * 在跨进程边界处校验选项载荷形状，再委托给对话框服务调用 Electron `dialog`。
+ * 在跨进程边界处校验载荷形状，再委托给服务层调用 Electron `dialog` 或目录探测。
  *
  * @param ipcMain - Electron ipcMain 句柄或其测试替身。
- * @param actions - 暴露给渲染端的对话框动作集合。
+ * @param actions - 暴露给渲染端的通用服务动作集合。
  */
-export function registerCommonIpc(ipcMain: IpcMainRegistrar, actions: DialogActions): void {
+export function registerCommonIpc(ipcMain: IpcMainRegistrar, actions: CommonActions): void {
   register(ipcMain, IPC_INVOKE_CHANNELS.pickFile, (rawOptions) =>
     actions.pickFile(requireFilePickerOptions(rawOptions)),
   );
   register(ipcMain, IPC_INVOKE_CHANNELS.pickDirectory, (rawOptions) =>
     actions.pickDirectory(requireDirectoryPickerOptions(rawOptions)),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.inspectImportPath, (value) =>
+    actions.inspectImportPath(requireString(value, 'Import path')),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.inspectPlatformImportPath, (platformId, value) =>
+    actions.inspectPlatformPath(
+      requireString(platformId, 'Platform ID'),
+      requireString(value, 'Platform import path'),
+    ),
   );
 }
 
@@ -88,9 +98,7 @@ function requireFilePickerOptions(value: unknown): FilePickerOptions | undefined
  * @param value - 未经类型约束的 IPC 参数。
  * @returns 通过校验的选项对象，或 `undefined` 表示使用默认。
  */
-function requireDirectoryPickerOptions(
-  value: unknown,
-): DirectoryPickerOptions | undefined {
+function requireDirectoryPickerOptions(value: unknown): DirectoryPickerOptions | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new MofoxError('INVALID_ARGUMENT', 'Directory picker options must be an object');
@@ -103,6 +111,20 @@ function requireDirectoryPickerOptions(
     throw new MofoxError('INVALID_ARGUMENT', 'Directory picker defaultPath must be a string');
   }
   return options as DirectoryPickerOptions;
+}
+
+/**
+ * 校验通用字符串参数，失败时抛出包含字段名的可读错误。
+ *
+ * @param value - 未经类型约束的 IPC 参数。
+ * @param label - 用于错误信息的字段名称。
+ * @returns 通过校验的字符串值。
+ */
+function requireString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new MofoxError('INVALID_ARGUMENT', `${label} must be a string`);
+  }
+  return value;
 }
 
 interface FilePickerFilter {

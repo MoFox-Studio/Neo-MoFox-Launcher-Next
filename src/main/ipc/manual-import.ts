@@ -1,17 +1,10 @@
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
-import type {
-  ManualImportRequest,
-  ManualImportResult,
-  PathInspection,
-  PlatformPathInspection,
-} from '../../shared/domain/manual-import';
+import type { ManualImportRequest, ManualImportResult } from '../../shared/domain/manual-import';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
-/** 手动导入 IPC 暴露将已有目录注册为实例的动作，以及导入前探测目录的动作。 */
+/** 手动导入 IPC 仅暴露将已有目录注册为实例的动作，目录校验已在通用服务 IPC 中提供。 */
 interface ManualImportActions {
   importInstance(request: ManualImportRequest): Promise<ManualImportResult>;
-  inspectImportPath(value: string): Promise<PathInspection>;
-  inspectPlatformPath(platformId: string, value: string): Promise<PlatformPathInspection>;
 }
 
 interface IpcMainRegistrar {
@@ -37,36 +30,6 @@ export function registerManualImportIpc(
         );
       }
       return await actions.importInstance(requireRequest(args[0]));
-    } catch (error) {
-      throw serializeIpcError(error);
-    }
-  });
-
-  // Neo-MoFox 目录探测：渲染层导入前校验，不替代导入时服务层的完整校验。
-  ipcMain.handle(IPC_INVOKE_CHANNELS.inspectImportPath, async (_event, ...args) => {
-    try {
-      if (args.length !== 1 || typeof args[0] !== 'string') {
-        throw new MofoxError(
-          'INVALID_ARGUMENT',
-          'Inspect import path channel takes one string argument',
-        );
-      }
-      return await actions.inspectImportPath(args[0]);
-    } catch (error) {
-      throw serializeIpcError(error);
-    }
-  });
-
-  // 平台目录探测独立于 Neo-MoFox 探测，按所选平台自身的启动入口判断目录有效性。
-  ipcMain.handle(IPC_INVOKE_CHANNELS.inspectPlatformImportPath, async (_event, ...args) => {
-    try {
-      if (args.length !== 2 || typeof args[0] !== 'string' || typeof args[1] !== 'string') {
-        throw new MofoxError(
-          'INVALID_ARGUMENT',
-          'Inspect platform import path channel takes platform id and path strings',
-        );
-      }
-      return await actions.inspectPlatformPath(args[0], args[1]);
     } catch (error) {
       throw serializeIpcError(error);
     }
