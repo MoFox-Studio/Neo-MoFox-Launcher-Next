@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useOobeStore } from '@/stores/oobe';
+import { mofoxApi } from '@/services/mofox-api';
 import { MofoxError } from '@shared/domain/error';
 import type { OobeDependencyStatus } from '@shared/domain/oobe';
 import ErrorDialog from '@/components/ErrorDialog.vue';
@@ -24,6 +25,7 @@ const checking = ref(true);
 const inspectionError = ref<string | null>(null);
 const installationSkipped = ref(false);
 const showErrorDialog = ref(false);
+const showSkipDialog = ref(false);
 
 const hasMissing = computed(() =>
   oobe.dependencies.some((dependency) => dependency.status === 'pending'),
@@ -132,8 +134,15 @@ async function submitPassword(): Promise<void> {
 }
 
 function skipInstallation(): void {
+  // 选择“暂不安装”先弹出确认窗，确认后再退出启动器。
   installationSkipped.value = true;
-  emit('skip');
+  showSkipDialog.value = true;
+}
+
+/** 用户确认跳过并退出后，关闭启动器。 */
+async function confirmSkip(): Promise<void> {
+  showSkipDialog.value = false;
+  await mofoxApi.windowClose();
 }
 
 /**
@@ -322,6 +331,33 @@ onUnmounted(() => {
       title="依赖安装失败"
       @close="showErrorDialog = false"
     />
+
+    <BaseDialog
+      :open="showSkipDialog"
+      :dismissible="false"
+      :show-actions="false"
+      title="暂不安装并退出"
+      :width="440"
+    >
+      <div class="restart-dialog">
+        <span class="msr restart-dialog__icon" aria-hidden="true">logout</span>
+        <p class="restart-dialog__message">
+          你选择了稍后安装依赖。启动器将立即退出，请自行安装缺失依赖后重新打开启动器继续配置。
+        </p>
+      </div>
+      <template #actions>
+        <button
+          type="button"
+          class="btn btn--text state-layer"
+          @click="showSkipDialog = false; installationSkipped = false"
+        >
+          取消
+        </button>
+        <button type="button" class="btn btn--filled state-layer" @click="confirmSkip">
+          退出启动器
+        </button>
+      </template>
+    </BaseDialog>
 
     <BaseDialog
       :open="showRestartDialog"
