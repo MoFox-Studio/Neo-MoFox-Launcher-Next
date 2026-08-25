@@ -1,5 +1,4 @@
-import { access, stat } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { Instance } from '../../shared/domain/instance';
 import type {
   ManualImportRequest,
@@ -10,6 +9,7 @@ import type {
 import type { BotPlatform } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { CreateInstanceInput } from '../../shared/domain/instance';
+import { inspectPath, requireDirectory, requireFile, samePath } from '../utils/path-inspection';
 
 /** 已有实例导入时依赖的最小仓库能力。 */
 interface InstanceRepository {
@@ -68,10 +68,7 @@ export class ManualImportService {
       try {
         await platform.getStartCommand(resolvedPlatformDir);
       } catch {
-        throw new MofoxError(
-          'INVALID_ARGUMENT',
-          `所选目录不是有效的 ${platform.name} 安装目录`,
-        );
+        throw new MofoxError('INVALID_ARGUMENT', `所选目录不是有效的 ${platform.name} 安装目录`);
       }
     }
 
@@ -104,7 +101,7 @@ export class ManualImportService {
    * @returns 路径的绝对性、存在性、目录类型与 main.py 标志。
    */
   async inspectImportPath(value: string): Promise<PathInspection> {
-    return inspectImportPath(value);
+    return inspectPath(value);
   }
 
   /**
@@ -118,7 +115,7 @@ export class ManualImportService {
    * @returns 路径的绝对性、存在性与该平台的启动入口是否可解析。
    */
   async inspectPlatformPath(platformId: string, value: string): Promise<PlatformPathInspection> {
-    const inspection = await inspectImportPath(value);
+    const inspection = await inspectPath(value);
     if (!inspection.absolute || !inspection.exists || !inspection.isDirectory) {
       return { ...inspection, valid: false };
     }
@@ -134,67 +131,9 @@ export class ManualImportService {
   }
 }
 
-/** 读取并规范化目录路径，拒绝不存在或非目录的用户输入。 */
-async function requireDirectory(value: string, label: string): Promise<string> {
-  const path = requireText(value, `${label}不能为空`);
-  if (!isAbsolute(path)) throw new MofoxError('INVALID_ARGUMENT', `${label}必须是绝对路径`);
-  const resolved = resolve(path);
-  try {
-    if (!(await stat(resolved)).isDirectory()) {
-      throw new MofoxError('INVALID_ARGUMENT', `${label}必须是目录`);
-    }
-  } catch (error) {
-    if (error instanceof MofoxError) throw error;
-    throw new MofoxError('NOT_FOUND', `${label}不存在: ${resolved}`);
-  }
-  return resolved;
-}
-
-/** 读取文件存在性，避免注册无法由运行时启动的 Neo-MoFox 目录。 */
-async function requireFile(path: string, message: string): Promise<void> {
-  try {
-    if (!(await stat(path)).isFile()) throw new MofoxError('NOT_FOUND', message);
-  } catch (error) {
-    if (error instanceof MofoxError) throw error;
-    throw new MofoxError('NOT_FOUND', message);
-  }
-}
-
-/** 确保必填文本在进入持久化层前已经去除首尾空白。 */
+/** 确保必填文本在进入业务层前已经去除首尾空白。 */
 function requireText(value: string, message: string): string {
   const trimmed = value.trim();
   if (!trimmed) throw new MofoxError('INVALID_ARGUMENT', message);
   return trimmed;
-}
-
-/** 探测路径的绝对性、存在性、目录类型与 main.py 标志。 */
-async function inspectImportPath(value: string): Promise<PathInspection> {
-  const absolute = isAbsolute(value);
-  if (!absolute) {
-    return { absolute: false, exists: false, isDirectory: false, mainPyExists: false };
-  }
-  let isDirectory: boolean;
-  try {
-    isDirectory = (await stat(value)).isDirectory();
-  } catch {
-    return { absolute: true, exists: false, isDirectory: false, mainPyExists: false };
-  }
-  let mainPyExists = false;
-  if (isDirectory) {
-    try {
-      await access(join(value, 'main.py'));
-      mainPyExists = true;
-    } catch {
-      mainPyExists = false;
-    }
-  }
-  return { absolute: true, exists: true, isDirectory, mainPyExists };
-}
-
-/** Windows 文件系统路径不区分大小写，其余平台按原始规范化路径比较。 */
-function samePath(left: string, right: string): boolean {
-  const normalizedLeft = resolve(left);
-  return process.platform === 'win32'
-    ? normalizedLeft.toLowerCase() === right.toLowerCase()
-    : normalizedLeft === right;
 }

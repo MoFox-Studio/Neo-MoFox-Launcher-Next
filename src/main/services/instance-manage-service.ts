@@ -1,12 +1,16 @@
+import { join } from 'node:path';
 import type { Instance, UpdateInstancePatch } from '../../shared/domain/instance';
+import type { BotPlatform } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { InstanceRuntimeService } from './instance-runtime-service';
+import { requireDirectory, requireFile } from '../utils/path-inspection';
 
 /**
  * 实例管理服务：负责删除、打开安装目录与更新配置。
  *
  * 删除前先经运行服务优雅停机，再删除 MoFox 本体目录、持久化记录并清理运行时日志缓冲；
- * 打开目录则直接把 MoFox 本体安装目录交给系统文件管理器；更新配置直接委托仓库持久化。
+ * 打开目录则直接把 MoFox 本体安装目录交给系统文件管理器；
+ * 更新配置前会核验主程序与平台目录，确认可被运行时启动后再委托仓库持久化。
  */
 export class InstanceManageService {
   constructor(
@@ -16,6 +20,7 @@ export class InstanceManageService {
       remove(instanceId: string): Promise<void>;
       update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance>;
     },
+    private readonly platforms: { get(platformId: string): BotPlatform },
     private readonly removePath: (path: string) => Promise<void>,
     private readonly openPath: (path: string) => Promise<void>,
   ) {}
@@ -47,12 +52,34 @@ export class InstanceManageService {
   /**
    * 更新实例的可编辑配置字段并返回持久化后的最新实例。
    *
+   * 更新前先核验本次改动涉及的路径：主程序目录必须存在且含 main.py；
+   * 平台目录存在时按所选平台解析启动入口，确保改动后的配置仍可被运行时启动。
+   *
    * @param instanceId - 实例 ID。
    * @param patch - 需要更新的字段；省略的字段保持原值。
    * @returns 更新后的实例记录。
    */
   async update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance> {
-    return this.repository.update(instanceId, patch);
+    let validated = patch;
+    if (patch.mofoxInstallDir !== undefined && patch.mofoxInstallDir.trim()) {
+      const mofoxInstallDir = await requireDirectory(patch.mofoxInstallDir, '主程序路径');
+      await requireFile(
+        join(mofoxInstallDir, 'main.py'),
+        '所选目录不是有效的 Neo-MoFox 安装目录（缺少 main.py）',
+      );
+      validated = { ...validated, mofoxInstallDir };
+    }
+    if (patch.platform && patch.platform.id && patch.platform.installDir) {
+      const platformDir = await requireDirectory(patch.platform.installDir, '平台安装目录');
+      const platform = this.platforms.get(patch.platform.id);
+      try {
+        await platform.getStartCommand(platformDir);
+      } catch {
+        throw new MofoxError('INVALID_ARGUMENT', `所选目录不是有效的 ${platform.name} 安装目录`);
+      }
+      validated = { ...validated, platform: { ...patch.platform, installDir: platformDir } };
+    }
+    return this.repository.update(instanceId, validated);
   }
 
   /**
@@ -64,7 +91,9 @@ export class InstanceManageService {
    */
   private async find(instanceId: string): Promise<Instance> {
     if (!instanceId.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Instance ID is required');
-    const instance = (await this.repository.list()).find((candidate) => candidate.id === instanceId);
+    const instance = (await this.repository.list()).find(
+      (candidate) => candidate.id === instanceId,
+    );
     if (!instance) throw new MofoxError('NOT_FOUND', `未知实例: ${instanceId}`);
     return instance;
   }

@@ -207,15 +207,14 @@ if (!hasSingleInstanceLock) {
     const send = (channel: string, payload: unknown) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
     };
-    const processHelper = new ProcessHelper(
-      (command, args, options) =>
-        nodePty.spawn(command, args, {
-          name: 'xterm-256color',
-          cols: options.cols,
-          rows: options.rows,
-          cwd: options.cwd,
-          env: options.env,
-        }),
+    const processHelper = new ProcessHelper((command, args, options) =>
+      nodePty.spawn(command, args, {
+        name: 'xterm-256color',
+        cols: options.cols,
+        rows: options.rows,
+        cwd: options.cwd,
+        env: options.env,
+      }),
     );
     const runtime = new InstanceRuntimeService(
       instances,
@@ -238,6 +237,7 @@ if (!hasSingleInstanceLock) {
     const manage = new InstanceManageService(
       runtime,
       instances,
+      platforms,
       removePathSafe,
       async (path) => {
         const error = await shell.openPath(path);
@@ -251,7 +251,8 @@ if (!hasSingleInstanceLock) {
       getLogBuffer: (instanceId, source) => runtime.getLogBuffer(instanceId, source),
       clearLogBuffer: (instanceId, source) => runtime.clearLogBuffer(instanceId, source),
       writePty: (instanceId, source, data) => runtime.writePty(instanceId, source, data),
-      resizePty: (instanceId, source, cols, rows) => runtime.resizePty(instanceId, source, cols, rows),
+      resizePty: (instanceId, source, cols, rows) =>
+        runtime.resizePty(instanceId, source, cols, rows),
       getStats: (instanceId) => runtime.getStats(instanceId),
       exportLogs: (instanceId, source) => runtime.exportLogs(instanceId, source),
     });
