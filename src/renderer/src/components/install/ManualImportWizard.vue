@@ -577,26 +577,6 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* 仅在启用壁纸背景时为内容画布铺设固定不透明度的底色，避免壁纸透明度被调为零时内容失去衬底；
-   无背景时不铺设，内容区直接沿用外壳表面即可，不再叠加不透明度。 */
-.manual-import__panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-}
-
-:global(.shell--has-wallpaper) .manual-import__panel::before {
-  background: var(--app-wallpaper-content-backing);
-}
-
-.manual-import__panel > .step,
-.manual-import__panel > .manual-import__nav {
-  position: relative;
-  z-index: 1;
-}
-
 .step {
   width: min(100%, 560px);
   flex: 1;

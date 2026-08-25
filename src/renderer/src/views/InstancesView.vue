@@ -220,12 +220,6 @@ async function confirmRemove(): Promise<void> {
   padding: 0 32px 32px;
 }
 
-/* 仅在壁纸背景存在时为内容区铺设固定可读底衬（不随内容遮罩变化），
-   遮罩归零时空态与网格区域仍保持可读；无壁纸时沿用外壳表面。 */
-:global(.shell--has-wallpaper) .instances-view__body {
-  background: var(--app-wallpaper-content-backing);
-}
-
 .instances-view__toolbar {
   display: flex;
   flex-direction: column;
@@ -301,20 +295,13 @@ async function confirmRemove(): Promise<void> {
   color: var(--md-sys-color-on-secondary-container);
 }
 
-/* 卡片瀑布区仅在壁纸背景存在时铺约 25% 不透明平面（不做模糊）；
-   无壁纸时沿用外壳表面，不需要额外的透明度处理。 */
+/* 卡片瀑布区直接落在内容画布上，不再单独铺设壁纸专用平面。 */
 .instances-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
   padding: 20px;
   border-radius: var(--md-sys-shape-corner-extra-large);
-}
-
-:global(.shell--has-wallpaper) .instances-grid {
-  border: 1px solid var(--app-glass-border);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 25%, transparent);
-  box-shadow: var(--app-glass-card-shadow);
 }
 
 /* 空列表和无搜索结果提示 */

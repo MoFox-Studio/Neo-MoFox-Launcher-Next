@@ -19,10 +19,18 @@ const splitGlass = computed(() => route.meta.splitGlass === true);
 const hasWallpaper = computed(
   () => settings.value.wallpaperType !== 'none' && settings.value.wallpaperFileName !== '',
 );
+// 遮罩拉满时玻璃侧栏与顶栏也转实，确保壁纸完全不可见。
+const wallpaperAtMax = computed(() => hasWallpaper.value && settings.value.wallpaperOpacity >= 1);
 </script>
 
 <template>
-  <div class="shell" :class="{ 'shell--has-wallpaper': hasWallpaper }">
+  <div
+    class="shell"
+    :class="{
+      'shell--has-wallpaper': hasWallpaper,
+      'shell--wallpaper-max': wallpaperAtMax,
+    }"
+  >
     <WallpaperLayer />
     <div class="shell__foreground">
       <!-- 应用窗体栏与主导航框架始终位于壁纸层上方。 -->
@@ -84,14 +92,29 @@ const hasWallpaper = computed(
 }
 
 .shell--has-wallpaper {
-  /* 0 时完全透出壁纸；非零时混入主题容器色，让内容区更有承托感。 */
+  /* 内容画布整面铺设遮罩驱动表面；遮罩归零时仍保留最低下限，保证内容可读。 */
   --app-current-content-surface: color-mix(
     in srgb,
     color-mix(in srgb, var(--md-sys-color-surface-container) 72%, var(--md-sys-color-background))
-      calc(var(--app-wallpaper-content-opacity) * 100%),
+      max(
+        calc(var(--app-wallpaper-content-opacity) * 100%),
+        var(--app-wallpaper-content-min-opacity)
+      ),
     transparent
   );
   --app-current-content-filter: none;
+}
+
+/* 遮罩 100% 时页面级玻璃转实（工具栏、卡片、内嵌侧栏），壁纸完全不可见；
+   标题栏与主导航侧栏保持固定玻璃，不随遮罩变化。 */
+.shell--wallpaper-max {
+  --app-glass-card: var(--md-sys-color-surface-container);
+  --app-glass-surface: var(--md-sys-color-surface);
+  --app-subrail-surface: color-mix(
+    in srgb,
+    var(--md-sys-color-surface-dim) 94%,
+    var(--md-sys-color-shadow)
+  );
 }
 
 /* 分栏页面将玻璃层分别放到侧栏与右侧画布，确保两者读取真实的底层纹理。 */

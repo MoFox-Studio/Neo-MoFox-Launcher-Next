@@ -135,12 +135,6 @@ function onLogs(id: string): void {
   padding: 24px 32px 32px;
 }
 
-/* 仅在壁纸背景存在时铺设固定可读底衬（不随内容遮罩变化），
-   遮罩归零时内容区仍保持可读；无壁纸时沿用外壳表面。 */
-:global(.shell--has-wallpaper) .dashboard__body {
-  background: var(--app-wallpaper-content-backing);
-}
-
 /* 运行实例汇总与统计项 */
 .hero {
   display: flex;
