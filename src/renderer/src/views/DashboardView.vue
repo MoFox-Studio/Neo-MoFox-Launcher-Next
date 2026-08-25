@@ -2,7 +2,6 @@
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useInstancesStore } from '@/stores/instances';
-import { mofoxApi } from '@/services/mofox-api';
 import { useWindowTitle } from '@/composables/use-window-title';
 import InstanceCard from '@/components/InstanceCard.vue';
 
@@ -45,16 +44,8 @@ function onRestart(id: string): void {
   instancesStore.restart(id);
 }
 
-function onRemove(id: string): void {
-  instancesStore.remove(id);
-}
-
-function onOpenFolder(id: string): void {
-  mofoxApi.openInstanceFolder(id);
-}
-
-function onLogs(id: string): void {
-  router.push({ name: 'instance-logs', params: { id } });
+function onManage(id: string): void {
+  router.push({ name: 'instance-manage', params: { id } });
 }
 </script>
 
@@ -111,9 +102,7 @@ function onLogs(id: string): void {
             @start="onStart"
             @stop="onStop"
             @restart="onRestart"
-            @logs="onLogs"
-            @remove="onRemove"
-            @open-folder="onOpenFolder"
+            @manage="onManage"
           />
         </div>
       </section>

@@ -7,8 +7,6 @@ interface InstanceActions {
   start(instanceId: string): Promise<void>;
   stop(instanceId: string): Promise<void>;
   restart(instanceId: string): Promise<void>;
-  remove(instanceId: string): Promise<void>;
-  openFolder(instanceId: string): Promise<void>;
   getLogBuffer(instanceId: string, source: InstanceProcessSource): string;
   clearLogBuffer(instanceId: string, source: InstanceProcessSource): void;
   writePty(instanceId: string, source: InstanceProcessSource, data: string): void;
@@ -33,8 +31,6 @@ export function registerInstanceIpc(ipcMain: IpcMainRegistrar, instances: Instan
   register(ipcMain, IPC_INVOKE_CHANNELS.startInstance, (id) => instances.start(requireId(id)));
   register(ipcMain, IPC_INVOKE_CHANNELS.stopInstance, (id) => instances.stop(requireId(id)));
   register(ipcMain, IPC_INVOKE_CHANNELS.restartInstance, (id) => instances.restart(requireId(id)));
-  register(ipcMain, IPC_INVOKE_CHANNELS.removeInstance, (id) => instances.remove(requireId(id)));
-  register(ipcMain, IPC_INVOKE_CHANNELS.openInstanceFolder, (id) => instances.openFolder(requireId(id)));
   register(ipcMain, IPC_INVOKE_CHANNELS.getInstanceLogBuffer, (id, source) =>
     instances.getLogBuffer(requireId(id), requireSource(source)));
   register(ipcMain, IPC_INVOKE_CHANNELS.clearInstanceLogBuffer, (id, source) =>

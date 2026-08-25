@@ -1,12 +1,12 @@
-import type { Instance } from '../../shared/domain/instance';
+import type { Instance, UpdateInstancePatch } from '../../shared/domain/instance';
 import { MofoxError } from '../../shared/domain/error';
 import type { InstanceRuntimeService } from './instance-runtime-service';
 
 /**
- * 实例管理服务：只负责删除与打开安装目录。
+ * 实例管理服务：负责删除、打开安装目录与更新配置。
  *
  * 删除前先经运行服务优雅停机，再删除 MoFox 本体目录、持久化记录并清理运行时日志缓冲；
- * 打开目录则直接把 MoFox 本体安装目录交给系统文件管理器。
+ * 打开目录则直接把 MoFox 本体安装目录交给系统文件管理器；更新配置直接委托仓库持久化。
  */
 export class InstanceManageService {
   constructor(
@@ -14,6 +14,7 @@ export class InstanceManageService {
     private readonly repository: {
       list(): Promise<Instance[]>;
       remove(instanceId: string): Promise<void>;
+      update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance>;
     },
     private readonly removePath: (path: string) => Promise<void>,
     private readonly openPath: (path: string) => Promise<void>,
@@ -41,6 +42,17 @@ export class InstanceManageService {
   async openFolder(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
     await this.openPath(instance.mofoxInstallDir);
+  }
+
+  /**
+   * 更新实例的可编辑配置字段并返回持久化后的最新实例。
+   *
+   * @param instanceId - 实例 ID。
+   * @param patch - 需要更新的字段；省略的字段保持原值。
+   * @returns 更新后的实例记录。
+   */
+  async update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance> {
+    return this.repository.update(instanceId, patch);
   }
 
   /**

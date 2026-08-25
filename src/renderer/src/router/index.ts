@@ -9,6 +9,11 @@ export const router = createRouter({
     { path: '/', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
     { path: '/instances', name: 'instances', component: () => import('@/views/InstancesView.vue') },
     {
+      path: '/instances/:id/manage',
+      name: 'instance-manage',
+      component: () => import('@/views/InstanceManageView.vue'),
+    },
+    {
       path: '/instances/:id/logs',
       name: 'instance-logs',
       component: () => import('@/views/InstanceLogView.vue'),

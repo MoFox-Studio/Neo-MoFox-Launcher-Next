@@ -14,9 +14,7 @@ const emit = defineEmits<{
   start: [id: string];
   stop: [id: string];
   restart: [id: string];
-  remove: [id: string];
-  logs: [id: string];
-  'open-folder': [id: string];
+  manage: [id: string];
 }>();
 
 // 运行状态决定主按钮语义；过渡状态用于锁定可能冲突的进程操作。
@@ -98,31 +96,13 @@ function onPrimaryAction(): void {
       <span class="instance-card__spacer"></span>
 
       <button
-        class="icon-btn state-layer"
+        class="btn btn--tonal state-layer"
         type="button"
-        title="查看日志"
-        aria-label="查看日志"
-        @click="emit('logs', instance.id)"
+        title="管理实例"
+        @click="emit('manage', instance.id)"
       >
-        <span class="msr" aria-hidden="true">terminal</span>
-      </button>
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="打开目录"
-        aria-label="打开目录"
-        @click="emit('open-folder', instance.id)"
-      >
-        <span class="msr" aria-hidden="true">folder_open</span>
-      </button>
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="删除"
-        aria-label="删除"
-        @click="emit('remove', instance.id)"
-      >
-        <span class="msr" aria-hidden="true">delete</span>
+        <span class="msr instance-card__manage-icon" aria-hidden="true">tune</span>
+        管理
       </button>
     </div>
   </article>
@@ -245,6 +225,10 @@ function onPrimaryAction(): void {
 
 .instance-card__spacer {
   flex: 1;
+}
+
+.instance-card__manage-icon {
+  font-size: 18px;
 }
 
 .btn {

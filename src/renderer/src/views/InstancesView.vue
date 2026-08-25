@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import type { Instance, InstanceStatus } from '@shared/domain/instance';
+import type { InstanceStatus } from '@shared/domain/instance';
 import { useInstancesStore } from '@/stores/instances';
-import { mofoxApi } from '@/services/mofox-api';
 import { useWindowTitle } from '@/composables/use-window-title';
 import InstanceCard from '@/components/InstanceCard.vue';
-import BaseDialog from '@/components/BaseDialog.vue';
 
-// 实例管理页提供搜索、状态筛选、操作分发及删除确认。
+// 实例管理页提供搜索、状态筛选与卡片操作分发。
 type FilterKey = 'all' | 'running' | 'stopped' | 'error';
 
 interface FilterOption {
@@ -30,10 +28,9 @@ const instancesStore = useInstancesStore();
 // 实例页标题显示在窗口栏。
 useWindowTitle({ title: '实例', subtitle: '管理并启动你的机器人实例' });
 
-// 筛选条件和待确认删除项只属于当前视图的临时响应式状态。
+// 筛选条件和搜索关键字只属于当前视图的临时响应式状态。
 const keyword = ref('');
 const activeFilter = ref<FilterKey>('all');
-const pendingRemoveInstance = ref<Instance | null>(null);
 
 // 初始化列表，并兼容来自旧入口的日志查询参数跳转。
 onMounted(() => {
@@ -79,26 +76,8 @@ function onRestart(id: string): void {
   instancesStore.restart(id);
 }
 
-function onOpenFolder(id: string): void {
-  mofoxApi.openInstanceFolder(id);
-}
-
-function openLogs(id: string): void {
-  void router.push({ name: 'instance-logs', params: { id } });
-}
-
-function requestRemove(id: string): void {
-  pendingRemoveInstance.value = instancesStore.byId(id) ?? null;
-}
-
-function cancelRemove(): void {
-  pendingRemoveInstance.value = null;
-}
-
-async function confirmRemove(): Promise<void> {
-  if (!pendingRemoveInstance.value) return;
-  await instancesStore.remove(pendingRemoveInstance.value.id);
-  pendingRemoveInstance.value = null;
+function onManage(id: string): void {
+  void router.push({ name: 'instance-manage', params: { id } });
 }
 </script>
 
@@ -168,30 +147,10 @@ async function confirmRemove(): Promise<void> {
           @start="onStart"
           @stop="onStop"
           @restart="onRestart"
-          @logs="openLogs"
-          @remove="requestRemove"
-          @open-folder="onOpenFolder"
+          @manage="onManage"
         />
       </div>
     </div>
-
-    <!-- 删除操作必须经确认对话框后才提交到实例仓库 -->
-    <BaseDialog
-      :open="pendingRemoveInstance !== null"
-      title="删除实例"
-      :width="320"
-      @close="cancelRemove"
-    >
-      <p v-if="pendingRemoveInstance" class="remove-dialog__body">
-        确定要删除实例「{{ pendingRemoveInstance.name }}」吗？此操作无法撤销。
-      </p>
-      <template #actions>
-        <button class="btn btn--text state-layer" type="button" @click="cancelRemove">取消</button>
-        <button class="btn btn--error state-layer" type="button" @click="confirmRemove">
-          删除
-        </button>
-      </template>
-    </BaseDialog>
   </div>
 </template>
 
@@ -340,17 +299,6 @@ async function confirmRemove(): Promise<void> {
   color: var(--md-sys-color-on-primary);
 }
 
-.btn--text {
-  padding: 0 12px;
-  background: transparent;
-  color: var(--md-sys-color-primary);
-}
-
-.btn--error {
-  background: var(--md-sys-color-error);
-  color: var(--md-sys-color-on-error);
-}
-
 .icon-btn {
   width: 40px;
   height: 40px;
@@ -361,9 +309,5 @@ async function confirmRemove(): Promise<void> {
   display: grid;
   place-items: center;
   cursor: pointer;
-}
-
-.remove-dialog__body {
-  margin: 0;
 }
 </style>

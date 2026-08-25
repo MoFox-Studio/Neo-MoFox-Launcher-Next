@@ -8,6 +8,7 @@ import type {
   InstanceProcessSource,
   InstanceStats,
   InstanceStatus,
+  UpdateInstancePatch,
 } from './domain/instance';
 import type {
   InstallProgressEvent,
@@ -49,6 +50,7 @@ export const IPC_INVOKE_CHANNELS = {
   restartInstance: 'instances:restart',
   removeInstance: 'instances:remove',
   openInstanceFolder: 'instances:open-folder',
+  updateInstance: 'instances:update',
   getInstanceLogBuffer: 'instances:log-buffer',
   clearInstanceLogBuffer: 'instances:log-clear',
   writeInstancePty: 'instances:pty-write',
@@ -118,6 +120,8 @@ export interface MofoxApi {
   restartInstance(instanceId: string): Promise<void>;
   removeInstance(instanceId: string): Promise<void>;
   openInstanceFolder(instanceId: string): Promise<void>;
+  /** 更新实例的可编辑配置字段，返回持久化后的最新实例。 */
+  updateInstance(instanceId: string, patch: UpdateInstancePatch): Promise<Instance>;
   getInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<string>;
   clearInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<void>;
   writeInstancePty(instanceId: string, source: InstanceProcessSource, data: string): Promise<void>;

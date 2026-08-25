@@ -8,8 +8,6 @@ function createService() {
     start: vi.fn(),
     stop: vi.fn(),
     restart: vi.fn(),
-    remove: vi.fn(),
-    openFolder: vi.fn(),
     getLogBuffer: vi.fn(() => 'buffered'),
     clearLogBuffer: vi.fn(),
     writePty: vi.fn(),
@@ -32,8 +30,6 @@ describe('registerInstanceIpc', () => {
     await handlers.get(IPC_INVOKE_CHANNELS.startInstance)?.({}, 'one');
     await handlers.get(IPC_INVOKE_CHANNELS.stopInstance)?.({}, 'one');
     await handlers.get(IPC_INVOKE_CHANNELS.restartInstance)?.({}, 'one');
-    await handlers.get(IPC_INVOKE_CHANNELS.removeInstance)?.({}, 'one');
-    await handlers.get(IPC_INVOKE_CHANNELS.openInstanceFolder)?.({}, 'one');
     const buffer = await handlers.get(IPC_INVOKE_CHANNELS.getInstanceLogBuffer)?.({}, 'one', 'mofox');
     await handlers.get(IPC_INVOKE_CHANNELS.clearInstanceLogBuffer)?.({}, 'one', 'platform');
     await handlers.get(IPC_INVOKE_CHANNELS.writeInstancePty)?.({}, 'one', 'mofox', 'input');
@@ -45,8 +41,6 @@ describe('registerInstanceIpc', () => {
       IPC_INVOKE_CHANNELS.startInstance,
       IPC_INVOKE_CHANNELS.stopInstance,
       IPC_INVOKE_CHANNELS.restartInstance,
-      IPC_INVOKE_CHANNELS.removeInstance,
-      IPC_INVOKE_CHANNELS.openInstanceFolder,
       IPC_INVOKE_CHANNELS.getInstanceLogBuffer,
       IPC_INVOKE_CHANNELS.clearInstanceLogBuffer,
       IPC_INVOKE_CHANNELS.writeInstancePty,
@@ -57,8 +51,6 @@ describe('registerInstanceIpc', () => {
     expect(service.start).toHaveBeenCalledWith('one');
     expect(service.stop).toHaveBeenCalledWith('one');
     expect(service.restart).toHaveBeenCalledWith('one');
-    expect(service.remove).toHaveBeenCalledWith('one');
-    expect(service.openFolder).toHaveBeenCalledWith('one');
     expect(buffer).toBe('buffered');
     expect(service.getLogBuffer).toHaveBeenCalledWith('one', 'mofox');
     expect(service.clearLogBuffer).toHaveBeenCalledWith('one', 'platform');

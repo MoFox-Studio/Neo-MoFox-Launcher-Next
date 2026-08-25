@@ -11,6 +11,7 @@ import { registerManualImportIpc } from './ipc/manual-import';
 import { registerOobeIpc } from './ipc/oobe';
 import { registerShellIpc } from './ipc/shell';
 import { registerInstanceIpc } from './ipc/instances';
+import { registerInstanceManageIpc } from './ipc/instance-manage';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
 import { PlatformRegistry } from './platforms/registry';
@@ -247,14 +248,17 @@ if (!hasSingleInstanceLock) {
       start: (instanceId) => runtime.start(instanceId),
       stop: (instanceId) => runtime.stop(instanceId),
       restart: (instanceId) => runtime.restart(instanceId),
-      remove: (instanceId) => manage.remove(instanceId),
-      openFolder: (instanceId) => manage.openFolder(instanceId),
       getLogBuffer: (instanceId, source) => runtime.getLogBuffer(instanceId, source),
       clearLogBuffer: (instanceId, source) => runtime.clearLogBuffer(instanceId, source),
       writePty: (instanceId, source, data) => runtime.writePty(instanceId, source, data),
       resizePty: (instanceId, source, cols, rows) => runtime.resizePty(instanceId, source, cols, rows),
       getStats: (instanceId) => runtime.getStats(instanceId),
       exportLogs: (instanceId, source) => runtime.exportLogs(instanceId, source),
+    });
+    registerInstanceManageIpc(ipcMain, {
+      remove: (instanceId) => manage.remove(instanceId),
+      openFolder: (instanceId) => manage.openFolder(instanceId),
+      update: (instanceId, patch) => manage.update(instanceId, patch),
     });
     const installTasks = new InstallTaskService(
       platforms,

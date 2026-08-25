@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Instance } from '../../../src/shared/domain/instance';
 import { InstanceManageService } from '../../../src/main/services/instance-manage-service';
 
-/** 覆盖删除前停机、目录/记录回收、缓冲清理与打开安装目录。 */
+/** 覆盖删除前停机、目录/记录回收、缓冲清理、打开安装目录与更新配置。 */
 describe('InstanceManageService', () => {
   it('stops, removes the directory and record, then clears logs', async () => {
     const instance = createInstance();
@@ -29,6 +29,18 @@ describe('InstanceManageService', () => {
 
     expect(openPath).toHaveBeenCalledWith(instance.mofoxInstallDir);
   });
+
+  it('forwards update patches to the repository', async () => {
+    const instance = createInstance();
+    const repository = createRepository(instance);
+    repository.update.mockResolvedValue({ ...instance, name: 'Renamed' });
+    const service = new InstanceManageService({ stop: vi.fn(), clearLogs: vi.fn() }, repository, vi.fn(async () => undefined), vi.fn(async () => undefined));
+
+    const updated = await service.update('one', { name: 'Renamed' });
+
+    expect(repository.update).toHaveBeenCalledWith('one', { name: 'Renamed' });
+    expect(updated.name).toBe('Renamed');
+  });
 });
 
 function createInstance(): Instance {
@@ -48,5 +60,6 @@ function createRepository(instance: Instance) {
   return {
     list: vi.fn(async () => [instance]),
     remove: vi.fn(async () => undefined),
+    update: vi.fn(async () => instance),
   };
 }

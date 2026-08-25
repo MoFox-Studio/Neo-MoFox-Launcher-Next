@@ -12,6 +12,7 @@ vi.mock('@/services/mofox-api', () => ({
     startInstance: vi.fn(),
     stopInstance: vi.fn(),
     removeInstance: vi.fn(),
+    updateInstance: vi.fn(),
     on: vi.fn((event: string, listener: (payload: unknown) => void) => {
       listeners.set(event, listener);
       return () => listeners.delete(event);

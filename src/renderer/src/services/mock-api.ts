@@ -202,6 +202,25 @@ export const mockApi: MofoxApi = {
     if (idx >= 0) instances.splice(idx, 1);
   },
   async openInstanceFolder() {},
+  async updateInstance(id, patch) {
+    await delay(80);
+    const ins = instances.find((i) => i.id === id);
+    if (!ins) throw new Error(`unknown instance ${id}`);
+    if (patch.name !== undefined) ins.name = patch.name;
+    if (patch.mofoxInstallDir !== undefined) ins.mofoxInstallDir = patch.mofoxInstallDir;
+    if (patch.platform !== undefined) {
+      ins.platform =
+        patch.platform === null
+          ? { id: null, installDir: null, version: null }
+          : {
+              id: patch.platform.id ?? null,
+              installDir: patch.platform.installDir ?? null,
+              version: patch.platform.version ?? null,
+            };
+    }
+    if (patch.autoStart !== undefined) ins.autoStart = patch.autoStart;
+    return { ...ins };
+  },
   async getInstanceLogBuffer(id, source) {
     return logBuffers.get(`${id}:${source}`) ?? '';
   },

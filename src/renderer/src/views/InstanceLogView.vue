@@ -328,10 +328,6 @@ async function exportLogs(): Promise<void> {
   }
 }
 
-function openFolder(): void {
-  void mofoxApi.openInstanceFolder(instanceId.value);
-}
-
 function goBack(): void {
   router.back();
 }
@@ -436,9 +432,6 @@ function goBack(): void {
       </button>
       <button class="icon-btn state-layer" type="button" title="清空当前日志" aria-label="清空当前日志" @click="clearLogs">
         <span class="msr" aria-hidden="true">delete_sweep</span>
-      </button>
-      <button class="icon-btn state-layer" type="button" title="打开实例目录" aria-label="打开实例目录" @click="openFolder">
-        <span class="msr" aria-hidden="true">folder_open</span>
       </button>
     </div>
 
