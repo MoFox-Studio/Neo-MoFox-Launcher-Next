@@ -76,6 +76,9 @@ jobs:
       - name: 重编译 node-pty (${{ matrix.arch }})
         run: npx electron-rebuild -f -a ${{ matrix.arch }} -m . -w node-pty
 
+      - name: 构建应用 (dist)
+        run: npm run build
+
       - name: 打包 Windows ${{ matrix.arch }}
         run: npx electron-builder --win --${{ matrix.arch }} --publish never --config electron-builder.yml
 
@@ -138,6 +141,9 @@ jobs:
 
       - name: 重编译 node-pty (${{ matrix.arch }})
         run: npx electron-rebuild -f -a ${{ matrix.arch }} --platform linux -m . -w node-pty
+
+      - name: 构建应用 (dist)
+        run: npm run build
 
       - name: 打包 Linux (${{ matrix.arch }})
         run: npx electron-builder --linux --${{ matrix.arch }} --publish never --config electron-builder.yml
