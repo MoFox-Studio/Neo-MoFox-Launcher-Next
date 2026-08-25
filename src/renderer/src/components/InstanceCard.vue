@@ -14,6 +14,7 @@ const emit = defineEmits<{
   start: [id: string];
   stop: [id: string];
   restart: [id: string];
+  logs: [id: string];
   manage: [id: string];
 }>();
 
@@ -48,16 +49,26 @@ function onPrimaryAction(): void {
     <!-- 平台、平台版本及安装位置等实例元数据 -->
     <div class="instance-card__meta">
       <span v-if="platformId" class="instance-card__chip">{{ platformId }}</span>
-      <span v-if="platformVersion" class="instance-card__version" :title="`v${platformVersion}`">
-        v{{ platformVersion }}
+      <span v-else class="instance-card__chip instance-card__chip--empty">未安装平台</span>
+      <span
+        v-if="platformVersion"
+        class="instance-card__version"
+        :title="`v${platformVersion.replace(/^v/i, '')}`"
+      >
+        v{{ platformVersion.replace(/^v/i, '') }}
       </span>
     </div>
 
     <p class="instance-card__path" :title="installPath">{{ installPath }}</p>
 
-    <!-- 启动或停止期间展示不定进度，实际结果由上层状态更新驱动 -->
-    <div v-if="isBusy" class="instance-card__progress" role="progressbar" aria-label="处理中">
-      <div class="instance-card__progress-bar"></div>
+    <!-- 启动或停止期间展示不定进度，实际结果由上层状态更新驱动；容器常驻以统一卡片高度 -->
+    <div
+      class="instance-card__progress"
+      :class="{ 'instance-card__progress--active': isBusy }"
+      role="progressbar"
+      aria-label="处理中"
+    >
+      <div v-if="isBusy" class="instance-card__progress-bar"></div>
     </div>
 
     <!-- 左侧为进程控制，右侧为实例辅助操作 -->
@@ -95,6 +106,15 @@ function onPrimaryAction(): void {
 
       <span class="instance-card__spacer"></span>
 
+      <button
+        class="icon-btn state-layer"
+        type="button"
+        title="查看日志"
+        aria-label="查看日志"
+        @click="emit('logs', instance.id)"
+      >
+        <span class="msr" aria-hidden="true">terminal</span>
+      </button>
       <button
         class="btn btn--tonal state-layer"
         type="button"
@@ -156,6 +176,7 @@ function onPrimaryAction(): void {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 22px;
 }
 
 .instance-card__chip {
@@ -168,6 +189,12 @@ function onPrimaryAction(): void {
   color: var(--md-sys-color-on-surface-variant);
   flex: none;
   font: var(--md-sys-typescale-label-small);
+}
+
+.instance-card__chip--empty {
+  background: color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.85;
 }
 
 .instance-card__version {
@@ -190,12 +217,15 @@ function onPrimaryAction(): void {
   white-space: nowrap;
 }
 
-/* 状态切换时的不定进度动画 */
+/* 状态切换时的不定进度动画；容器常驻占位，仅忙碌时显示轨道与动画 */
 .instance-card__progress {
   height: 3px;
   border-radius: var(--md-sys-shape-corner-full);
-  background: color-mix(in srgb, var(--md-sys-color-tertiary) 24%, transparent);
   overflow: hidden;
+}
+
+.instance-card__progress--active {
+  background: color-mix(in srgb, var(--md-sys-color-tertiary) 24%, transparent);
 }
 
 .instance-card__progress-bar {
@@ -232,6 +262,10 @@ function onPrimaryAction(): void {
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   height: 40px;
   padding: 0 24px;
   border: none;

@@ -44,6 +44,10 @@ function onRestart(id: string): void {
   instancesStore.restart(id);
 }
 
+function openLogs(id: string): void {
+  router.push({ name: 'instance-logs', params: { id } });
+}
+
 function onManage(id: string): void {
   router.push({ name: 'instance-manage', params: { id } });
 }
@@ -102,6 +106,7 @@ function onManage(id: string): void {
             @start="onStart"
             @stop="onStop"
             @restart="onRestart"
+            @logs="openLogs"
             @manage="onManage"
           />
         </div>

@@ -887,6 +887,11 @@ async function save(): Promise<void> {
   gap: 16px;
 }
 
+/* 校验提示与输入框左缘对齐，覆盖全局 16px 缩进，与手动导入保持一致。 */
+.edit-form .field__support {
+  margin: 4px 0 0;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
