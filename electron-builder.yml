@@ -26,6 +26,10 @@ portable:
 linux:
   target:
     - AppImage
+    - deb
+    - rpm
+  maintainer: MoFox-Studio/Yishan <wwwww95915@qq.com>
+  artifactName: '${productName}-${version}-${arch}.${ext}'
   category: Utility
 mac:
   target:

@@ -1,0 +1,294 @@
+name: Nightly Release
+
+on:
+  schedule:
+    # 每天 UTC 16:00 (北京时间午夜 00:00) 执行
+    - cron: '0 16 * * *'
+      timezone: Asia/Shanghai
+  workflow_dispatch: # 允许手动触发
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: true
+
+jobs:
+  check-commits:
+    name: 检查提交
+    runs-on: ubuntu-latest
+    outputs:
+      has_new_commits: ${{ steps.check.outputs.has_new_commits }}
+      build_date: ${{ steps.check.outputs.build_date }}
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: 检查最近 24 小时是否有新提交
+        id: check
+        run: |
+          BUILD_DATE=$(date -u +'%Y%m%d')
+
+          echo "build_date=$BUILD_DATE" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+            echo "手动触发，跳过提交检查。"
+            exit 0
+          fi
+
+          COMMITS=$(git log --oneline --since="24 hours ago" | wc -l)
+          if [ "$COMMITS" -gt 0 ]; then
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+            echo "最近 24 小时内发现 $COMMITS 个新提交。"
+          else
+            echo "has_new_commits=false" >> "$GITHUB_OUTPUT"
+            echo "最近 24 小时内无新提交，跳过构建。"
+          fi
+
+  build-windows:
+    name: 构建 Windows
+    needs: check-commits
+    if: needs.check-commits.outputs.has_new_commits == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, ia32, arm64]
+    env:
+      BUILD_DATE: ${{ needs.check-commits.outputs.build_date }}
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 重编译 node-pty (${{ matrix.arch }})
+        run: npx electron-rebuild -f -a ${{ matrix.arch }} -m ./node_modules -w node-pty
+
+      - name: 打包 Windows ${{ matrix.arch }}
+        run: npx electron-builder --win --${{ matrix.arch }} --publish never --config electron-builder.yml
+
+      - name: 重命名产物
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path "release" -Filter "*-setup.exe" | Select-Object -First 1
+          $portable = Get-ChildItem -Path "release" -Filter "*-portable.exe" | Select-Object -First 1
+          if ($setup) {
+            $newName = "Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-win-${{ matrix.arch }}-setup.exe"
+            Copy-Item $setup.FullName "release\$newName"
+            Write-Host "安装包：$newName"
+          }
+          if ($portable) {
+            $newName = "Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-win-${{ matrix.arch }}-portable.exe"
+            Copy-Item $portable.FullName "release\$newName"
+            Write-Host "便携版：$newName"
+          }
+
+      - name: 上传产物
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-${{ matrix.arch }}
+          path: release/Neo-MoFox-Launcher-*-nightly-win-${{ matrix.arch }}-*.exe
+          if-no-files-found: error
+
+  build-linux:
+    name: 构建 Linux
+    needs: check-commits
+    if: needs.check-commits.outputs.has_new_commits == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    env:
+      BUILD_DATE: ${{ needs.check-commits.outputs.build_date }}
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装打包依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg fakeroot rpm
+
+      - name: 配置 arm64 交叉编译工具链
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 重编译 node-pty (${{ matrix.arch }})
+        run: npx electron-rebuild -f -a ${{ matrix.arch }} --platform linux -m ./node_modules -w node-pty
+
+      - name: 打包 Linux (${{ matrix.arch }})
+        run: npx electron-builder --linux --${{ matrix.arch }} --publish never --config electron-builder.yml
+
+      - name: 重命名产物
+        run: |
+          DEB_FILE=$(find release -name "*.deb" | head -1)
+          if [ -n "$DEB_FILE" ]; then
+            cp "$DEB_FILE" "release/Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.deb"
+            echo "deb 包已重命名为：Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.deb"
+          else
+            echo "警告：未找到 .deb 文件！"
+          fi
+
+          RPM_FILE=$(find release -name "*.rpm" | head -1)
+          if [ -n "$RPM_FILE" ]; then
+            cp "$RPM_FILE" "release/Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.rpm"
+            echo "rpm 包已重命名为：Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.rpm"
+          else
+            echo "警告：未找到 .rpm 文件！"
+          fi
+
+          APPIMAGE_FILE=$(find release -name "*.AppImage" | head -1)
+          if [ -n "$APPIMAGE_FILE" ]; then
+            cp "$APPIMAGE_FILE" "release/Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.AppImage"
+            echo "AppImage 已重命名为：Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.AppImage"
+          else
+            echo "警告：未找到 .AppImage 文件！"
+          fi
+
+      - name: 上传产物
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-${{ matrix.arch }}
+          path: |
+            release/Neo-MoFox-Launcher-*-nightly-linux-${{ matrix.arch }}.deb
+            release/Neo-MoFox-Launcher-*-nightly-linux-${{ matrix.arch }}.rpm
+            release/Neo-MoFox-Launcher-*-nightly-linux-${{ matrix.arch }}.AppImage
+          if-no-files-found: error
+
+  release:
+    name: 发布到 GitHub Releases
+    needs: [check-commits, build-windows, build-linux]
+    if: |
+      always() &&
+      needs.check-commits.outputs.has_new_commits == 'true' &&
+      (needs.build-windows.result == 'success' || needs.build-linux.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      BUILD_DATE: ${{ needs.check-commits.outputs.build_date }}
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 5
+
+      - name: 下载全部产物
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: artifacts
+
+      - name: 生成更新日志
+        run: |
+          cat > changelog.md << 'HEADER'
+          ## 🌙 每夜构建版本 - ${{ env.BUILD_DATE }}
+
+          ### 📝 最近提交
+          HEADER
+          git log --oneline --since="24 hours ago" --format="- %h %s" >> changelog.md
+          cat >> changelog.md << 'FOOTER'
+
+          ### 📦 构建信息
+          - 🗓️ 构建日期: ${{ env.BUILD_DATE }}
+          - 🔖 提交哈希: $(git rev-parse --short HEAD)
+          - 🚀 自动构建: GitHub Actions
+
+          ---
+
+          > ⚠️ **注意**: 这是自动化每夜构建版本，可能存在不稳定因素，仅供测试使用。
+          >
+          > 📥 **下载说明：**
+          > | 文件 | 说明 |
+          > |------|------|
+          > | `*-win-x64-setup.exe` | Windows x64 安装包 |
+          > | `*-win-x64-portable.exe` | Windows x64 便携版 |
+          > | `*-win-ia32-setup.exe` | Windows x86 安装包 |
+          > | `*-win-ia32-portable.exe` | Windows x86 便携版 |
+          > | `*-win-arm64-setup.exe` | Windows ARM64 安装包 |
+          > | `*-win-arm64-portable.exe` | Windows ARM64 便携版 |
+          > | `*-linux-x64.deb` | Linux x64 deb 包（Debian / Ubuntu）|
+          > | `*-linux-x64.rpm` | Linux x64 rpm 包（Fedora / RHEL / openSUSE）|
+          > | `*-linux-x64.AppImage` | Linux x64 AppImage |
+          > | `*-linux-arm64.deb` | Linux ARM64 deb 包（Debian / Ubuntu）|
+          > | `*-linux-arm64.rpm` | Linux ARM64 rpm 包（Fedora / RHEL / openSUSE）|
+          > | `*-linux-arm64.AppImage` | Linux ARM64 AppImage |
+          >
+          > **注意**: Linux 不再提供 ia32 (32位) 版本，因为 Electron 已停止支持 。
+          FOOTER
+
+      - name: 删除已存在的同日 nightly 发布（若有）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "nightly-${{ env.BUILD_DATE }}" --yes --cleanup-tag 2>/dev/null || true
+
+      - name: 清理过旧的 nightly 发布
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🧹 清理旧的每夜构建版本，保留最新的 6 个..."
+
+          NIGHTLY_TAGS=$(gh release list --limit 100 --json tagName,isPrerelease,createdAt \
+            --jq '.[] | select(.isPrerelease == true and (.tagName | startswith("nightly-"))) | .tagName' | sort -r)
+
+          TOTAL_COUNT=$(echo "$NIGHTLY_TAGS" | wc -l)
+          echo "📊 找到 $TOTAL_COUNT 个每夜构建版本"
+
+          if [ "$TOTAL_COUNT" -le 6 ]; then
+            echo "✅ 版本数量 <= 6，无需清理"
+            exit 0
+          fi
+
+          TO_DELETE=$(echo "$NIGHTLY_TAGS" | tail -n +7)
+          DELETE_COUNT=$(echo "$TO_DELETE" | wc -l)
+          echo "🗑️  将删除 $DELETE_COUNT 个旧版本"
+
+          echo "$TO_DELETE" | while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              echo "  删除: $tag"
+              gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || echo "  ⚠️  删除失败: $tag"
+            fi
+          done
+
+          echo "✅ 清理完成"
+
+      - name: 收集待发布文件
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name "*.exe" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec cp {} release-files/ \;
+          echo "📦 准备发布的文件:"
+          ls -lh release-files/
+
+      - name: 创建 nightly 发布
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "nightly-${{ env.BUILD_DATE }}" \
+            --title "🌙 每夜构建 ${{ env.BUILD_DATE }}" \
+            --notes-file changelog.md \
+            --prerelease \
+            release-files/*
+          echo "✅ 发布完成: nightly-${{ env.BUILD_DATE }}"
