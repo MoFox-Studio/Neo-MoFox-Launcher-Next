@@ -159,10 +159,10 @@ function requestContinue(): void {
   showRestartDialog.value = true;
 }
 
-/** 用户确认后，关闭弹窗并进入下一步。 */
-function confirmRestarted(): void {
+/** 用户确认退出后，关闭启动器；重启系统后重新打开启动器继续配置。 */
+async function confirmRestarted(): Promise<void> {
   showRestartDialog.value = false;
-  emit('next');
+  await mofoxApi.windowClose();
 }
 
 async function retryInstall(): Promise<void> {
@@ -361,12 +361,12 @@ onUnmounted(() => {
         <span class="msr restart-dialog__icon" aria-hidden="true">restart_alt</span>
         <p class="restart-dialog__message">
           部分依赖（如新加入系统 PATH
-          的可执行文件）需要重启系统后才能生效。请保存当前工作并手动重启电脑，重启后再次打开启动器即可继续。
+          的可执行文件）需要重启系统后才能生效。点击下方按钮将退出启动器，请重启电脑后再次打开启动器继续配置。
         </p>
       </div>
       <template #actions>
         <button type="button" class="btn btn--filled state-layer" @click="confirmRestarted">
-          知道了
+          退出启动器
         </button>
       </template>
     </BaseDialog>
