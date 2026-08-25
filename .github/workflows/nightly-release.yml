@@ -82,22 +82,6 @@ jobs:
       - name: 打包 Windows ${{ matrix.arch }}
         run: npx electron-builder --win --${{ matrix.arch }} --publish never --config electron-builder.yml
 
-      - name: 重命名产物
-        shell: pwsh
-        run: |
-          $setup = Get-ChildItem -Path "release" -Filter "*-setup.exe" | Select-Object -First 1
-          $portable = Get-ChildItem -Path "release" -Filter "*-portable.exe" | Select-Object -First 1
-          if ($setup) {
-            $newName = "Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-win-${{ matrix.arch }}-setup.exe"
-            Copy-Item $setup.FullName "release\$newName"
-            Write-Host "安装包：$newName"
-          }
-          if ($portable) {
-            $newName = "Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-win-${{ matrix.arch }}-portable.exe"
-            Copy-Item $portable.FullName "release\$newName"
-            Write-Host "便携版：$newName"
-          }
-
       - name: 上传产物
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -147,32 +131,6 @@ jobs:
 
       - name: 打包 Linux (${{ matrix.arch }})
         run: npx electron-builder --linux --${{ matrix.arch }} --publish never --config electron-builder.yml
-
-      - name: 重命名产物
-        run: |
-          DEB_FILE=$(find release -name "*.deb" | head -1)
-          if [ -n "$DEB_FILE" ]; then
-            cp "$DEB_FILE" "release/Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.deb"
-            echo "deb 包已重命名为：Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.deb"
-          else
-            echo "警告：未找到 .deb 文件！"
-          fi
-
-          RPM_FILE=$(find release -name "*.rpm" | head -1)
-          if [ -n "$RPM_FILE" ]; then
-            cp "$RPM_FILE" "release/Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.rpm"
-            echo "rpm 包已重命名为：Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.rpm"
-          else
-            echo "警告：未找到 .rpm 文件！"
-          fi
-
-          APPIMAGE_FILE=$(find release -name "*.AppImage" | head -1)
-          if [ -n "$APPIMAGE_FILE" ]; then
-            cp "$APPIMAGE_FILE" "release/Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.AppImage"
-            echo "AppImage 已重命名为：Neo-MoFox-Launcher-${{ env.BUILD_DATE }}-nightly-linux-${{ matrix.arch }}.AppImage"
-          else
-            echo "警告：未找到 .AppImage 文件！"
-          fi
 
       - name: 上传产物
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

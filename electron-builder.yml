@@ -18,18 +18,18 @@ win:
     - portable
   icon: assets/images/icon.ico
 nsis:
-  artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
+  artifactName: 'Neo-MoFox-Launcher-${env.BUILD_DATE}-nightly-${arch}-setup.${ext}'
   oneClick: false
   allowToChangeInstallationDirectory: true
 portable:
-  artifactName: '${productName}-Portable-${version}-${arch}.${ext}'
+  artifactName: 'Neo-MoFox-Launcher-${env.BUILD_DATE}-nightly-${arch}-portable.${ext}'
 linux:
   target:
     - AppImage
     - deb
     - rpm
   maintainer: MoFox-Studio/Yishan <wwwww95915@qq.com>
-  artifactName: '${productName}-${version}-${arch}.${ext}'
+  artifactName: 'Neo-MoFox-Launcher-${env.BUILD_DATE}-nightly-linux-${arch}.${ext}'
   category: Utility
 mac:
   target:
