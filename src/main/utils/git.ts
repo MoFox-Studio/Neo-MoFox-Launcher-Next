@@ -1,7 +1,7 @@
 import type { MirrorSource } from '../../shared/domain/mirror';
 import { MofoxError } from '../../shared/domain/error';
 import { buildSpawnEnv } from './platform-helper';
-import { runOneShot } from './process-service';
+import { runOneShot } from './process-helper';
 import { githubMirrorsOf, resolveGithubUrl } from './mirror';
 
 /** Git 克隆的入参；仓库与分支来自调用方，镜像列表由调用方注入。 */

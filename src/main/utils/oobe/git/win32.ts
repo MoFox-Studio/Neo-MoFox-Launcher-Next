@@ -2,7 +2,7 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MofoxError } from '../../../../shared/domain/error';
 import { downloadRange } from '../../range-downloader';
-import { runOneShot } from '../../process-service';
+import { runOneShot } from '../../process-helper';
 import type { DependencyInstallContext } from '../types';
 
 // Git for Windows 静默安装参数：禁用 UI、不重启、注册 LFS / 关联 / Shell 组件。

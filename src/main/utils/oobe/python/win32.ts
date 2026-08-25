@@ -2,7 +2,7 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MofoxError } from '../../../../shared/domain/error';
 import { downloadRange } from '../../range-downloader';
-import { runOneShot } from '../../process-service';
+import { runOneShot } from '../../process-helper';
 import type { DependencyInstallContext } from '../types';
 
 // 固定下载的 Python 版本；通过 python.org FTP 直链获取稳定版。

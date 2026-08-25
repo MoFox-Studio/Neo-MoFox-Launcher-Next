@@ -28,7 +28,7 @@ vi.mock('../../../src/main/utils/platform-helper', () => ({
 }));
 
 // 阻止 sudo -S -v 真实调用，直接走 mocked platform-helper 间接判定为 Windows 路径。
-vi.mock('../../../src/main/utils/process-service', () => ({
+vi.mock('../../../src/main/utils/process-helper', () => ({
   runOneShot: vi.fn(),
 }));
 

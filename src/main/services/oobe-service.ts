@@ -16,7 +16,7 @@ import {
   type DependencyInstallContext,
 } from '../utils/oobe';
 import { isLinux } from '../utils/platform-helper';
-import { runOneShot } from '../utils/process-service';
+import { runOneShot } from '../utils/process-helper';
 import type { SettingsService } from './settings-service';
 import type { LegacyMigrationService } from './legacy-migration-service';
 

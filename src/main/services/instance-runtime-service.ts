@@ -5,77 +5,45 @@ import type {
   InstanceProcessSource,
   InstanceStats,
   InstanceStatus,
-  ProcessStats,
 } from '../../shared/domain/instance';
 import type { StartCommand } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
-import type { ChildProcess } from 'node:child_process';
 import type { PlatformRegistry } from '../platforms/registry';
-import { spawnProcess } from '../utils/process-service';
+import { ProcessHelper } from '../utils/process-helper';
 import { findVenvPython } from '../utils/platform-helper';
 import type { UpdateInstancePatch } from '../../shared/domain/instance';
 
 /**
  * 协调实例进程的启动、停止、日志和状态持久化；运行态只保留在内存，状态变化通过 events 同步给渲染进程。
- * 进程、文件和导出操作通过可注入依赖隔离，便于在异常路径中回收资源并进行测试。
+ * 进程启动、停止和统计委托给与实例解耦的 ProcessHelper，本服务只保留平台运行编排与状态收敛。
  */
-export interface PtyProcess {
-  pid?: number;
-  onData(listener: (data: string) => void): { dispose(): void };
-  onExit(listener: (event: { exitCode: number; signal?: number }) => void): { dispose(): void };
-  kill(signal?: string): void;
-  write?(data: string): void;
-  resize?(cols: number, rows: number): void;
-}
-
-export type PtyFactory = (
-  command: string,
-  args: string[],
-  options: { cwd: string; env: Record<string, string>; cols: number; rows: number },
-) => PtyProcess;
-
 export interface InstanceRuntimeEvents {
   statusChanged: (instanceId: string, status: InstanceStatus) => void;
   ptyData: (instanceId: string, source: InstanceProcessSource, data: string) => void;
 }
 
-interface ActiveProcess {
-  process: ChildProcess | PtyProcess;
-  kind: 'child' | 'pty';
-  startedAt: number;
-  exited: Promise<void>;
-  resolveExited: () => void;
-  stopping: boolean;
-}
+export type WriteExport = (fileName: string, content: string) => Promise<string>;
 
 const SOURCES: InstanceProcessSource[] = ['mofox', 'platform'];
 const LOG_BUFFER_MAX = 200_000;
-const STOP_SIGTERM_DELAY_MS = 4000;
-const STOP_SIGKILL_DELAY_MS = 3000;
 
 export class InstanceRuntimeService {
-  /** 实例到进程源的运行态索引，进程退出后必须与仓库状态一并收敛。 */
-  private readonly active = new Map<string, Map<InstanceProcessSource, ActiveProcess>>();
+  /** 实例到仍在运行进程源的索引，全部退出后与仓库状态一并收敛。 */
+  private readonly running = new Map<string, Set<InstanceProcessSource>>();
+  /** 正在被优雅停止的进程键，用于区分正常退出与人为停止。 */
+  private readonly stoppingKeys = new Set<string>();
   private readonly logBuffers = new Map<string, string>();
-  private readonly ptySizes = new Map<string, { cols: number; rows: number }>();
 
   constructor(
     private readonly repository: {
       list(): Promise<Instance[]>;
       update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance>;
-      remove(instanceId: string): Promise<void>;
     },
     private readonly registry: PlatformRegistry,
     private readonly events: InstanceRuntimeEvents,
-    private readonly ptyFactory?: PtyFactory,
-    private readonly removePath: (path: string) => Promise<void> = async () => undefined,
-    private readonly openPath: (path: string) => Promise<void> = async () => undefined,
-    private readonly writeExport: (fileName: string, content: string) => Promise<string> = async () => {
+    private readonly helper: ProcessHelper,
+    private readonly writeExport: WriteExport = async () => {
       throw new MofoxError('UNAVAILABLE', 'Log export is not available');
-    },
-    private readonly stopTimings: { sigterm: number; sigkill: number } = {
-      sigterm: STOP_SIGTERM_DELAY_MS,
-      sigkill: STOP_SIGKILL_DELAY_MS,
     },
   ) {}
 
@@ -116,24 +84,28 @@ export class InstanceRuntimeService {
   /**
    * 停止指定实例的全部进程源。
    *
-   * 通过 Ctrl+C → SIGTERM → SIGKILL 三级升级策略关闭进程；
+   * 通过 ProcessHelper 的 Ctrl+C → SIGTERM → SIGKILL 三级升级策略关闭进程；
    * 无活动进程时仅同步持久化状态为 stopped。
    *
    * @param instanceId - 待停止的实例 ID。
    */
   async stop(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
-    const processes = this.active.get(instanceId);
-    if (!processes || processes.size === 0) {
+    const sources = this.running.get(instanceId);
+    if (!sources || sources.size === 0) {
       if (instance.status !== 'stopped') await this.saveStatus(instance, 'stopped');
       return;
     }
     await this.saveStatus(instance, 'stopping');
-    await Promise.all(
-      [...processes.entries()].map(([source, entry]) => this.stopProcess(instanceId, source, entry)),
-    );
+    for (const source of [...sources]) {
+      const key = this.key(instanceId, source);
+      this.stoppingKeys.add(key);
+      this.emitLauncherMessage(instanceId, source, 'info', '正在停止进程...');
+      await this.helper.stop(key);
+      this.emitLauncherMessage(instanceId, source, 'success', '进程已停止');
+    }
     if (!this.hasActive(instanceId)) {
-      this.active.delete(instanceId);
+      this.running.delete(instanceId);
       await this.saveStatus(await this.find(instanceId), 'stopped');
     }
   }
@@ -149,33 +121,6 @@ export class InstanceRuntimeService {
   }
 
   /**
-   * 删除实例：先停止进程，再删除 MoFox 本体目录与持久化记录，并清理运行时缓存。
-   *
-   * @param instanceId - 待删除的实例 ID。
-   */
-  async remove(instanceId: string): Promise<void> {
-    // 先停止进程，再删除目录和记录，避免运行进程继续持有已删除路径。
-    const instance = await this.find(instanceId);
-    await this.stop(instanceId);
-    await this.removePath(instance.mofoxInstallDir);
-    await this.repository.remove(instanceId);
-    for (const source of SOURCES) {
-      this.logBuffers.delete(bufferKey(instanceId, source));
-      this.ptySizes.delete(bufferKey(instanceId, source));
-    }
-  }
-
-  /**
-   * 在系统文件管理器中打开 MoFox 本体安装目录。
-   *
-   * @param instanceId - 实例 ID。
-   */
-  async openFolder(instanceId: string): Promise<void> {
-    const instance = await this.find(instanceId);
-    await this.openPath(instance.mofoxInstallDir);
-  }
-
-  /**
    * 获取指定进程源的内存日志缓冲。
    *
    * @param instanceId - 实例 ID。
@@ -183,7 +128,7 @@ export class InstanceRuntimeService {
    * @returns 当前缓冲的日志字符串；不存在时为空串。
    */
   getLogBuffer(instanceId: string, source: InstanceProcessSource): string {
-    return this.logBuffers.get(bufferKey(instanceId, source)) ?? '';
+    return this.logBuffers.get(this.key(instanceId, source)) ?? '';
   }
 
   /**
@@ -193,7 +138,16 @@ export class InstanceRuntimeService {
    * @param source - 进程源。
    */
   clearLogBuffer(instanceId: string, source: InstanceProcessSource): void {
-    this.logBuffers.delete(bufferKey(instanceId, source));
+    this.logBuffers.delete(this.key(instanceId, source));
+  }
+
+  /**
+   * 清空实例全部进程源的内存日志缓冲，供管理服务在删除实例后回收。
+   *
+   * @param instanceId - 实例 ID。
+   */
+  clearLogs(instanceId: string): void {
+    for (const source of SOURCES) this.logBuffers.delete(this.key(instanceId, source));
   }
 
   /**
@@ -206,9 +160,7 @@ export class InstanceRuntimeService {
    * @param data - 待写入 PTY 的字符串数据。
    */
   writePty(instanceId: string, source: InstanceProcessSource, data: string): void {
-    const entry = this.active.get(instanceId)?.get(source);
-    if (!entry || entry.kind !== 'pty') return;
-    (entry.process as PtyProcess).write?.(data);
+    this.helper.write(this.key(instanceId, source), data);
   }
 
   /**
@@ -222,13 +174,7 @@ export class InstanceRuntimeService {
    * @param rows - 新的行数。
    */
   resizePty(instanceId: string, source: InstanceProcessSource, cols: number, rows: number): void {
-    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols <= 0 || rows <= 0) return;
-    this.ptySizes.set(bufferKey(instanceId, source), { cols, rows });
-    const entry = this.active.get(instanceId)?.get(source);
-    if (!entry || entry.kind !== 'pty') return;
-    try {
-      (entry.process as PtyProcess).resize?.(cols, rows);
-    } catch { /* process may have just exited */ }
+    this.helper.resize(this.key(instanceId, source), cols, rows);
   }
 
   /**
@@ -239,7 +185,7 @@ export class InstanceRuntimeService {
    */
   getStats(instanceId: string): InstanceStats {
     const stats = {} as InstanceStats;
-    for (const source of SOURCES) stats[source] = this.processStats(instanceId, source);
+    for (const source of SOURCES) stats[source] = this.helper.getStats(this.key(instanceId, source));
     return stats;
   }
 
@@ -320,139 +266,83 @@ export class InstanceRuntimeService {
   // ── Process lifecycle ─────────────────────────────────────────────
 
   /**
-   * 启动实例进程并接入 PTY 或子进程的输出、退出及错误事件。
+   * 通过 ProcessHelper 启动实例进程源，并把输出、退出与启动失败回收到本服务的日志与状态收敛。
    *
    * @param instanceId - 所属实例 ID。
    * @param source - 进程来源，用于维护独立的运行状态与日志。
    * @param command - 已解析的启动命令。
    */
   private spawn(instanceId: string, source: InstanceProcessSource, command: StartCommand): void {
-    const env = { ...process.env, ...command.env } as Record<string, string>;
-    let resolveExited = () => undefined as void;
-    const exited = new Promise<void>((resolve) => { resolveExited = resolve; });
-    let entry: ActiveProcess;
-    if (this.ptyFactory) {
-      const size = this.ptySizes.get(bufferKey(instanceId, source)) ?? { cols: 120, rows: 30 };
-      const pty = this.ptyFactory(command.command, command.args, { cwd: command.cwd, env, ...size });
-      entry = { process: pty, kind: 'pty', startedAt: Date.now(), exited, resolveExited, stopping: false };
-      pty.onData((data) => this.appendLog(instanceId, source, data));
-      pty.onExit(({ exitCode }) => {
-        entry.resolveExited();
-        void this.onProcessExit(instanceId, source, entry, exitCode);
-      });
-    } else {
-      const child = spawnProcess(command.command, command.args, { cwd: command.cwd, env });
-      entry = { process: child, kind: 'child', startedAt: Date.now(), exited, resolveExited, stopping: false };
-      child.stdout?.on('data', (data: Buffer) => this.appendLog(instanceId, source, data.toString()));
-      child.stderr?.on('data', (data: Buffer) => this.appendLog(instanceId, source, data.toString()));
-      child.once('close', (code) => {
-        entry.resolveExited();
-        void this.onProcessExit(instanceId, source, entry, code ?? 0);
-      });
-      child.once('error', (error: Error) => {
-        entry.resolveExited();
+    const key = this.key(instanceId, source);
+    this.helper.spawn(key, {
+      command: command.command,
+      args: command.args,
+      cwd: command.cwd,
+      env: command.env ?? {},
+      onData: (data) => this.appendLog(instanceId, source, data),
+      onExit: ({ exitCode }) => {
+        this.stoppingKeys.delete(key);
+        void this.onSourceExit(instanceId, source, exitCode);
+      },
+      onError: (error) => {
         this.emitLauncherMessage(instanceId, source, 'error', `进程启动失败: ${error.message}`);
-        void this.onProcessExit(instanceId, source, entry, 1);
-      });
+        this.stoppingKeys.delete(key);
+        void this.onSourceExit(instanceId, source, 1);
+      },
+    });
+    let set = this.running.get(instanceId);
+    if (!set) {
+      set = new Set();
+      this.running.set(instanceId, set);
     }
-    let processes = this.active.get(instanceId);
-    if (!processes) {
-      processes = new Map();
-      this.active.set(instanceId, processes);
-    }
-    processes.set(source, entry);
+    set.add(source);
   }
 
-  private async stopProcess(instanceId: string, source: InstanceProcessSource, entry: ActiveProcess): Promise<void> {
-    if (entry.stopping) {
-      await entry.exited;
-      return;
-    }
-    entry.stopping = true;
-    this.emitLauncherMessage(instanceId, source, 'info', '正在停止进程...');
-
-    // Graceful shutdown: Ctrl+C → SIGTERM → SIGKILL escalation.
-    const pty = entry.kind === 'pty' ? (entry.process as PtyProcess) : undefined;
-    const child = entry.kind === 'child' ? (entry.process as ChildProcess) : undefined;
-    if (pty?.write) pty.write('\x03');
-    else if (pty) pty.kill('SIGTERM');
-    else child?.kill('SIGTERM');
-
-    const timers: NodeJS.Timeout[] = [];
-    if (pty?.write) {
-      timers.push(setTimeout(() => { try { pty.kill('SIGTERM'); } catch { /* already dead */ } }, this.stopTimings.sigterm));
-    }
-    timers.push(
-      setTimeout(() => {
-        try {
-          if (pty) pty.kill('SIGKILL');
-          else child?.kill('SIGKILL');
-        } catch { /* already dead */ }
-      }, this.stopTimings.sigterm + this.stopTimings.sigkill),
-    );
-
-    await Promise.race([
-      entry.exited,
-      new Promise<void>((resolve) => timers.push(setTimeout(resolve, this.stopTimings.sigterm + this.stopTimings.sigkill + 1000))),
-    ]);
-    for (const timer of timers) clearTimeout(timer);
-    this.active.get(instanceId)?.delete(source);
-    this.emitLauncherMessage(instanceId, source, 'success', '进程已停止');
-  }
-
-  private async onProcessExit(
+  /**
+   * 进程源退出后的状态收敛：仅当实例全部进程源退出才同步最终状态，避免双进程场景提前显示已停止。
+   *
+   * @param instanceId - 所属实例 ID。
+   * @param source - 已退出的进程源。
+   * @param exitCode - 进程退出码。
+   */
+  private async onSourceExit(
     instanceId: string,
     source: InstanceProcessSource,
-    entry: ActiveProcess,
     exitCode: number,
   ): Promise<void> {
-    const processes = this.active.get(instanceId);
-    if (processes?.get(source) !== entry) return;
-    processes.delete(source);
-    if (!entry.stopping) {
+    const set = this.running.get(instanceId);
+    if (!set || !set.delete(source)) return;
+    const stopping = this.stoppingKeys.has(this.key(instanceId, source));
+    if (!stopping) {
       if (exitCode === 0) this.emitLauncherMessage(instanceId, source, 'info', '进程已退出');
       else this.emitLauncherMessage(instanceId, source, 'error', `进程异常退出，退出码 ${exitCode}`);
     }
-    // 仅当全部进程源退出才同步最终实例状态，避免双进程场景提前显示已停止。
-    if (processes && processes.size === 0) {
-      this.active.delete(instanceId);
+    if (set.size === 0) {
+      this.running.delete(instanceId);
       const instance = await this.find(instanceId);
       if (instance.status === 'stopping' || instance.status === 'stopped') {
         if (instance.status !== 'stopped') await this.saveStatus(instance, 'stopped');
       } else {
-        await this.saveStatus(instance, entry.stopping || exitCode === 0 ? 'stopped' : 'error');
+        await this.saveStatus(instance, stopping || exitCode === 0 ? 'stopped' : 'error');
       }
     }
   }
 
   private killAll(instanceId: string): void {
-    const processes = this.active.get(instanceId);
-    if (!processes) return;
-    for (const entry of processes.values()) {
-      try {
-        if (entry.kind === 'pty') (entry.process as PtyProcess).kill('SIGKILL');
-        else (entry.process as ChildProcess).kill('SIGKILL');
-      } catch { /* already dead */ }
+    for (const source of SOURCES) {
+      this.helper.killAll(this.key(instanceId, source));
+      this.stoppingKeys.delete(this.key(instanceId, source));
     }
-    this.active.delete(instanceId);
+    this.running.delete(instanceId);
   }
 
   private hasActive(instanceId: string): boolean {
-    return (this.active.get(instanceId)?.size ?? 0) > 0;
-  }
-
-  private processStats(instanceId: string, source: InstanceProcessSource): ProcessStats {
-    const entry = this.active.get(instanceId)?.get(source);
-    if (!entry) return { running: false, uptimeMs: null, pid: null };
-    const pid = entry.kind === 'pty'
-      ? (entry.process as PtyProcess).pid ?? null
-      : (entry.process as ChildProcess).pid ?? null;
-    return { running: true, uptimeMs: Date.now() - entry.startedAt, pid };
+    return (this.running.get(instanceId)?.size ?? 0) > 0;
   }
 
   private appendLog(instanceId: string, source: InstanceProcessSource, data: string): void {
     // 内存日志有上限，实时片段仍通过事件通道发送，供终端视图增量渲染。
-    const key = bufferKey(instanceId, source);
+    const key = this.key(instanceId, source);
     const output = `${this.logBuffers.get(key) ?? ''}${data}`;
     this.logBuffers.set(key, output.length > LOG_BUFFER_MAX ? output.slice(-LOG_BUFFER_MAX) : output);
     this.events.ptyData(instanceId, source, data);
@@ -506,17 +396,17 @@ export class InstanceRuntimeService {
     });
     this.events.statusChanged(instance.id, status);
   }
-}
 
-/**
- * 构造日志缓冲的复合键，区分不同实例的不同进程源。
- *
- * @param instanceId - 实例 ID。
- * @param source - 进程源。
- * @returns `${instanceId}:${source}` 形式的字符串键。
- */
-function bufferKey(instanceId: string, source: InstanceProcessSource): string {
-  return `${instanceId}:${source}`;
+  /**
+   * 构造进程键，区分不同实例的不同进程源。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 进程源。
+   * @returns `${instanceId}:${source}` 形式的字符串键。
+   */
+  private key(instanceId: string, source: InstanceProcessSource): string {
+    return `${instanceId}:${source}`;
+  }
 }
 
 /**

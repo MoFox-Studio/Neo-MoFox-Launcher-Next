@@ -4,7 +4,7 @@ import { delimiter, join } from 'node:path';
 import extract from 'extract-zip';
 import treeKill from 'tree-kill';
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
-import { runOneShot, spawnProcess, type ExecOptions, type ExecResult } from './process-service';
+import { runOneShot, spawnProcess, type ExecOptions, type ExecResult } from './process-helper';
 
 // 归集跨平台的系统识别、命令行构造及归档/进程边界操作，供主进程服务复用。
 

@@ -7,7 +7,7 @@ import type { InstallContext, InstallResult } from '../../shared/domain/bot-plat
 import type { MirrorSource } from '../../shared/domain/mirror';
 import { MofoxError } from '../../shared/domain/error';
 import { downloadRange } from './range-downloader';
-import { runOneShot } from './process-service';
+import { runOneShot } from './process-helper';
 import { resolveGithubUrl, tryEachGithubMirror } from './mirror';
 
 // GitHub Release 安装流水线的最小元数据结构，仅保留选择资产与校验所需字段。

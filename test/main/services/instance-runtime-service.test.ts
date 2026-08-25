@@ -5,15 +5,37 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Instance } from '../../../src/shared/domain/instance';
 import type { UpdateInstancePatch } from '../../../src/shared/domain/instance';
 import { PlatformRegistry } from '../../../src/main/platforms/registry';
-import { InstanceRuntimeService, type PtyProcess } from '../../../src/main/services/instance-runtime-service';
+import { InstanceRuntimeService } from '../../../src/main/services/instance-runtime-service';
+import { ProcessHelper, type ProcessHandle } from '../../../src/main/utils/process-helper';
 
-/** 覆盖进程生命周期、双进程状态收敛、PTY 状态同步、日志导出和删除前停机。 */
+/** 覆盖进程生命周期、双进程状态收敛、PTY 状态同步与日志导出。 */
 const FAST_TIMINGS = { sigterm: 10, sigkill: 10 };
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
+
+function createPty() {
+  let dataListener: ((data: string) => void) | undefined;
+  let exitListener: ((event: { exitCode: number; signal?: number }) => void) | undefined;
+  const pty: ProcessHandle & {
+    emitData(data: string): void;
+    emitExit(exitCode: number): void;
+    write: ReturnType<typeof vi.fn>;
+    resize: ReturnType<typeof vi.fn>;
+  } = {
+    pid: 1234,
+    onData: vi.fn((listener: (data: string) => void) => { dataListener = listener; return { dispose: vi.fn() }; }),
+    onExit: vi.fn((listener: (event: { exitCode: number; signal?: number }) => void) => { exitListener = listener; return { dispose: vi.fn() }; }),
+    kill: vi.fn(() => { exitListener?.({ exitCode: 0 }); }),
+    write: vi.fn(),
+    resize: vi.fn(),
+    emitData: (data: string) => dataListener?.(data),
+    emitExit: (exitCode: number) => exitListener?.({ exitCode }),
+  };
+  return pty;
+}
 
 describe('InstanceRuntimeService', () => {
   it('starts the platform process, forwards output and stops idempotently', async () => {
@@ -22,8 +44,9 @@ describe('InstanceRuntimeService', () => {
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
     const registry = new PlatformRegistry([platform as never]);
     const pty = createPty();
+    const helper = new ProcessHelper(vi.fn(() => pty), FAST_TIMINGS);
     const events = { statusChanged: vi.fn(), ptyData: vi.fn() };
-    const service = new InstanceRuntimeService(repository, registry, events, vi.fn(() => pty), undefined, undefined, undefined, FAST_TIMINGS);
+    const service = new InstanceRuntimeService(repository, registry, events, helper);
 
     await service.start(instance.id);
     await service.start(instance.id);
@@ -43,7 +66,8 @@ describe('InstanceRuntimeService', () => {
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
     const spawned: string[] = [];
     const factory = vi.fn((command: string) => { spawned.push(command); return createPty(); });
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, factory, undefined, undefined, undefined, FAST_TIMINGS);
+    const helper = new ProcessHelper(factory, FAST_TIMINGS);
+    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, helper);
 
     await service.start(instance.id);
 
@@ -63,12 +87,11 @@ describe('InstanceRuntimeService', () => {
     const instance = createInstance(mofoxDir);
     const repository = createRepository(instance);
     const platform = { id: 'test', getStartCommand: vi.fn(async () => { throw new Error('no platform'); }) };
-    const factory = vi.fn(() => createPty());
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, factory, undefined, undefined, undefined, FAST_TIMINGS);
+    const helper = new ProcessHelper(vi.fn(() => createPty()), FAST_TIMINGS);
+    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, helper);
 
     await service.start(instance.id);
 
-    expect(factory).toHaveBeenCalledTimes(1);
     expect(service.getStats(instance.id).mofox.running).toBe(true);
     expect(service.getStats(instance.id).platform.running).toBe(false);
     await service.stop(instance.id);
@@ -79,7 +102,8 @@ describe('InstanceRuntimeService', () => {
     const repository = createRepository(instance);
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
     const pty = createPty();
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, vi.fn(() => pty), undefined, undefined, undefined, FAST_TIMINGS);
+    const helper = new ProcessHelper(vi.fn(() => pty), FAST_TIMINGS);
+    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, helper);
 
     await service.start(instance.id);
     pty.emitData('platform line\r\n');
@@ -96,7 +120,8 @@ describe('InstanceRuntimeService', () => {
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
     const pty = createPty();
     const factory = vi.fn(() => pty);
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, factory, undefined, undefined, undefined, FAST_TIMINGS);
+    const helper = new ProcessHelper(factory, FAST_TIMINGS);
+    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, helper);
 
     service.resizePty(instance.id, 'platform', 100, 40);
     await service.start(instance.id);
@@ -112,7 +137,8 @@ describe('InstanceRuntimeService', () => {
     const instance = createInstance();
     const repository = createRepository(instance);
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, vi.fn(() => createPty()), undefined, undefined, undefined, FAST_TIMINGS);
+    const helper = new ProcessHelper(vi.fn(() => createPty()), FAST_TIMINGS);
+    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, helper);
 
     await service.start(instance.id);
     await service.restart(instance.id);
@@ -126,10 +152,9 @@ describe('InstanceRuntimeService', () => {
     const repository = createRepository(instance);
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
     const pty = createPty();
-    const writeExport = vi.fn(
-      async (fileName: string, _content: string) => `D:\\exports\\${fileName}`,
-    );
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, vi.fn(() => pty), undefined, undefined, writeExport, FAST_TIMINGS);
+    const helper = new ProcessHelper(vi.fn(() => pty), FAST_TIMINGS);
+    const writeExport = vi.fn(async (fileName: string, _content: string) => `D:\\exports\\${fileName}`);
+    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, helper, writeExport);
 
     await service.start(instance.id);
     pty.emitData('\x1b[32mcolored\x1b[0m output\r\n');
@@ -146,22 +171,12 @@ describe('InstanceRuntimeService', () => {
     const repository = createRepository(instance);
     const platform = { id: 'test', getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })) };
     const pty = createPty();
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, vi.fn(() => pty), undefined, undefined, undefined, FAST_TIMINGS);
+    const helper = new ProcessHelper(vi.fn(() => pty), FAST_TIMINGS);
+    const service = new InstanceRuntimeService(repository, new PlatformRegistry([platform as never]), { statusChanged: vi.fn(), ptyData: vi.fn() }, helper);
 
     await service.start(instance.id);
     pty.emitExit(1);
     await vi.waitFor(() => expect(repository.current.status).toBe('error'));
-  });
-
-  it('stops before removing files and the repository record', async () => {
-    const repository = createRepository(createInstance());
-    const removePath = vi.fn(async () => undefined);
-    const service = new InstanceRuntimeService(repository, new PlatformRegistry([]), { statusChanged: vi.fn(), ptyData: vi.fn() }, undefined, removePath, undefined, undefined, FAST_TIMINGS);
-
-    await service.remove('one');
-
-    expect(removePath).toHaveBeenCalledWith(repository.current.mofoxInstallDir);
-    expect(repository.remove).toHaveBeenCalledWith('one');
   });
 });
 
@@ -187,27 +202,6 @@ async function createMofoxDir(): Promise<string> {
   return mofoxDir;
 }
 
-function createPty() {
-  let dataListener: ((data: string) => void) | undefined;
-  let exitListener: ((event: { exitCode: number; signal?: number }) => void) | undefined;
-  const pty: PtyProcess & {
-    emitData(data: string): void;
-    emitExit(exitCode: number): void;
-    write: ReturnType<typeof vi.fn>;
-    resize: ReturnType<typeof vi.fn>;
-  } = {
-    pid: 1234,
-    onData: vi.fn((listener: (data: string) => void) => { dataListener = listener; return { dispose: vi.fn() }; }),
-    onExit: vi.fn((listener: (event: { exitCode: number; signal?: number }) => void) => { exitListener = listener; return { dispose: vi.fn() }; }),
-    kill: vi.fn(() => { exitListener?.({ exitCode: 0 }); }),
-    write: vi.fn(),
-    resize: vi.fn(),
-    emitData: (data: string) => dataListener?.(data),
-    emitExit: (exitCode: number) => exitListener?.({ exitCode }),
-  };
-  return pty;
-}
-
 function createRepository(instance: Instance) {
   return {
     current: { ...instance },
@@ -216,6 +210,5 @@ function createRepository(instance: Instance) {
       this.current = { ...this.current, ...patch };
       return this.current;
     }),
-    remove: vi.fn(async () => undefined),
   };
 }

@@ -18,6 +18,7 @@ import { OobeService } from './services/oobe-service';
 import { InstallTaskService } from './services/install-task-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
+import { InstanceManageService } from './services/instance-manage-service';
 import { pickDirectory, pickFile } from './services/filepicker-service';
 import {
   LegacyMigrationService,
@@ -30,6 +31,7 @@ import { SettingsService } from './services/settings-service';
 import { WallpaperService } from './services/wallpaper-service';
 import { createWallpaperProtocolHandler } from './wallpaper-protocol';
 import { EnvironmentService } from './utils/environment-service';
+import { ProcessHelper } from './utils/process-helper';
 import { createLogger, type Logger } from './utils/logger';
 import { removePathSafe } from './utils/native-file-remover';
 import { MofoxError } from '../shared/domain/error';
@@ -204,6 +206,16 @@ if (!hasSingleInstanceLock) {
     const send = (channel: string, payload: unknown) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
     };
+    const processHelper = new ProcessHelper(
+      (command, args, options) =>
+        nodePty.spawn(command, args, {
+          name: 'xterm-256color',
+          cols: options.cols,
+          rows: options.rows,
+          cwd: options.cwd,
+          env: options.env,
+        }),
+    );
     const runtime = new InstanceRuntimeService(
       instances,
       platforms,
@@ -213,19 +225,7 @@ if (!hasSingleInstanceLock) {
         ptyData: (instanceId, source, data) =>
           send(IPC_EVENT_CHANNELS['instance-pty-data'], { instanceId, source, data }),
       },
-      (command, args, options) =>
-        nodePty.spawn(command, args, {
-          name: 'xterm-256color',
-          cols: options.cols,
-          rows: options.rows,
-          cwd: options.cwd,
-          env: options.env,
-        }),
-      removePathSafe,
-      async (path) => {
-        const error = await shell.openPath(path);
-        if (error) throw new MofoxError('IO_ERROR', error);
-      },
+      processHelper,
       async (fileName, content) => {
         const exportsDir = join(dataDirectory, 'exports');
         await mkdir(exportsDir, { recursive: true });
@@ -234,7 +234,28 @@ if (!hasSingleInstanceLock) {
         return filePath;
       },
     );
-    registerInstanceIpc(ipcMain, runtime);
+    const manage = new InstanceManageService(
+      runtime,
+      instances,
+      removePathSafe,
+      async (path) => {
+        const error = await shell.openPath(path);
+        if (error) throw new MofoxError('IO_ERROR', error);
+      },
+    );
+    registerInstanceIpc(ipcMain, {
+      start: (instanceId) => runtime.start(instanceId),
+      stop: (instanceId) => runtime.stop(instanceId),
+      restart: (instanceId) => runtime.restart(instanceId),
+      remove: (instanceId) => manage.remove(instanceId),
+      openFolder: (instanceId) => manage.openFolder(instanceId),
+      getLogBuffer: (instanceId, source) => runtime.getLogBuffer(instanceId, source),
+      clearLogBuffer: (instanceId, source) => runtime.clearLogBuffer(instanceId, source),
+      writePty: (instanceId, source, data) => runtime.writePty(instanceId, source, data),
+      resizePty: (instanceId, source, cols, rows) => runtime.resizePty(instanceId, source, cols, rows),
+      getStats: (instanceId) => runtime.getStats(instanceId),
+      exportLogs: (instanceId, source) => runtime.exportLogs(instanceId, source),
+    });
     const installTasks = new InstallTaskService(
       platforms,
       { repository: instances, mirrors },

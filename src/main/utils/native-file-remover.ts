@@ -2,7 +2,7 @@ import { rm } from 'node:fs/promises';
 import { parse, resolve } from 'node:path';
 import { MofoxError } from '../../shared/domain/error';
 import { nativeRemovalCommand } from './platform-helper';
-import { runOneShot } from './process-service';
+import { runOneShot } from './process-helper';
 
 /**
  * 通过系统原生命令递归删除路径。

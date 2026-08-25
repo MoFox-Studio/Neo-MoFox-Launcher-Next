@@ -2,7 +2,7 @@ import { MofoxError } from '../../../../shared/domain/error';
 import { parseOsRelease } from '../../platform-helper';
 import type { PackageManager } from '../../../../shared/domain/system-env';
 import { readFile } from 'node:fs/promises';
-import { runOneShot } from '../../process-service';
+import { runOneShot } from '../../process-helper';
 import type { DependencyInstallContext } from '../types';
 
 /**

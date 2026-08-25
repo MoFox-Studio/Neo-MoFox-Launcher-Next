@@ -1,5 +1,5 @@
 import { MofoxError } from '../../../../shared/domain/error';
-import { runOneShot } from '../../process-service';
+import { runOneShot } from '../../process-helper';
 import type { DependencyInstallContext } from '../types';
 
 /**
