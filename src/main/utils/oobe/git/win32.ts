@@ -2,6 +2,7 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MofoxError } from '../../../../shared/domain/error';
 import { downloadRange } from '../../range-downloader';
+import { describeHttpStatus } from '../../github-installer';
 import { runOneShot } from '../../process-helper';
 import type { DependencyInstallContext } from '../types';
 
@@ -119,7 +120,11 @@ async function resolveGitRelease(context: DependencyInstallContext): Promise<Git
         headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
         ...(context.signal ? { signal: context.signal } : {}),
       });
-      if (!response.ok) throw new MofoxError('IO_ERROR', `GitHub release 请求失败: HTTP ${response.status}`);
+      if (!response.ok)
+        throw new MofoxError(
+          'IO_ERROR',
+          `GitHub release 请求失败: HTTP ${response.status}（${describeHttpStatus(response.status)}）`,
+        );
       const release = (await response.json()) as {
         tag_name: string;
         assets: Array<{ name: string; browser_download_url: string }>;

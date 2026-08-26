@@ -49,6 +49,22 @@ describe('mirror utils', () => {
     ).rejects.toThrow('未配置任何镜像源');
   });
 
+  it('tries every mirror and throws the last error with an explanation only when all fail', async () => {
+    const attempts: string[] = [];
+    await expect(
+      tryEachGithubMirror(
+        MIRRORS,
+        undefined,
+        async (mirror) => {
+          attempts.push(mirror.id);
+          throw new Error(`boom on ${mirror.id}`);
+        },
+        'all failed',
+      ),
+    ).rejects.toThrow('all failed。最后一个错误：boom on gh-proxy');
+    expect(attempts).toEqual(['gh-direct', 'gh-proxy']);
+  });
+
   it('fetchRepositoryFile polls mirrors for the requested file', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.startsWith('https://ghproxy.net/')) {

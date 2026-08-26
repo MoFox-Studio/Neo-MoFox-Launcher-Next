@@ -38,7 +38,7 @@ export function resolveGithubUrl(mirror: MirrorSource, originalUrl: string): str
  * @param run - 针对单个镜像执行的异步操作，接收镜像源本身以自行构造地址。
  * @param failureMessage - 所有镜像均失败时兜底的错误描述。
  * @returns 首个成功镜像的操作结果。
- * @throws {MofoxError} 镜像列表为空时抛 `UNAVAILABLE`；全部失败时抛出最后一个错误。
+ * @throws {MofoxError} 镜像列表为空时抛 `UNAVAILABLE`；全部镜像均失败时才抛出最后一个错误，并附带失败原因。
  */
 export async function tryEachGithubMirror<T>(
   mirrors: readonly MirrorSource[],
@@ -57,5 +57,9 @@ export async function tryEachGithubMirror<T>(
       lastError = error;
     }
   }
-  throw lastError instanceof Error ? lastError : new MofoxError('IO_ERROR', failureMessage);
+  const last = lastError instanceof Error ? lastError : new MofoxError('IO_ERROR', failureMessage);
+  const message = `${failureMessage}。最后一个错误：${last.message}`;
+  throw last instanceof MofoxError
+    ? new MofoxError(last.code, message, last.details)
+    : new MofoxError('IO_ERROR', message);
 }

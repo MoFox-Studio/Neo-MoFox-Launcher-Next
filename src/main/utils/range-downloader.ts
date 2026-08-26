@@ -6,6 +6,7 @@ import { dirname } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { DownloadProgress, RangeDownloadOptions } from '../../shared/domain/download';
 import { MofoxError } from '../../shared/domain/error';
+import { describeHttpStatus } from './github-installer';
 
 // 负责将 HTTP(S) 资源写入本地文件；在服务端支持时按字节范围并发下载。
 type ProgressListener = (progress: DownloadProgress) => void;
@@ -76,7 +77,13 @@ async function downloadSingle(
   report: (receivedBytes: number, force?: boolean) => void,
 ): Promise<void> {
   const response = await request(url, 'GET', {}, options.maxRedirects, options.signal);
-  if ((response.statusCode ?? 500) >= 400) throw new MofoxError('IO_ERROR', `Download failed with HTTP ${response.statusCode}`);
+  if ((response.statusCode ?? 500) >= 400) {
+    const status = response.statusCode ?? 500;
+    throw new MofoxError(
+      'IO_ERROR',
+      `Download failed with HTTP ${status}（${describeHttpStatus(status)}）`,
+    );
+  }
   let received = 0;
   response.on('data', (chunk: Buffer) => {
     received += chunk.length;
