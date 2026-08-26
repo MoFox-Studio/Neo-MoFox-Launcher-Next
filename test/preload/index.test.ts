@@ -51,6 +51,7 @@ describe('createMofoxApi', () => {
     await api.retryInstall('task-1');
     await api.cancelInstall('task-1');
     await api.fetchLicense();
+    await api.inspectInstallTarget('D:\\MoFox\\aurora');
     await api.openExternal('https://example.com');
     await api.manualImportInstance({
       instanceName: 'Existing instance',

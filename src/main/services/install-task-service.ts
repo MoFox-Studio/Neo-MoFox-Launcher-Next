@@ -7,6 +7,7 @@ import type {
   InstallProgressEvent,
   InstallRequest,
   InstallStepId,
+  InstallTargetCheck,
   LicenseFetchResult,
 } from '../../shared/domain/install';
 import type { MirrorSource } from '../../shared/domain/mirror';
@@ -14,6 +15,7 @@ import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';
 import { generateInstanceId } from '../utils/id-generator';
 import { fetchRepositoryFile } from '../utils/git/github-installer';
+import { inspectInstallTarget } from '../utils/path-inspection';
 import {
   configureInstance,
   installMoFox,
@@ -199,6 +201,18 @@ export class InstallTaskService {
       }),
     ]);
     return { eula, privacy };
+  }
+
+  /**
+   * 探测安装目标目录的可用性，供安装向导在进入下一步前校验。
+   *
+   * 只做只读探测（存在性、可写性、盘符剩余空间），不触发任何安装动作。
+   *
+   * @param targetDir - 用户填写的安装目标路径。
+   * @returns 目标目录所在盘符的剩余空间与写入权限等探测结果。
+   */
+  async inspectTarget(targetDir: string): Promise<InstallTargetCheck> {
+    return inspectInstallTarget(targetDir);
   }
 
   /**

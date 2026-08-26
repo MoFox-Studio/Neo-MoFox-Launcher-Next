@@ -18,6 +18,14 @@ describe('registerInstallIpc', () => {
         eula: { source: 'GitHub', content: 'EULA' },
         privacy: { source: 'GitHub', content: 'PRIVACY' },
       })),
+      inspectTarget: vi.fn(async (_targetDir: string) => ({
+        absolute: true,
+        exists: true,
+        isDirectory: true,
+        writable: true,
+        freeSpaceBytes: 16 * 1024 ** 3,
+        totalSpaceBytes: 256 * 1024 ** 3,
+      })),
     };
     registerInstallIpc(ipcMain, actions);
     const request = {
@@ -42,11 +50,15 @@ describe('registerInstallIpc', () => {
       eula: { source: 'GitHub', content: 'EULA' },
       privacy: { source: 'GitHub', content: 'PRIVACY' },
     });
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.inspectInstallTarget)?.({}, 'D:\\Bots\\Test'),
+    ).resolves.toMatchObject({ absolute: true, writable: true });
 
     expect(actions.start).toHaveBeenCalledWith(request);
     expect(actions.retry).toHaveBeenCalledWith('task-1');
     expect(actions.cancel).toHaveBeenCalledWith('task-1');
     expect(actions.fetchLicense).toHaveBeenCalledTimes(1);
+    expect(actions.inspectTarget).toHaveBeenCalledWith('D:\\Bots\\Test');
   });
 
   it('rejects malformed input before invoking actions', async () => {
@@ -55,12 +67,22 @@ describe('registerInstallIpc', () => {
       handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
         handlers.set(channel, handler),
     };
-    const actions = { start: vi.fn(), retry: vi.fn(), cancel: vi.fn(), fetchLicense: vi.fn() };
+    const actions = {
+      start: vi.fn(),
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      fetchLicense: vi.fn(),
+      inspectTarget: vi.fn(),
+    };
     registerInstallIpc(ipcMain, actions);
 
     await expect(handlers.get(IPC_INVOKE_CHANNELS.startInstall)?.({}, null)).rejects.toThrow(
       'MOFOX_ERROR:',
     );
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.inspectInstallTarget)?.({}, '')).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
     expect(actions.start).not.toHaveBeenCalled();
+    expect(actions.inspectTarget).not.toHaveBeenCalled();
   });
 });

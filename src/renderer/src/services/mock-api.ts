@@ -324,6 +324,18 @@ export const mockApi: MofoxApi = {
       },
     };
   },
+  async inspectInstallTarget(path) {
+    await delay(120);
+    const absolute = /^[a-zA-Z]:[\\/]|\//.test(path);
+    return {
+      absolute,
+      exists: absolute,
+      isDirectory: absolute,
+      writable: absolute,
+      freeSpaceBytes: absolute ? 8_589_934_592 : null,
+      totalSpaceBytes: absolute ? 274_877_906_944 : null,
+    };
+  },
   async openExternal() {},
   async manualImportInstance(request) {
     await delay(160);

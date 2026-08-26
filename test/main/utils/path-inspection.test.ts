@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  inspectInstallTarget,
   inspectPath,
   requireDirectory,
   requireFile,
@@ -97,6 +98,47 @@ describe('inspectPath', () => {
       exists: false,
       isDirectory: false,
       mainPyExists: false,
+    });
+  });
+});
+
+describe('inspectInstallTarget', () => {
+  it('reports a writable existing directory with disk space on its filesystem', async () => {
+    const root = await createTemporaryDirectory();
+    const target = join(root, 'install');
+    await mkdir(target);
+
+    const result = await inspectInstallTarget(target);
+    expect(result.absolute).toBe(true);
+    expect(result.exists).toBe(true);
+    expect(result.isDirectory).toBe(true);
+    expect(result.writable).toBe(true);
+    expect(result.freeSpaceBytes).toBeGreaterThan(0);
+    expect(result.totalSpaceBytes).toBeGreaterThanOrEqual(result.freeSpaceBytes ?? 0);
+  });
+
+  it('reports non-writable for a missing directory and probes its existing ancestor', async () => {
+    const root = await createTemporaryDirectory();
+    const missing = join(root, 'nested', 'install');
+
+    const result = await inspectInstallTarget(missing);
+    expect(result.absolute).toBe(true);
+    expect(result.exists).toBe(false);
+    expect(result.isDirectory).toBe(false);
+    expect(result.writable).toBe(false);
+    // 空间探测应落到已存在的祖先目录上，仍能读出盘符信息。
+    expect(result.freeSpaceBytes).toBeGreaterThan(0);
+  });
+
+  it('flags relative paths as invalid without probing the filesystem', async () => {
+    const result = await inspectInstallTarget('relative/path');
+    expect(result).toEqual({
+      absolute: false,
+      exists: false,
+      isDirectory: false,
+      writable: false,
+      freeSpaceBytes: null,
+      totalSpaceBytes: null,
     });
   });
 });

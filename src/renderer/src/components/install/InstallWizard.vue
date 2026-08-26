@@ -122,7 +122,7 @@ const canGoNext = computed(() => {
     case 5:
       return draftStore.fieldErrors.webuiKey === '';
     case 6:
-      return draftStore.fieldErrors.targetDir === '';
+      return draftStore.fieldErrors.targetDir === '' && !draftStore.validatingTargetDir;
     case 7:
       return draftStore.allValid;
     default:
@@ -130,8 +130,10 @@ const canGoNext = computed(() => {
   }
 });
 
-function goNext(): void {
+async function goNext(): Promise<void> {
   if (!canGoNext.value) return;
+  // 安装位置步骤在前进前由主进程校验盘符空间与写入权限，失败则停留在当前步骤并展示错误。
+  if (currentStep.value === 6 && !(await draftStore.validateTargetDirRemote())) return;
   if (currentStep.value === STEPS.length - 1) {
     void startInstall();
     return;

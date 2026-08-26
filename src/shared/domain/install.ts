@@ -62,3 +62,22 @@ export interface InstallProgressEvent {
   progress: number;
   message: string;
 }
+
+/**
+ * 安装目标目录的可用性探测结果。
+ * 由主进程基于目标目录所在盘符/文件系统的实际状态计算，供安装向导在进入下一步前校验。
+ */
+export interface InstallTargetCheck {
+  /** 输入内容是否为绝对路径。 */
+  absolute: boolean;
+  /** 路径对应的文件系统条目是否存在。 */
+  exists: boolean;
+  /** 存在时是否为目录。 */
+  isDirectory: boolean;
+  /** 是否拥有写入权限，即能否在目录内新建文件夹。 */
+  writable: boolean;
+  /** 目标目录所在文件系统的剩余可用空间（字节）；无法探测时为 null。 */
+  freeSpaceBytes: number | null;
+  /** 目标目录所在文件系统的总空间（字节）；无法探测时为 null。 */
+  totalSpaceBytes: number | null;
+}

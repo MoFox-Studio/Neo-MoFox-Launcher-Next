@@ -31,6 +31,13 @@ async function chooseTargetDir(): Promise<void> {
   draft.targetDir = selected;
   store.touch('targetDir');
 }
+
+function formatBytes(bytes: number | null): string {
+  if (bytes === null || !Number.isFinite(bytes)) return '未知';
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
+  return `${(bytes / 1024).toFixed(1)} KiB`;
+}
 </script>
 
 <template>
@@ -64,6 +71,18 @@ async function chooseTargetDir(): Promise<void> {
         </div>
         <p v-if="store.isInvalid('targetDir')" class="field__support field__support--error">
           {{ store.fieldErrors.targetDir }}
+        </p>
+        <p v-else-if="store.targetDirCheckError" class="field__support field__support--error">
+          {{ store.targetDirCheckError }}
+        </p>
+        <p v-else-if="store.validatingTargetDir" class="field__support">
+          正在校验目录空间与写入权限…
+        </p>
+        <p
+          v-else-if="store.targetDirCheck?.writable"
+          class="field__support"
+        >
+          已确认可写入，剩余空间 {{ formatBytes(store.targetDirCheck.freeSpaceBytes) }}
         </p>
         <p v-else class="field__support">不建议包含中文或空格</p>
       </div>

@@ -31,6 +31,7 @@ import type {
   FilePickerResult,
 } from './domain/file-picker';
 import type { WallpaperAsset } from './domain/wallpaper';
+import type { InstallTargetCheck } from './domain/install';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
@@ -61,6 +62,7 @@ export const IPC_INVOKE_CHANNELS = {
   retryInstall: 'install:retry',
   cancelInstall: 'install:cancel',
   fetchLicense: 'install:fetch-license',
+  inspectInstallTarget: 'install:inspect-target',
   openExternal: 'shell:open-external',
   manualImportInstance: 'instances:manual-import',
   inspectImportPath: 'instances:inspect-import-path',
@@ -149,6 +151,8 @@ export interface MofoxApi {
   inspectImportPath(path: string): Promise<PathInspection>;
   /** 按平台自身启动入口探测平台安装目录，供导入前校验；不替代导入时的再次检查。 */
   inspectPlatformImportPath(platformId: string, path: string): Promise<PlatformPathInspection>;
+  /** 探测安装目标目录所在盘符的剩余空间与写入权限，供安装向导进入下一步前校验。 */
+  inspectInstallTarget(path: string): Promise<InstallTargetCheck>;
 
   /** 系统探测与平台元数据查询。 */
   detectSystemEnv(): Promise<SystemEnvInfo>;

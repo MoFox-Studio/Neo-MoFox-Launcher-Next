@@ -1,4 +1,4 @@
-import type { InstallRequest, LicenseFetchResult } from '../../shared/domain/install';
+import type { InstallRequest, InstallTargetCheck, LicenseFetchResult } from '../../shared/domain/install';
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
@@ -8,6 +8,7 @@ interface InstallActions {
   retry(taskId: string): Promise<void>;
   cancel(taskId: string): Promise<void>;
   fetchLicense(): Promise<LicenseFetchResult>;
+  inspectTarget(targetDir: string): Promise<InstallTargetCheck>;
 }
 
 interface IpcMainRegistrar {
@@ -31,6 +32,9 @@ export function registerInstallIpc(ipcMain: IpcMainRegistrar, actions: InstallAc
     actions.cancel(requireId(taskId)),
   );
   register(ipcMain, IPC_INVOKE_CHANNELS.fetchLicense, () => actions.fetchLicense());
+  register(ipcMain, IPC_INVOKE_CHANNELS.inspectInstallTarget, (targetDir) =>
+    actions.inspectTarget(requireString(targetDir, 'Install target directory')),
+  );
 }
 
 /**
@@ -73,6 +77,20 @@ function requireRequest(value: unknown): InstallRequest {
 function requireId(value: unknown): string {
   if (typeof value !== 'string' || !value.trim())
     throw new MofoxError('INVALID_ARGUMENT', 'Task ID is required');
+  return value;
+}
+
+/**
+ * 校验通用字符串参数，失败时抛出包含字段名的可读错误。
+ *
+ * @param value - 未经类型约束的 IPC 参数。
+ * @param label - 用于错误信息的字段名称。
+ * @returns 通过校验的字符串值。
+ */
+function requireString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new MofoxError('INVALID_ARGUMENT', `${label} is required`);
+  }
   return value;
 }
 
