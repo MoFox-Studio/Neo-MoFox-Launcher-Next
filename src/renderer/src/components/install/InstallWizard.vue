@@ -230,7 +230,12 @@ function goToInstances(): void {
           <span class="msr" aria-hidden="true">arrow_back</span>
           上一步
         </button>
-        <button v-else type="button" class="btn btn--tonal state-layer" @click="cancelInstall">
+        <button
+          v-else-if="!installStore.isDone"
+          type="button"
+          class="btn btn--tonal state-layer"
+          @click="cancelInstall"
+        >
           <span class="msr" aria-hidden="true">home</span>
           返回主界面
         </button>
