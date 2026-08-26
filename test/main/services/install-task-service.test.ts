@@ -67,7 +67,7 @@ describe('InstallTaskService', () => {
     const progress = vi.fn();
     const service = new InstallTaskService(
       registry(),
-      { repository, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { repository, mirrors: mirrorsProvider, executors },
       { progress },
     );
 
@@ -115,7 +115,7 @@ describe('InstallTaskService', () => {
     };
     const service = new InstallTaskService(
       registry(),
-      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, executors },
       { progress: vi.fn() },
     );
 
@@ -148,7 +148,7 @@ describe('InstallTaskService', () => {
     };
     const service = new InstallTaskService(
       registry(),
-      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, executors },
       { progress: vi.fn() },
     );
 
@@ -166,33 +166,34 @@ describe('InstallTaskService', () => {
     const executors = {
       'install-mofox': async (ctx: InstallTaskContext) => {
         calls.push('mofox');
-        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
+        await mkdir(join(ctx.stageDir, 'mofox'), { recursive: true });
+        await writeFile(join(ctx.stageDir, 'mofox', 'mofox.txt'), 'm');
       },
       configure: async (ctx: InstallTaskContext) => {
         calls.push('configure');
         configureCalls += 1;
         if (configureCalls === 1) throw new Error('config failed');
-        await writeFile(join(ctx.stageDir, 'ok.txt'), 'ok');
+        await writeFile(join(ctx.stageDir, 'mofox', 'ok.txt'), 'ok');
       },
     };
     const progress = vi.fn();
     const service = new InstallTaskService(
       registry(),
-      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, executors },
       { progress },
     );
 
     const taskId = await service.start(request(target, { platformId: '', installWebui: false }));
     await service.wait(taskId);
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'failed' }));
-    // 失败保留工作区，供重试从断点续跑。
-    await expect(access(join(root, `neo-mofox-install-${taskId}`))).resolves.toBeUndefined();
+    // 失败保留工作区（位于实例目录下），供重试从断点续跑。
+    await expect(access(join(target, taskId))).resolves.toBeUndefined();
 
     await service.retry(taskId);
 
     // 已完成的步骤不重复执行，仅续跑失败的配置步骤并最终落地。
     expect(calls).toEqual(['mofox', 'configure', 'configure']);
-    expect(await readFile(join(target, taskId, 'ok.txt'), 'utf8')).toBe('ok');
+    expect(await readFile(join(target, taskId, 'mofox', 'ok.txt'), 'utf8')).toBe('ok');
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
   });
 
@@ -204,7 +205,8 @@ describe('InstallTaskService', () => {
     const executors = {
       'install-mofox': async (ctx: InstallTaskContext) => {
         calls.push('mofox');
-        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
+        await mkdir(join(ctx.stageDir, 'mofox'), { recursive: true });
+        await writeFile(join(ctx.stageDir, 'mofox', 'mofox.txt'), 'm');
         // 把下一步快照路径占位成普通文件，让流水线的「复制给下一步」动作失败。
         await writeFile(join(dirname(ctx.stageDir), 'stage-1'), 'block');
       },
@@ -212,14 +214,14 @@ describe('InstallTaskService', () => {
         calls.push('configure');
         configureCalls += 1;
         // 断点续跑时应从上一步完成品重新复制，配置步骤能看到 mofox 产物。
-        expect(await exists(join(ctx.stageDir, 'mofox.txt'))).toBe(true);
-        await writeFile(join(ctx.stageDir, 'ok.txt'), 'ok');
+        expect(await exists(join(ctx.stageDir, 'mofox', 'mofox.txt'))).toBe(true);
+        await writeFile(join(ctx.stageDir, 'mofox', 'ok.txt'), 'ok');
       },
     };
     const progress = vi.fn();
     const service = new InstallTaskService(
       registry(),
-      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, executors },
       { progress },
     );
 
@@ -232,7 +234,7 @@ describe('InstallTaskService', () => {
     // 复制失败时已完成的步骤不再执行，重试撤销残留并续跑下一步。
     expect(calls).toEqual(['mofox', 'configure']);
     expect(configureCalls).toBe(1);
-    expect(await readFile(join(target, taskId, 'ok.txt'), 'utf8')).toBe('ok');
+    expect(await readFile(join(target, taskId, 'mofox', 'ok.txt'), 'utf8')).toBe('ok');
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
   });
 
@@ -245,15 +247,17 @@ describe('InstallTaskService', () => {
         mofoxCalls += 1;
         // 首次执行留下残留产物后失败，重试应清除残留再从头开始该步骤。
         if (mofoxCalls === 1) {
-          await writeFile(join(ctx.stageDir, 'partial.txt'), 'junk');
+          await mkdir(join(ctx.stageDir, 'mofox'), { recursive: true });
+          await writeFile(join(ctx.stageDir, 'mofox', 'partial.txt'), 'junk');
           throw new Error('mofox download failed');
         }
-        await writeFile(join(ctx.stageDir, 'mofox.txt'), 'm');
+        await mkdir(join(ctx.stageDir, 'mofox'), { recursive: true });
+        await writeFile(join(ctx.stageDir, 'mofox', 'mofox.txt'), 'm');
       },
     };
     const service = new InstallTaskService(
       registry(),
-      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, executors },
       { progress: vi.fn() },
     );
 
@@ -264,8 +268,8 @@ describe('InstallTaskService', () => {
 
     expect(mofoxCalls).toBe(2);
     // 残留的 partial.txt 已被撤销，最终落地只有干净产物。
-    await expect(access(join(target, taskId, 'mofox.txt'))).resolves.toBeUndefined();
-    await expect(access(join(target, taskId, 'partial.txt'))).rejects.toMatchObject({
+    await expect(access(join(target, taskId, 'mofox', 'mofox.txt'))).resolves.toBeUndefined();
+    await expect(access(join(target, taskId, 'mofox', 'partial.txt'))).rejects.toMatchObject({
       code: 'ENOENT',
     });
   });
@@ -285,7 +289,7 @@ describe('InstallTaskService', () => {
     const progress = vi.fn();
     const service = new InstallTaskService(
       registry(),
-      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, executors },
       { progress },
     );
 
@@ -293,7 +297,10 @@ describe('InstallTaskService', () => {
     await service.cancel(taskId);
 
     await expect(access(stageDir)).rejects.toMatchObject({ code: 'ENOENT' });
-    await expect(access(join(root, 'installed'))).rejects.toMatchObject({ code: 'ENOENT' });
+    // 取消时回收实例目录（缓存工作区），目标目录本身保留为空文件夹。
+    await expect(access(join(root, 'installed', taskId))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'cancelled' }));
   });
 
@@ -308,7 +315,7 @@ describe('InstallTaskService', () => {
     };
     const service = new InstallTaskService(
       registry(),
-      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, tempRoot: root, executors },
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, executors },
       { progress: vi.fn() },
     );
 

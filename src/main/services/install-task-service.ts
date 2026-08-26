@@ -1,7 +1,6 @@
 import { constants } from 'node:fs';
 import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { CreateInstanceInput } from '../../shared/domain/instance';
 import type {
   InstallProgressEvent,
@@ -26,12 +25,12 @@ import {
 
 /**
  * 安装任务编排服务：把安装拆为「安装 MoFox → 安装平台 → 安装 WebUI → 配置」四个任务
- * 加一个收尾步骤，所有产物在临时工作区内的 stage 目录完成。
+ * 加一个收尾步骤，所有产物在实例目录（目标目录 / 实例 ID）下的 `.cache` 缓存内完成。
  *
- * 每一步完成后会把当前目录整体复制给下一步使用（设计文档要求），完成或取消时
- * 回收整个临时工作区；失败时保留工作区，供重试撤销本步骤残留并从上一步完成品
- * 重新复制后续跑。主服务只负责调度与状态发布，具体逻辑全部委托给
- * `utils/install-tasks` 下的执行器。
+ * 每一步完成后会把当前目录整体复制给下一步使用（设计文档要求），成功时收尾步骤把
+ * mofox/platform 产物从缓存拉取到实例目录根下并删除缓存；失败时保留工作区，供重试
+ * 撤销本步骤残留并从上一步完成品重新复制后续跑；取消时回收整个实例目录。
+ * 主服务只负责调度与状态发布，具体逻辑全部委托给 `utils/install-tasks` 下的执行器。
  */
 
 interface TaskSpec {
@@ -65,7 +64,6 @@ export interface InstallTaskEvents {
 export interface InstallTaskDependencies {
   repository: { create(input: CreateInstanceInput): Promise<unknown> };
   mirrors: { list(): MirrorSource[] };
-  tempRoot?: string;
   /** 可选执行器覆盖，供测试注入伪实现；缺省时使用 `utils/install-tasks` 中的真实执行器。 */
   executors?: Partial<Record<InstallStepId, (ctx: InstallTaskContext) => Promise<unknown>>>;
 }
@@ -75,7 +73,7 @@ export class InstallTaskService {
 
   /**
    * @param registry - 平台注册表，用于按平台 ID 解析平台安装器。
-   * @param dependencies - 仓库、镜像与临时目录等外部依赖的注入点。
+   * @param dependencies - 仓库、镜像与执行器覆盖等外部依赖的注入点。
    * @param events - 安装进度事件分发回调。
    */
   constructor(
@@ -133,7 +131,8 @@ export class InstallTaskService {
     task.controller.abort();
     await task.running.catch(() => undefined);
     task.status = 'cancelled';
-    await rm(task.workspace, { recursive: true, force: true }).catch(() => undefined);
+    // 回收整个实例目录（缓存 `.cache` 与其父目录一并删除），不留空文件夹。
+    await rm(dirname(task.workspace), { recursive: true, force: true }).catch(() => undefined);
   }
 
   /**
@@ -223,11 +222,11 @@ export class InstallTaskService {
    */
   private createTask(request: InstallRequest): TaskRecord {
     const id = generateInstanceId();
-    const root = this.dependencies.tempRoot ?? tmpdir();
     return {
       id,
       request,
-      workspace: join(root, `neo-mofox-install-${id}`),
+      // 缓存/工作区再套一层 `.cache`，位于实例目录 `目标目录/<实例ID>` 之下。
+      workspace: join(resolve(request.targetDir), id, '.cache'),
       controller: new AbortController(),
       status: 'pending',
       currentStep: 'install-mofox',
@@ -256,10 +255,10 @@ export class InstallTaskService {
    * 按步骤列表执行安装流水线；任一步骤抛错或取消时标记任务终态。
    *
    * 每个非最终步骤完成后把当前 stage 目录整体复制给下一步，保证每步从干净快照开始；
-   * 最终步骤把最后一份快照移动到目标路径。
+   * 最终步骤把产物从最后一份快照拉取到实例目录根下，并删除缓存 stage 目录。
    *
    * 失败时记录断点并保留工作区：重试从断点步骤的起始状态恢复——撤销该步骤已落地的
-   * 残留目录，再从上一步完成品复制出干净快照——然后继续执行；完成或取消时回收工作区。
+   * 残留目录，再从上一步完成品复制出干净快照——然后继续执行；取消时回收整个工作区。
    *
    * @param task - 待执行的任务记录（原地更新其状态）。
    */
@@ -323,9 +322,10 @@ export class InstallTaskService {
         );
       }
     } finally {
-      // 失败保留工作区供重试续跑；完成或取消一律回收。
-      if (task.status !== 'failed') {
-        await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+      // 失败保留工作区供重试续跑；取消时回收整个实例目录（此时尚未落地产物）。
+      // 成功后 finalize 已把 mofox/platform 从缓存 `.cache` 拉出到实例目录，故不再删除。
+      if (task.status === 'cancelled') {
+        await rm(dirname(workspace), { recursive: true, force: true }).catch(() => undefined);
       }
     }
   }
@@ -433,31 +433,35 @@ export class InstallTaskService {
   }
 
   /**
-   * 将最后一份 stage 快照原子提交到目标路径，并在仓库中持久化新实例记录。
+   * 收尾：把最后一份 stage 快照中的产物（mofox/platform）拉取到实例目录，再删除缓存。
    *
-   * 在用户指定的目录下先套一层以实例 ID 命名的子文件夹，再原子落地到该子文件夹，
-   * 避免实例文件与用户目录中的其他内容混在一起。跨设备时回退为「复制后重命名」，
-   * 保证目标目录仅在安装完整后可见。
+   * 安装全程的缓存/工作区位于实例目录 `目标目录/<实例ID>/.cache` 之下，便于与用户文件
+   * 同盘并集中管理。收尾时先把 `mofox`、`platform` 两个产物从缓存 stage 移动
+   * 到实例目录根下，再删除整个缓存 `.cache` 目录，最后在仓库中持久化新实例记录。
    *
    * @param task - 正在执行收尾步骤的任务记录。
-   * @param stageDir - 已配置完成的最终快照目录。
+   * @param stageDir - 已配置完成的最终 stage 快照目录。
    * @throws {MofoxError} 目标不可访问时抛出对应错误。
    */
   private async finalize(task: TaskRecord, stageDir: string): Promise<void> {
-    const target = join(resolve(task.request.targetDir), task.id);
-    const staging = `${target}.neo-mofox-staging-${task.id}`;
-    await rm(staging, { recursive: true, force: true });
-    await mkdir(resolve(target, '..'), { recursive: true });
-    try {
-      await rename(stageDir, staging);
-      await rename(staging, target);
-    } catch (error) {
-      if (!isCrossDevice(error)) throw error;
-      await cp(stageDir, staging, { recursive: true, force: true });
-      await rename(staging, target);
-      await rm(stageDir, { recursive: true, force: true });
+    const target = dirname(task.workspace);
+    await mkdir(target, { recursive: true });
+    for (const name of ['mofox', 'platform']) {
+      const src = join(stageDir, name);
+      const dst = join(target, name);
+      if (!(await pathExists(src))) continue;
+      await rm(dst, { recursive: true, force: true });
+      try {
+        await rename(src, dst);
+      } catch (error) {
+        if (!isCrossDevice(error)) throw error;
+        await cp(src, dst, { recursive: true, force: true });
+        await rm(src, { recursive: true, force: true }).catch(() => undefined);
+      }
     }
-    await access(target, constants.F_OK);
+    await access(join(target, 'mofox'), constants.F_OK);
+    // 删除整个缓存 `.cache` 目录，仅保留已拉取到实例目录根下的产物。
+    await rm(task.workspace, { recursive: true, force: true }).catch(() => undefined);
 
     const platformId = task.request.platformId;
     await this.dependencies.repository.create({
@@ -573,4 +577,14 @@ function validateRequest(request: InstallRequest): void {
  */
 function isCrossDevice(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EXDEV';
+}
+
+/** 判断路径是否存在且可访问。 */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
