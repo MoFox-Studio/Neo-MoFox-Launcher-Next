@@ -72,7 +72,7 @@ async function chooseTargetDir(): Promise<void> {
         <span class="msr" aria-hidden="true">info</span>
         <div>
           <strong>安装方式</strong>
-          <p>安装会先在临时目录完成，成功后再原子移动到该目录。</p>
+          <p>安装会先在临时目录完成，成功后再原子移动到所选目录下以实例 ID 命名的子文件夹。</p>
         </div>
       </div>
     </form>

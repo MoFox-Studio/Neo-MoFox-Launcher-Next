@@ -287,12 +287,17 @@ export const mockApi: MofoxApi = {
         progress: 1,
         message: '安装完成',
       });
+      const instanceId = `ins-${Date.now()}`;
       instances.push({
-        id: `ins-${Date.now()}`,
+        id: instanceId,
         name: request.instanceName,
-        mofoxInstallDir: `${request.targetDir}/mofox`,
+        mofoxInstallDir: `${request.targetDir}/${instanceId}/mofox`,
         platform: request.platformId
-          ? { id: request.platformId, installDir: `${request.targetDir}/platform`, version: null }
+          ? {
+              id: request.platformId,
+              installDir: `${request.targetDir}/${instanceId}/platform`,
+              version: null,
+            }
           : { id: null, installDir: null, version: null },
         status: 'stopped',
         createdAt: Date.now(),

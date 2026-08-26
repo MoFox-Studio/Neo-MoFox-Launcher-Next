@@ -102,6 +102,13 @@ const webuiLabel = computed(() => (draft.installWebui ? '是' : '否'));
             draft.targetDir || '-'
           }}</span>
         </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"
+            ><span class="msr" aria-hidden="true">create_new_folder</span></span
+          >
+          <span class="summary-item-label">子文件夹</span>
+          <span class="summary-item-value">以实例 ID 命名，自动创建</span>
+        </div>
       </div>
     </div>
   </section>

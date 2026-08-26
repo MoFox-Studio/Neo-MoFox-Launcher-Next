@@ -74,14 +74,16 @@ describe('InstallTaskService', () => {
     const taskId = await service.start(request(target));
     await service.wait(taskId);
 
-    expect(await readFile(join(target, 'mofox', 'main.py'), 'utf8')).toBe('main');
-    expect(await readFile(join(target, 'platform', 'ready.txt'), 'utf8')).toBe('ready');
+    // 安装落在「目标目录 / 实例 ID 子文件夹」内，而非直接写入目标目录。
+    const instanceDir = join(target, taskId);
+    expect(await readFile(join(instanceDir, 'mofox', 'main.py'), 'utf8')).toBe('main');
+    expect(await readFile(join(instanceDir, 'platform', 'ready.txt'), 'utf8')).toBe('ready');
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         id: taskId,
         name: 'Test',
-        mofoxInstallDir: join(target, 'mofox'),
-        platform: { id: 'test', installDir: join(target, 'platform'), version: '2.0.0' },
+        mofoxInstallDir: join(instanceDir, 'mofox'),
+        platform: { id: 'test', installDir: join(instanceDir, 'platform'), version: '2.0.0' },
       }),
     );
     expect(progress).toHaveBeenLastCalledWith(
@@ -190,7 +192,7 @@ describe('InstallTaskService', () => {
 
     // 已完成的步骤不重复执行，仅续跑失败的配置步骤并最终落地。
     expect(calls).toEqual(['mofox', 'configure', 'configure']);
-    expect(await readFile(join(target, 'ok.txt'), 'utf8')).toBe('ok');
+    expect(await readFile(join(target, taskId, 'ok.txt'), 'utf8')).toBe('ok');
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
   });
 
@@ -230,7 +232,7 @@ describe('InstallTaskService', () => {
     // 复制失败时已完成的步骤不再执行，重试撤销残留并续跑下一步。
     expect(calls).toEqual(['mofox', 'configure']);
     expect(configureCalls).toBe(1);
-    expect(await readFile(join(target, 'ok.txt'), 'utf8')).toBe('ok');
+    expect(await readFile(join(target, taskId, 'ok.txt'), 'utf8')).toBe('ok');
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
   });
 
@@ -262,8 +264,10 @@ describe('InstallTaskService', () => {
 
     expect(mofoxCalls).toBe(2);
     // 残留的 partial.txt 已被撤销，最终落地只有干净产物。
-    await expect(access(join(target, 'mofox.txt'))).resolves.toBeUndefined();
-    await expect(access(join(target, 'partial.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(join(target, taskId, 'mofox.txt'))).resolves.toBeUndefined();
+    await expect(access(join(target, taskId, 'partial.txt'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
   });
 
   it('aborts an active install and removes its temporary workspace', async () => {

@@ -421,14 +421,16 @@ export class InstallTaskService {
   /**
    * 将最后一份 stage 快照原子提交到目标路径，并在仓库中持久化新实例记录。
    *
-   * 跨设备时回退为「复制后重命名」，保证目标目录仅在安装完整后可见。
+   * 在用户指定的目录下先套一层以实例 ID 命名的子文件夹，再原子落地到该子文件夹，
+   * 避免实例文件与用户目录中的其他内容混在一起。跨设备时回退为「复制后重命名」，
+   * 保证目标目录仅在安装完整后可见。
    *
    * @param task - 正在执行收尾步骤的任务记录。
    * @param stageDir - 已配置完成的最终快照目录。
    * @throws {MofoxError} 目标不可访问时抛出对应错误。
    */
   private async finalize(task: TaskRecord, stageDir: string): Promise<void> {
-    const target = resolve(task.request.targetDir);
+    const target = join(resolve(task.request.targetDir), task.id);
     const staging = `${target}.neo-mofox-staging-${task.id}`;
     await rm(staging, { recursive: true, force: true });
     await mkdir(resolve(target, '..'), { recursive: true });
