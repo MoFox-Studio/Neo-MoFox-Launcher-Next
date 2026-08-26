@@ -13,7 +13,7 @@ import type { MirrorSource } from '../../shared/domain/mirror';
 import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';
 import { generateInstanceId } from '../utils/id-generator';
-import { fetchRepositoryFile } from '../utils/github-installer';
+import { fetchRepositoryFile } from '../utils/git/github-installer';
 import {
   configureInstance,
   installMoFox,

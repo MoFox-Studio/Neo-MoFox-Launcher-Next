@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MofoxError } from '../../../../shared/domain/error';
-import { downloadReleaseAsset } from '../../github-installer';
+import { downloadReleaseAsset } from '../../git/github-installer';
 import { runOneShot } from '../../process-helper';
 import type { DependencyInstallContext } from '../types';
 

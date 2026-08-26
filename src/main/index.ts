@@ -30,7 +30,7 @@ import {
   LegacyMigrationService,
   resolveLegacyLauncherDataDir,
 } from './services/legacy-migration-service';
-import { MirrorService } from './services/mirror-service';
+import { MirrorService } from './utils/mirror';
 import { ManualImportService } from './services/manual-import-service';
 import { PlatformMetadataService } from './services/platform-metadata-service';
 import { SettingsService } from './services/settings-service';

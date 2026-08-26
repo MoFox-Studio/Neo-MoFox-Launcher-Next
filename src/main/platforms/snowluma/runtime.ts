@@ -8,7 +8,7 @@ import type {
   PlatformConfigureInput,
 } from '../../../shared/domain/bot-platform';
 import { MofoxError } from '../../../shared/domain/error';
-import { hasFiles, installGithubRelease } from '../../utils/github-installer';
+import { hasFiles, installGithubRelease } from '../../utils/git/github-installer';
 import { writeOnebotAdapterConfig } from '../onebot-adapter';
 
 // SnowLuma 平台适配器：定义 Release 资产筛选、安装根校验与多级启动入口探测。

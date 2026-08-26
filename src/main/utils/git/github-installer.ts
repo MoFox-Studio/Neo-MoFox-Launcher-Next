@@ -3,12 +3,12 @@ import { access, mkdir, readdir, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 import extractZip from 'extract-zip';
-import type { InstallContext, InstallResult } from '../../shared/domain/bot-platform';
-import type { MirrorSource } from '../../shared/domain/mirror';
-import { MofoxError } from '../../shared/domain/error';
-import { downloadRange } from './range-downloader';
-import { runOneShot } from './process-helper';
-import { resolveGithubUrl, tryEachGithubMirror } from './mirror';
+import type { InstallContext, InstallResult } from '../../../shared/domain/bot-platform';
+import type { MirrorSource } from '../../../shared/domain/mirror';
+import { MofoxError } from '../../../shared/domain/error';
+import { downloadRange } from '../range-downloader';
+import { runOneShot } from '../process-helper';
+import { resolveGithubUrl, tryEachGithubMirror } from './github-mirror';
 
 /** 常见 HTTP 状态码到人类可读原因的描述；未收录的状态码返回 undefined。 */
 const HTTP_STATUS_EXPLANATIONS: Record<number, string> = {

@@ -8,7 +8,7 @@ import type {
   PlatformConfigureInput,
 } from '../../../shared/domain/bot-platform';
 import { MofoxError } from '../../../shared/domain/error';
-import { hasFiles, installGithubRelease } from '../../utils/github-installer';
+import { hasFiles, installGithubRelease } from '../../utils/git/github-installer';
 import { writeOnebotAdapterConfig } from '../onebot-adapter';
 
 // NapCat 平台适配器：固定 Windows Release 资产，并解析当前及旧版目录中的启动入口。
