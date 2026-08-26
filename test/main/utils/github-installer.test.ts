@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeHttpStatus } from '../../../src/main/utils/github-installer';
+import { describeHttpStatus } from '../../../src/main/utils/http-status';
 
 describe('describeHttpStatus', () => {
   it('explains common status codes', () => {
