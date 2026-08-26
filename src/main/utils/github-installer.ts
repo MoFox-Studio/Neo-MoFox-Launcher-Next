@@ -37,12 +37,12 @@ export function describeHttpStatus(status: number): string {
 }
 
 // GitHub Release 安装流水线的最小元数据结构，仅保留选择资产与校验所需字段。
-interface ReleaseAsset {
+export interface ReleaseAsset {
   name: string;
   browser_download_url: string;
   digest?: string;
 }
-interface Release {
+export interface Release {
   tag_name: string;
   assets: ReleaseAsset[];
 }
