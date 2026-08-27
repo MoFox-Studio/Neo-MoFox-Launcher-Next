@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Instance } from '@shared/domain/instance';
+import type { SystemEnvInfo } from '@shared/domain/system-env';
 import type { MofoxUpdateInfo, PlatformUpdateInfo, UpdateProgressEvent } from '@shared/domain/update';
 import { mofoxApi } from '@/services/mofox-api';
 
@@ -33,6 +34,7 @@ const checkingOut = ref(false);
 const updatingMofox = ref(false);
 const updatingPlatform = ref(false);
 const selectedBranch = ref('');
+const env = ref<SystemEnvInfo | null>(null);
 
 // 最新进度消息：任何进行中的更新操作都驱动顶部进度条。
 const progress = ref<UpdateProgressEvent | null>(null);
@@ -142,6 +144,13 @@ async function doUpdatePlatform(version: string): Promise<void> {
 
 onMounted(() => {
   void refresh();
+  // 探测更新依赖（git / uv / python）版本，用于更新页诊断展示。
+  void mofoxApi
+    .detectSystemEnv()
+    .then((value) => {
+      env.value = value;
+    })
+    .catch(() => undefined);
   // 只接收当前实例的更新进度，驱动顶部进度条与操作中的提示文本。
   unsubscribeProgress = mofoxApi.on('update-progress', (event) => {
     if (event.instanceId !== props.instance.id) return;
@@ -287,26 +296,43 @@ onBeforeUnmount(() => {
           <p class="update-hint">注意：切换分支将会暂存本地更改并拉取最新代码。</p>
         </div>
 
-        <!-- 更新说明：填充左栏剩余高度 -->
+        <!-- 仓库状态：填充左栏剩余高度 -->
         <div class="update-card update-fill-card">
           <h3 class="update-card__title">
-            <span class="msr" aria-hidden="true">tips_and_updates</span>
-            更新说明
+            <span class="msr" aria-hidden="true">analytics</span>
+            仓库状态
           </h3>
-          <ul class="tip-list">
-            <li class="tip-item">
-              <span class="msr" aria-hidden="true">inventory_2</span>
-              <span>切换分支、更新与回退前会自动暂存本地未提交的更改。</span>
-            </li>
-            <li class="tip-item">
-              <span class="msr" aria-hidden="true">sync</span>
-              <span>操作完成后会自动执行 <code>uv sync</code> 同步 Python 依赖。</span>
-            </li>
-            <li class="tip-item">
-              <span class="msr" aria-hidden="true">power_off</span>
-              <span>更新前建议先停止实例，避免运行中的进程占用被替换的文件。</span>
-            </li>
-          </ul>
+          <div class="update-item">
+            <span class="update-item__label">本地进度</span>
+            <span class="update-value">
+              <span class="count-chip">领先 {{ mofoxInfo?.aheadCount ?? 0 }}</span>
+              <span class="count-chip">落后 {{ mofoxInfo?.behindCount ?? 0 }}</span>
+            </span>
+          </div>
+          <div class="update-item">
+            <span class="update-item__label">远程分支</span>
+            <span class="update-value">{{ mofoxInfo?.branches?.length ?? 0 }} 个可用分支</span>
+          </div>
+          <div class="update-item">
+            <span class="update-item__label">更新依赖</span>
+            <div class="dep-list">
+              <span class="dep-item">
+                <span class="msr" aria-hidden="true">code</span>
+                <span>Git</span>
+                <code>{{ env?.gitVersion || '—' }}</code>
+              </span>
+              <span class="dep-item">
+                <span class="msr" aria-hidden="true">terminal</span>
+                <span>uv</span>
+                <code>{{ env?.uvVersion || '—' }}</code>
+              </span>
+              <span class="dep-item">
+                <span class="msr" aria-hidden="true">science</span>
+                <span>Python</span>
+                <code>{{ env?.pythonVersion || '—' }}</code>
+              </span>
+            </div>
+          </div>
           <div class="update-repo-row">
             <span class="msr" aria-hidden="true">link</span>
             <span class="update-repo-row__text">MoFox-Studio/Neo-MoFox</span>
@@ -780,7 +806,7 @@ onBeforeUnmount(() => {
   font: var(--md-sys-typescale-body-small);
 }
 
-/* 更新说明卡片：填充左栏剩余高度，仓库行固定在底部。 */
+/* 仓库状态卡片：填充左栏剩余高度，仓库行固定在底部。 */
 .update-fill-card {
   flex: 1;
   min-height: 0;
@@ -788,32 +814,42 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
-.tip-list {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
+.count-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+  padding: 2px 10px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-label-medium);
+}
+
+.dep-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.tip-item {
-  display: flex;
-  align-items: flex-start;
   gap: 8px;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-small);
-  line-height: 1.5;
 }
 
-.tip-item .msr {
-  flex: none;
+.dep-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.dep-item .msr {
   font-size: 18px;
   color: var(--md-sys-color-primary);
 }
 
-.tip-item code {
+.dep-item code {
+  margin-left: auto;
   font-family: var(--md-ref-typeface-mono);
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .update-repo-row {

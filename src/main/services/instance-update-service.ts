@@ -64,13 +64,12 @@ export class InstanceUpdateService {
         aheadCount: 0,
       };
     }
-    const [branch, currentCommit, commits, updateStatus, branches] = await Promise.all([
-      getCurrentBranch(directory),
-      getCurrentCommit(directory),
-      getCommitList(directory),
-      checkUpdateStatus(directory),
-      fetchRemoteBranches(this.mirrors.list()).catch(() => [] as string[]),
-    ]);
+    // 顺序执行避免两个 git fetch 并发争用引用锁；getCommitList 内部会先加深浅克隆历史。
+    const branch = await getCurrentBranch(directory);
+    const currentCommit = await getCurrentCommit(directory);
+    const commits = await getCommitList(directory);
+    const updateStatus = await checkUpdateStatus(directory);
+    const branches = await fetchRemoteBranches(this.mirrors.list()).catch(() => [] as string[]);
     if (branch && !branches.includes(branch)) branches.unshift(branch);
     return {
       isRepository: true,

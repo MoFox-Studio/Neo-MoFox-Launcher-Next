@@ -6,6 +6,8 @@ import { githubMirrorsOf, resolveGithubUrl } from './github-mirror';
 
 // Neo-MoFox 本体仓库；分支与提交回退均作用于该仓库的本地克隆。
 const MOFOX_REPOSITORY = 'MoFox-Studio/Neo-MoFox';
+/** 浅克隆保留的提交历史深度，供版本管理页回退历史提交使用。 */
+const GIT_DEPTH = 20;
 
 /** Git 克隆的入参；仓库与分支来自调用方，镜像列表由调用方注入。 */
 export interface CloneRepositoryOptions {
@@ -44,7 +46,7 @@ export async function cloneRepository(options: CloneRepositoryOptions): Promise<
       onProgress?.(`尝试镜像 ${mirror.name}: ${url}`);
       const result = await execCommand(
         'git',
-        ['clone', '--depth', '1', '-b', branch, '--single-branch', url, destination],
+        ['clone', '--depth', String(GIT_DEPTH), '-b', branch, '--single-branch', url, destination],
         {
           timeoutMs: 600_000,
           ...(signal ? { signal } : {}),
@@ -257,14 +259,30 @@ export async function fetchRemoteBranches(
   mirrors: readonly MirrorSource[],
   signal?: AbortSignal,
 ): Promise<string[]> {
-  const repository = MOFOX_REPOSITORY;
+  const apiBranches = await fetchApiBranches(mirrors, signal);
+  if (apiBranches.length > 0) return apiBranches;
+  // GitHub API 不可用（限流/被墙）时回退到 git ls-remote，走 git 协议。
+  return fetchBranchesViaGit(mirrors);
+}
+
+/**
+ * 通过 GitHub API 获取远程分支列表，按镜像顺序轮询。
+ *
+ * @param mirrors - 全部镜像源，内部只消费 `github` 类型。
+ * @param signal - 可选的取消信号。
+ * @returns 远程分支名数组；全部失败或为空时返回 `[]`。
+ */
+async function fetchApiBranches(
+  mirrors: readonly MirrorSource[],
+  signal?: AbortSignal,
+): Promise<string[]> {
   const sources = githubMirrorsOf(mirrors);
   if (sources.length === 0) return [];
   for (const mirror of sources) {
     try {
       const url = resolveGithubUrl(
         mirror,
-        `https://api.github.com/repos/${repository}/branches?per_page=100`,
+        `https://api.github.com/repos/${MOFOX_REPOSITORY}/branches?per_page=100`,
       );
       const response = await fetch(url, {
         headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
@@ -272,10 +290,37 @@ export async function fetchRemoteBranches(
       });
       if (!response.ok) throw new MofoxError('IO_ERROR', `HTTP ${response.status}`);
       const data = (await response.json()) as Array<{ name?: string }>;
-      return data.map((entry) => entry.name ?? '').filter(Boolean);
+      const branches = data.map((entry) => entry.name ?? '').filter(Boolean);
+      if (branches.length > 0) return branches;
     } catch (error) {
       if (signal?.aborted) throw error;
     }
+  }
+  return [];
+}
+
+/**
+ * 通过 `git ls-remote` 读取远程分支，作为 GitHub API 不可用时的回退。
+ *
+ * 按镜像顺序尝试，解析 `refs/heads/<branch>` 输出为分支名。
+ *
+ * @param mirrors - 全部镜像源，内部只消费 `github` 类型。
+ * @returns 远程分支名数组；全部失败时返回 `[]`。
+ */
+async function fetchBranchesViaGit(mirrors: readonly MirrorSource[]): Promise<string[]> {
+  const sources = githubMirrorsOf(mirrors);
+  const original = `https://github.com/${MOFOX_REPOSITORY}.git`;
+  for (const mirror of sources) {
+    const url = resolveGithubUrl(mirror, original);
+    const result = await execCommand('git', ['ls-remote', '--heads', url], {
+      timeoutMs: 60_000,
+    }).catch(() => undefined);
+    if (!result || result.exitCode !== 0) continue;
+    const branches = result.stdout
+      .split(/\r?\n/)
+      .map((line) => line.match(/refs\/heads\/(.+)$/)?.[1])
+      .filter((branch): branch is string => Boolean(branch));
+    if (branches.length > 0) return branches;
   }
   return [];
 }

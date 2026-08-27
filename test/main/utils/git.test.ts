@@ -73,7 +73,9 @@ describe('git repository helpers', () => {
     execCommand
       .mockResolvedValueOnce(result('true')) // isGitRepository
       .mockResolvedValueOnce(result('true')) // getCurrentCommit -> isGitRepository
-      .mockResolvedValueOnce(result(`${current}|||current msg|||2026-08-20 10:00:00 +0800`)) // getCurrentCommit -> log
+      .mockResolvedValueOnce(
+        result(`${current}|||current msg|||2026-08-20 10:00:00 +0800`),
+      ) // getCurrentCommit -> log
       .mockResolvedValueOnce(
         result(
           'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0|||current msg|||2026-08-20 10:00:00 +0800\nb2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1|||older msg|||2026-08-19 10:00:00 +0800',
