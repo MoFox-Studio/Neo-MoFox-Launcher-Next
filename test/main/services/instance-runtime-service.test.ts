@@ -14,7 +14,7 @@ vi.mock('tree-kill', () => ({
 }));
 
 /** 覆盖进程生命周期、双进程状态收敛、PTY 状态同步与日志导出。 */
-const FAST_TIMINGS = { sigterm: 10, sigkill: 10 };
+const FAST_TIMINGS = { sigterm: 10, sigkill: 10, batchAnswer: 5 };
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {

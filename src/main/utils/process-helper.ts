@@ -204,6 +204,8 @@ interface ManagedProcess {
 const DEFAULT_SIZE = { cols: 120, rows: 30 };
 const DEFAULT_SIGTERM_DELAY_MS = 4000;
 const DEFAULT_SIGKILL_DELAY_MS = 3000;
+/** Ctrl+C 后应答批处理 “Terminate batch job (Y/N)?” 提示的延迟（毫秒）。 */
+const DEFAULT_BATCH_ANSWER_DELAY_MS = 500;
 
 /**
  * 通用、与实例解耦的进程管理核心。
@@ -218,9 +220,10 @@ export class ProcessHelper {
 
   constructor(
     private readonly ptyFactory?: ProcessFactory,
-    private readonly stopTimings: { sigterm: number; sigkill: number } = {
+    private readonly stopTimings: { sigterm: number; sigkill: number; batchAnswer: number } = {
       sigterm: DEFAULT_SIGTERM_DELAY_MS,
       sigkill: DEFAULT_SIGKILL_DELAY_MS,
+      batchAnswer: DEFAULT_BATCH_ANSWER_DELAY_MS,
     },
   ) {}
 
@@ -334,17 +337,30 @@ export class ProcessHelper {
       });
     };
 
-    if (pty?.write) pty.write('\x03');
-    else killTree('SIGTERM', false);
-
     const timers: NodeJS.Timeout[] = [];
+
     if (pty?.write) {
+      const write = pty.write;
+      write('\x03');
+      // 批处理收到 Ctrl+C 后 cmd 会询问 “Terminate batch job (Y/N)?”，
+      // 延迟应答 Y 让解释器连同其子进程一起优雅退出，避免干等后续升级窗口。
       timers.push(
         setTimeout(() => {
-          // Ctrl+C 未被响应时升级为进程树 SIGTERM，覆盖 cmd 批处理解释器及其子进程。
+          try {
+            write('Y\r');
+          } catch {
+            /* already dead */
+          }
+        }, this.stopTimings.batchAnswer),
+      );
+      // Ctrl+C 未被响应时升级为进程树 SIGTERM，覆盖 cmd 批处理解释器及其子进程。
+      timers.push(
+        setTimeout(() => {
           killTree('SIGTERM', false);
         }, this.stopTimings.sigterm),
       );
+    } else {
+      killTree('SIGTERM', false);
     }
     timers.push(
       setTimeout(() => {

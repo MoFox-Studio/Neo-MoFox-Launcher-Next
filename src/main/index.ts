@@ -44,6 +44,8 @@ import { MofoxError } from '../shared/domain/error';
 
 /** 主进程组合根：管理单实例锁、窗口生命周期、服务依赖与主进程到渲染进程的事件同步。 */
 let mainWindow: BrowserWindow | null = null;
+/** 运行中的实例进程管理器；ready 后创建，退出时用于回收全部托管进程树。 */
+let processHelper: ProcessHelper | null = null;
 
 // 该协议只服务由 WallpaperService 管理的副本，必须在 app ready 前声明为安全标准协议。
 protocol.registerSchemesAsPrivileged([
@@ -214,7 +216,7 @@ if (!hasSingleInstanceLock) {
     const send = (channel: string, payload: unknown) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
     };
-    const processHelper = new ProcessHelper((command, args, options) =>
+    processHelper = new ProcessHelper((command, args, options) =>
       nodePty.spawn(command, args, {
         name: 'xterm-256color',
         cols: options.cols,
@@ -321,7 +323,5 @@ if (!hasSingleInstanceLock) {
   });
 
   // 应用退出前强制回收所有托管进程树，避免关闭启动器后遗留平台子进程。
-  app.on('before-quit', () =>{ 
-    processHelper.killAll()
-  });
+  app.on('before-quit', () => processHelper?.killAll());
 }

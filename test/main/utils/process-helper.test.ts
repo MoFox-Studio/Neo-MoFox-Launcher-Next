@@ -64,7 +64,7 @@ describe('runOneShot with stdin input', () => {
 });
 
 /** 覆盖与实例解耦的进程管理核心：PTY 生命周期、三级升级停止与统计收敛。 */
-const FAST_TIMINGS = { sigterm: 10, sigkill: 10 };
+const FAST_TIMINGS = { sigterm: 10, sigkill: 10, batchAnswer: 5 };
 
 function createPty() {
   let dataListener: ((data: string) => void) | undefined;
@@ -139,6 +139,8 @@ describe('ProcessHelper', () => {
     await helper.stop('key');
 
     expect(pty.write).toHaveBeenCalledWith('\x03');
+    // 批处理收到 Ctrl+C 后会询问 “Terminate batch job (Y/N)?”，自动应答 Y 以完成优雅退出。
+    expect(pty.write).toHaveBeenCalledWith('Y\r');
     // 升级阶段按进程树终止：先 SIGTERM 再 SIGKILL，均以进程 pid 为目标而非仅直接句柄。
     expect(treeKillMock).toHaveBeenCalledWith(1234, 'SIGTERM', expect.any(Function));
     expect(treeKillMock).toHaveBeenCalledWith(1234, 'SIGKILL', expect.any(Function));
