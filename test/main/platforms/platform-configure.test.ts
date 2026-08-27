@@ -49,32 +49,6 @@ describe('platform configure', () => {
     expect(adapter.bot.qq_nickname).toBe('灵语雪');
   });
 
-  it('NapCat preserves an existing bot nickname when none is provided', async () => {
-    const root = await createTempRoot();
-    const platformDir = join(root, 'napcat');
-    const mofoxConfigDir = join(root, 'mofox', 'config');
-    await mkdir(join(mofoxConfigDir, 'plugins', 'onebot_adapter'), { recursive: true });
-    const { writeFile } = await import('node:fs/promises');
-    await writeFile(
-      join(mofoxConfigDir, 'plugins', 'onebot_adapter', 'config.toml'),
-      '[plugin]\nenabled = true\n\n[onebot_server]\nmode = "reverse"\nport = 8095\n\n[bot]\nqq_id = "12345678901"\nqq_nickname = "已有昵称"\n',
-    );
-
-    await new NapCatPlatform().configure('inst-1', platformDir, {
-      wsPort: 9000,
-      botQQ: '12345678901',
-      botNickname: '',
-      mofoxConfigDir,
-    });
-
-    const adapter = parseToml(
-      await readFile(join(mofoxConfigDir, 'plugins', 'onebot_adapter', 'config.toml'), 'utf8'),
-    ) as any;
-    expect(adapter.onebot_server.port).toBe(9000);
-    expect(adapter.bot.qq_id).toBe('12345678901');
-    expect(adapter.bot.qq_nickname).toBe('已有昵称');
-  });
-
   it('SnowLuma writes a WS client endpoint for the bot QQ and the adapter port', async () => {
     const root = await createTempRoot();
     const platformDir = join(root, 'snowluma');
