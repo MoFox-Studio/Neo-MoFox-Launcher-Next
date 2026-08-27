@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Instance } from '@shared/domain/instance';
-import type {
-  MofoxUpdateInfo,
-  PlatformUpdateInfo,
-  UpdateProgressEvent,
-} from '@shared/domain/update';
+import type { MofoxUpdateInfo, PlatformUpdateInfo, UpdateProgressEvent } from '@shared/domain/update';
 import { mofoxApi } from '@/services/mofox-api';
 
 // 更新面板：参照旧启动器「版本管理」，顶部切换主程序 / 平台两个更新目标。
+// 页面固定高度不整体滚动，只有提交历史 / 可用版本列表在内部滚动。
 type UpdateTarget = 'mofox' | 'platform';
 
 const props = defineProps<{
@@ -59,10 +56,7 @@ async function refreshMofox(): Promise<void> {
       selectedBranch.value = mofoxInfo.value.branch;
     }
   } catch (error) {
-    emit(
-      'toast',
-      `主程序版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    emit('toast', `主程序版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     loadingMofox.value = false;
   }
@@ -73,10 +67,7 @@ async function refreshPlatform(): Promise<void> {
   try {
     platformInfo.value = await mofoxApi.getPlatformUpdateInfo(props.instance.id);
   } catch (error) {
-    emit(
-      'toast',
-      `平台版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    emit('toast', `平台版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     loadingPlatform.value = false;
   }
@@ -134,7 +125,7 @@ async function doUpdatePlatform(version: string): Promise<void> {
   updatingPlatform.value = true;
   try {
     platformInfo.value = await mofoxApi.updatePlatform(props.instance.id, version);
-    emit('toast', version ? `平台已更新到 ${version}` : '平台已更新到最新版本');
+    emit('toast', version ? `平台已更改到 ${version}` : '平台已更新到最新版本');
   } catch (error) {
     emit('toast', `平台更新失败: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
@@ -215,7 +206,7 @@ onBeforeUnmount(() => {
 
     <!-- ─── 主程序更新 ─── -->
     <div v-if="target === 'mofox'" class="update-two-col">
-      <div class="update-col">
+      <div class="update-col update-col--fixed">
         <div class="update-card">
           <h3 class="update-card__title">
             <span class="msr" aria-hidden="true">info</span>
@@ -280,7 +271,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="update-col">
+      <div class="update-col update-col--grow">
         <div class="update-card">
           <h3 class="update-card__title">
             <span class="msr" aria-hidden="true">system_update</span>
@@ -317,7 +308,8 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="update-card update-card--grow">
+        <!-- 提交历史：独占剩余高度，内部滚动 -->
+        <div class="update-card update-scroll-card">
           <h3 class="update-card__title">
             <span class="msr" aria-hidden="true">history</span>
             提交历史
@@ -329,32 +321,34 @@ onBeforeUnmount(() => {
           <div v-else-if="mofoxCommits.length === 0" class="update-placeholder">
             <span>暂无提交记录</span>
           </div>
-          <ul v-else class="commit-list">
-            <li
-              v-for="commit in mofoxCommits"
-              :key="commit.fullHash"
-              class="commit-item"
-              :class="{ 'commit-item--current': commit.isCurrent }"
-            >
-              <div class="commit-item__body">
-                <code class="commit-item__hash">{{ commit.hash }}</code>
-                <span class="commit-item__message">{{ commit.message }}</span>
-                <span class="commit-item__date">{{ formatDate(commit.date) }}</span>
-              </div>
-              <button
-                v-if="!commit.isCurrent"
-                class="btn btn--tonal btn--small state-layer"
-                type="button"
-                :disabled="checkingOut || busy"
-                @click="doCheckout(commit.hash)"
+          <div v-else class="update-scroll">
+            <ul class="commit-list">
+              <li
+                v-for="commit in mofoxCommits"
+                :key="commit.fullHash"
+                class="commit-item"
+                :class="{ 'commit-item--current': commit.isCurrent }"
               >
-                {{ checkingOut ? '回退中…' : '回退' }}
-              </button>
-              <span v-else class="commit-item__current" aria-label="当前提交">
-                <span class="msr" aria-hidden="true">check_circle</span>
-              </span>
-            </li>
-          </ul>
+                <div class="commit-item__body">
+                  <code class="commit-item__hash">{{ commit.hash }}</code>
+                  <span class="commit-item__message">{{ commit.message }}</span>
+                  <span class="commit-item__date">{{ formatDate(commit.date) }}</span>
+                </div>
+                <button
+                  v-if="!commit.isCurrent"
+                  class="btn btn--tonal btn--small state-layer"
+                  type="button"
+                  :disabled="checkingOut || busy"
+                  @click="doCheckout(commit.hash)"
+                >
+                  {{ checkingOut ? '回退中…' : '回退' }}
+                </button>
+                <span v-else class="commit-item__current" aria-label="当前提交">
+                  <span class="msr" aria-hidden="true">check_circle</span>
+                </span>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
@@ -381,55 +375,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="update-card update-card--grow">
-          <h3 class="update-card__title">
-            <span class="msr" aria-hidden="true">history</span>
-            可用版本列表
-          </h3>
-          <div v-if="loadingPlatform" class="update-placeholder">
-            <span class="msr update-placeholder__icon" aria-hidden="true">progress_activity</span>
-            <span>加载版本列表...</span>
-          </div>
-          <ul v-else class="release-list">
-            <li v-for="release in releases" :key="release.tag_name" class="release-item">
-              <div class="release-item__body">
-                <span class="release-item__tag">
-                  {{ release.tag_name }}
-                  <span v-if="release.prerelease" class="release-item__tag release-item__tag--pre"
-                    >预发布</span
-                  >
-                </span>
-                <span class="release-item__date">{{ formatDate(release.published_at) }}</span>
-              </div>
-              <button
-                class="btn btn--tonal btn--small state-layer"
-                type="button"
-                :disabled="updatingPlatform || busy || release.tag_name === platformCurrentVersion"
-                @click="doUpdatePlatform(release.tag_name)"
-              >
-                {{
-                  release.tag_name === platformCurrentVersion
-                    ? '当前版本'
-                    : updatingPlatform
-                      ? '更新中…'
-                      : '更新到此版本'
-                }}
-              </button>
-            </li>
-          </ul>
-        </div>
-
-        <div class="update-card">
-          <div class="update-update-row">
-            <div>
-              <h3 class="update-card__title" style="margin-bottom: 4px">
-                <span class="msr" aria-hidden="true">system_update</span>
-                更新到最新版本
-              </h3>
-              <p class="update-hint" style="margin: 0">
-                拉取平台仓库的最新发行版并替换当前安装，更新期间会保留现有配置。
-              </p>
-            </div>
+        <!-- 可用版本列表：更新按钮在列表上方，列表内部滚动 -->
+        <div class="update-card update-scroll-card">
+          <div class="update-card__head-row">
+            <h3 class="update-card__title" style="margin: 0">
+              <span class="msr" aria-hidden="true">history</span>
+              可用版本列表
+            </h3>
             <button
               class="btn btn--filled state-layer"
               type="button"
@@ -437,8 +389,41 @@ onBeforeUnmount(() => {
               @click="doUpdatePlatform('')"
             >
               <span class="msr btn__icon" aria-hidden="true">download</span>
-              {{ updatingPlatform ? '更新中…' : '更新' }}
+              {{ updatingPlatform ? '更新中…' : '更新到最新' }}
             </button>
+          </div>
+          <div v-if="loadingPlatform" class="update-placeholder">
+            <span class="msr update-placeholder__icon" aria-hidden="true">progress_activity</span>
+            <span>加载版本列表...</span>
+          </div>
+          <div v-else class="update-scroll">
+            <ul class="release-list">
+              <li v-for="release in releases" :key="release.tag_name" class="release-item">
+                <div class="release-item__body">
+                  <span class="release-item__tag">
+                    {{ release.tag_name }}
+                    <span v-if="release.prerelease" class="release-item__tag release-item__tag--pre"
+                      >预发布</span
+                    >
+                  </span>
+                  <span class="release-item__date">{{ formatDate(release.published_at) }}</span>
+                </div>
+                <button
+                  class="btn btn--tonal btn--small state-layer"
+                  type="button"
+                  :disabled="updatingPlatform || busy || release.tag_name === platformCurrentVersion"
+                  @click="doUpdatePlatform(release.tag_name)"
+                >
+                  {{
+                    release.tag_name === platformCurrentVersion
+                      ? '当前版本'
+                      : updatingPlatform
+                        ? '更改中…'
+                        : '更改到此版本'
+                  }}
+                </button>
+              </li>
+            </ul>
           </div>
         </div>
       </template>
@@ -475,9 +460,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* 固定高度：整体不滚动，只有提交历史 / 版本列表在内部滚动。 */
 .update-view {
   width: 100%;
-  max-width: 960px;
+  max-width: 1080px;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -558,20 +547,39 @@ onBeforeUnmount(() => {
   color: var(--md-sys-color-on-primary);
 }
 
+/* 主程序：左右双栏，整体占满剩余高度 */
 .update-two-col {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
 }
 
 .update-col {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+/* 左栏内容超出时仅在内部滚动，避免整页滚动；最后一张卡片填充剩余高度，与右栏等高。 */
+.update-col--fixed {
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.update-col--fixed > .update-card:last-child {
+  flex: 1;
+}
+
+.update-col--grow {
   gap: 16px;
 }
 
+/* 平台：整列占满剩余高度 */
 .update-platform {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -587,8 +595,20 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: var(--app-glass-filter);
 }
 
-.update-card--grow {
+/* 内部滚动的卡片：标题固定，列表区域伸缩并滚动。 */
+.update-scroll-card {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.update-card__head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .update-card__title {
@@ -598,6 +618,12 @@ onBeforeUnmount(() => {
   margin: 0 0 14px;
   font: var(--md-sys-typescale-title-medium);
   color: var(--md-sys-color-on-surface);
+}
+
+.update-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .update-item {
@@ -786,19 +812,15 @@ onBeforeUnmount(() => {
   font: var(--md-sys-typescale-label-small);
 }
 
-.update-update-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
 .update-empty {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 12px;
-  padding: 64px 32px;
+  padding: 32px;
   text-align: center;
 }
 

@@ -5,12 +5,11 @@ import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
 import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
 import { useWindowTitle } from '@/composables/use-window-title';
-import ManageSidebarItem from '@/components/instance-manage/ManageSidebarItem.vue';
 import InstanceInfoPanel from '@/components/instance-manage/InstanceInfoPanel.vue';
 import InstanceMorePanel from '@/components/instance-manage/InstanceMorePanel.vue';
 import InstanceUpdatePanel from '@/components/instance-manage/InstanceUpdatePanel.vue';
 
-// 实例管理页：侧边栏各分区抽为独立组件，新增「更新」分区用于主程序与平台版本管理。
+// 实例管理页：内容分区抽为独立面板，新增「更新」分区用于主程序与平台版本管理。
 type ManageTab = 'info' | 'more' | 'update';
 
 const route = useRoute();
@@ -78,15 +77,27 @@ function onDeleted(): void {
     <!-- 侧边栏分区导航；底部常驻日志入口 -->
     <aside class="manage-sidebar">
       <nav class="manage-sidebar__nav" aria-label="实例管理分区">
-        <ManageSidebarItem
+        <button
           v-for="item in NAV_ITEMS"
           :key="item.id"
-          :active="activeTab === item.id"
-          :icon="item.icon"
-          :label="item.label"
-          :description="item.description"
+          class="manage-sidebar__item state-layer"
+          :class="{ 'manage-sidebar__item--active': activeTab === item.id }"
+          type="button"
+          :aria-current="activeTab === item.id ? 'page' : undefined"
           @click="activeTab = item.id"
-        />
+        >
+          <span
+            class="msr manage-sidebar__icon"
+            :class="{ 'msr--fill': activeTab === item.id }"
+            aria-hidden="true"
+          >
+            {{ item.icon }}
+          </span>
+          <span class="manage-sidebar__text">
+            <span class="manage-sidebar__label">{{ item.label }}</span>
+            <span class="manage-sidebar__description">{{ item.description }}</span>
+          </span>
+        </button>
       </nav>
 
       <div class="manage-sidebar__footer">
@@ -178,6 +189,7 @@ function onDeleted(): void {
   gap: 4px;
 }
 
+.manage-sidebar__item,
 .manage-sidebar__action {
   width: 100%;
   display: flex;
@@ -194,6 +206,11 @@ function onDeleted(): void {
   transition:
     color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
     background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.manage-sidebar__item--active {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
 }
 
 .manage-sidebar__action:hover {
