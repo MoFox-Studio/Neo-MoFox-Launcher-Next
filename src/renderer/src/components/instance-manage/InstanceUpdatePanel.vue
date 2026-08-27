@@ -17,6 +17,12 @@ const emit = defineEmits<{
   toast: [message: string];
 }>();
 
+const MOFOX_REPOSITORY_URL = 'https://github.com/MoFox-Studio/Neo-MoFox';
+
+function openRepository(): void {
+  void mofoxApi.openExternal(MOFOX_REPOSITORY_URL);
+}
+
 const target = ref<UpdateTarget>('mofox');
 const mofoxInfo = ref<MofoxUpdateInfo | null>(null);
 const platformInfo = ref<PlatformUpdateInfo | null>(null);
@@ -279,6 +285,36 @@ onBeforeUnmount(() => {
             </button>
           </div>
           <p class="update-hint">注意：切换分支将会暂存本地更改并拉取最新代码。</p>
+        </div>
+
+        <!-- 更新说明：填充左栏剩余高度 -->
+        <div class="update-card update-fill-card">
+          <h3 class="update-card__title">
+            <span class="msr" aria-hidden="true">tips_and_updates</span>
+            更新说明
+          </h3>
+          <ul class="tip-list">
+            <li class="tip-item">
+              <span class="msr" aria-hidden="true">inventory_2</span>
+              <span>切换分支、更新与回退前会自动暂存本地未提交的更改。</span>
+            </li>
+            <li class="tip-item">
+              <span class="msr" aria-hidden="true">sync</span>
+              <span>操作完成后会自动执行 <code>uv sync</code> 同步 Python 依赖。</span>
+            </li>
+            <li class="tip-item">
+              <span class="msr" aria-hidden="true">power_off</span>
+              <span>更新前建议先停止实例，避免运行中的进程占用被替换的文件。</span>
+            </li>
+          </ul>
+          <div class="update-repo-row">
+            <span class="msr" aria-hidden="true">link</span>
+            <span class="update-repo-row__text">MoFox-Studio/Neo-MoFox</span>
+            <button class="btn btn--tonal btn--small state-layer" type="button" @click="openRepository">
+              <span class="msr btn__icon" aria-hidden="true">open_in_new</span>
+              打开仓库
+            </button>
+          </div>
         </div>
       </div>
 
@@ -742,6 +778,66 @@ onBeforeUnmount(() => {
   background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
+}
+
+/* 更新说明卡片：填充左栏剩余高度，仓库行固定在底部。 */
+.update-fill-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tip-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+  line-height: 1.5;
+}
+
+.tip-item .msr {
+  flex: none;
+  font-size: 18px;
+  color: var(--md-sys-color-primary);
+}
+
+.tip-item code {
+  font-family: var(--md-ref-typeface-mono);
+}
+
+.update-repo-row {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.update-repo-row .msr {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.update-repo-row__text {
+  flex: 1;
+  min-width: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+  font-family: var(--md-ref-typeface-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .update-status {
