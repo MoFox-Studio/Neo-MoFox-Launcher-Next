@@ -61,6 +61,21 @@ export const useInstancesStore = defineStore('instances', () => {
     await refresh();
   }
 
+  async function startProcess(id: string, source: 'mofox' | 'platform'): Promise<void> {
+    await mofoxApi.startInstanceProcess(id, source);
+    await refresh();
+  }
+
+  async function stopProcess(id: string, source: 'mofox' | 'platform'): Promise<void> {
+    await mofoxApi.stopInstanceProcess(id, source);
+    await refresh();
+  }
+
+  async function restartProcess(id: string, source: 'mofox' | 'platform'): Promise<void> {
+    await mofoxApi.restartInstanceProcess(id, source);
+    await refresh();
+  }
+
   async function remove(id: string): Promise<void> {
     await mofoxApi.removeInstance(id);
     delete logs.value[`${id}:mofox`];
@@ -77,7 +92,23 @@ export const useInstancesStore = defineStore('instances', () => {
     logs.value[`${id}:${source}`] = '';
   }
 
-  return { instances, loading, logs, running, byId, refresh, start, stop, restart, remove, update, clearLog };
+  return {
+    instances,
+    loading,
+    logs,
+    running,
+    byId,
+    refresh,
+    start,
+    stop,
+    restart,
+    startProcess,
+    stopProcess,
+    restartProcess,
+    remove,
+    update,
+    clearLog,
+  };
 });
 
 function stripAnsi(value: string): string {

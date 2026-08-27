@@ -7,6 +7,9 @@ interface InstanceActions {
   start(instanceId: string): Promise<void>;
   stop(instanceId: string): Promise<void>;
   restart(instanceId: string): Promise<void>;
+  startSource(instanceId: string, source: InstanceProcessSource): Promise<void>;
+  stopSource(instanceId: string, source: InstanceProcessSource): Promise<void>;
+  restartSource(instanceId: string, source: InstanceProcessSource): Promise<void>;
   getLogBuffer(instanceId: string, source: InstanceProcessSource): string;
   clearLogBuffer(instanceId: string, source: InstanceProcessSource): void;
   writePty(instanceId: string, source: InstanceProcessSource, data: string): void;
@@ -31,17 +34,38 @@ export function registerInstanceIpc(ipcMain: IpcMainRegistrar, instances: Instan
   register(ipcMain, IPC_INVOKE_CHANNELS.startInstance, (id) => instances.start(requireId(id)));
   register(ipcMain, IPC_INVOKE_CHANNELS.stopInstance, (id) => instances.stop(requireId(id)));
   register(ipcMain, IPC_INVOKE_CHANNELS.restartInstance, (id) => instances.restart(requireId(id)));
+  register(ipcMain, IPC_INVOKE_CHANNELS.startInstanceProcess, (id, source) =>
+    instances.startSource(requireId(id), requireSource(source)),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.stopInstanceProcess, (id, source) =>
+    instances.stopSource(requireId(id), requireSource(source)),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.restartInstanceProcess, (id, source) =>
+    instances.restartSource(requireId(id), requireSource(source)),
+  );
   register(ipcMain, IPC_INVOKE_CHANNELS.getInstanceLogBuffer, (id, source) =>
-    instances.getLogBuffer(requireId(id), requireSource(source)));
+    instances.getLogBuffer(requireId(id), requireSource(source)),
+  );
   register(ipcMain, IPC_INVOKE_CHANNELS.clearInstanceLogBuffer, (id, source) =>
-    instances.clearLogBuffer(requireId(id), requireSource(source)));
+    instances.clearLogBuffer(requireId(id), requireSource(source)),
+  );
   register(ipcMain, IPC_INVOKE_CHANNELS.writeInstancePty, (id, source, data) =>
-    instances.writePty(requireId(id), requireSource(source), requireString(data, 'PTY data')));
+    instances.writePty(requireId(id), requireSource(source), requireString(data, 'PTY data')),
+  );
   register(ipcMain, IPC_INVOKE_CHANNELS.resizeInstancePty, (id, source, cols, rows) =>
-    instances.resizePty(requireId(id), requireSource(source), requireNumber(cols, 'cols'), requireNumber(rows, 'rows')));
-  register(ipcMain, IPC_INVOKE_CHANNELS.getInstanceStats, (id) => instances.getStats(requireId(id)));
+    instances.resizePty(
+      requireId(id),
+      requireSource(source),
+      requireNumber(cols, 'cols'),
+      requireNumber(rows, 'rows'),
+    ),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.getInstanceStats, (id) =>
+    instances.getStats(requireId(id)),
+  );
   register(ipcMain, IPC_INVOKE_CHANNELS.exportInstanceLogs, (id, source) =>
-    instances.exportLogs(requireId(id), requireSource(source)));
+    instances.exportLogs(requireId(id), requireSource(source)),
+  );
 }
 
 /**
@@ -79,7 +103,8 @@ function requireSource(value: unknown): InstanceProcessSource {
  * @returns 通过校验的字符串值。
  */
 function requireString(value: unknown, label: string): string {
-  if (typeof value !== 'string') throw new MofoxError('INVALID_ARGUMENT', `${label} must be a string`);
+  if (typeof value !== 'string')
+    throw new MofoxError('INVALID_ARGUMENT', `${label} must be a string`);
   return value;
 }
 

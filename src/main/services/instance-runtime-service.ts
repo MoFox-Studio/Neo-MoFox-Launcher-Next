@@ -50,14 +50,16 @@ export class InstanceRuntimeService {
   /**
    * 启动指定实例的全部进程源（MoFox 与平台）。
    *
-   * 已在运行或正在启动的实例直接返回；启动失败时回收已创建进程并持久化 error 状态。
+   * 已在运行的来源会被跳过，因此可同时承担"全部启动"与"补齐未运行进程"两种语义；
+   * 全部已运行时直接返回保持幂等。启动失败时回收本次新拉起的进程并持久化 error 状态。
    *
    * @param instanceId - 待启动的实例 ID。
    * @throws {MofoxError} 实例不存在、无可用启动入口或进程启动失败时抛出。
    */
   async start(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
-    if (this.hasActive(instanceId) || instance.status === 'running' || instance.status === 'starting') return;
+    if (instance.status === 'starting') return;
+    const started: InstanceProcessSource[] = [];
     await this.saveStatus(instance, 'starting');
     try {
       const commands = await this.resolveCommands(instance);
@@ -68,17 +70,79 @@ export class InstanceRuntimeService {
         );
       }
       for (const [source, command] of commands) {
-        this.emitLauncherMessage(instanceId, source, 'info', `正在启动 ${source === 'mofox' ? 'MoFox' : '平台'} 进程...`);
+        if (this.helper.has(this.key(instanceId, source))) continue;
+        this.emitLauncherMessage(
+          instanceId,
+          source,
+          'info',
+          `正在启动 ${source === 'mofox' ? 'MoFox' : '平台'} 进程...`,
+        );
         this.spawn(instanceId, source, command);
+        started.push(source);
       }
-      await this.saveStatus(instance, 'running');
+      await this.saveStatus(await this.find(instanceId), 'running');
     } catch (error) {
-      // 部分启动失败时终止已创建的进程，持久化 error 后再将原错误交给 IPC 层处理。
-      this.killAll(instanceId);
-      this.emitLauncherMessage(instanceId, 'mofox', 'error', `启动失败: ${error instanceof Error ? error.message : String(error)}`);
-      await this.saveStatus(instance, 'error');
+      // 部分启动失败时仅回收本次新拉起的进程，保留原先已在运行的来源。
+      for (const source of started) this.helper.killAll(this.key(instanceId, source));
+      this.emitLauncherMessage(
+        instanceId,
+        'mofox',
+        'error',
+        `启动失败: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      await this.saveStatus(await this.find(instanceId), 'error');
       throw error;
     }
+  }
+
+  /**
+   * 仅启动指定实例的单个进程源。
+   *
+   * 已在该源下运行的进程直接返回；启动失败时回收该进程并持久化当前聚合状态。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 待启动的进程源（`mofox` 或 `platform`）。
+   * @throws {MofoxError} 实例不存在、无该源可用启动入口或进程启动失败时抛出。
+   */
+  async startSource(instanceId: string, source: InstanceProcessSource): Promise<void> {
+    const instance = await this.find(instanceId);
+    if (this.helper.has(this.key(instanceId, source))) return;
+    const command = await this.resolveCommand(instance, source);
+    if (!command) {
+      throw new MofoxError(
+        'NOT_FOUND',
+        source === 'mofox'
+          ? `实例未配置 MoFox 本体目录: mofoxInstallDir=${instance.mofoxInstallDir}`
+          : '实例未配置平台路径',
+      );
+    }
+    if (instance.status !== 'running' && instance.status !== 'starting') {
+      await this.saveStatus(instance, 'starting');
+    }
+    try {
+      this.emitLauncherMessage(
+        instanceId,
+        source,
+        'info',
+        `正在启动 ${source === 'mofox' ? 'MoFox' : '平台'} 进程...`,
+      );
+      this.spawn(instanceId, source, command);
+    } catch (error) {
+      this.helper.killAll(this.key(instanceId, source));
+      this.stoppingKeys.delete(this.key(instanceId, source));
+      this.emitLauncherMessage(
+        instanceId,
+        source,
+        'error',
+        `启动失败: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      await this.saveStatus(
+        await this.find(instanceId),
+        this.hasActive(instanceId) ? 'running' : 'stopped',
+      );
+      throw error;
+    }
+    await this.saveStatus(await this.find(instanceId), 'running');
   }
 
   /**
@@ -111,6 +175,31 @@ export class InstanceRuntimeService {
   }
 
   /**
+   * 仅停止指定实例的单个进程源。
+   *
+   * 该源无活动进程时仅同步状态；其余进程源保持运行则实例仍为 running。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 待停止的进程源。
+   */
+  async stopSource(instanceId: string, source: InstanceProcessSource): Promise<void> {
+    const instance = await this.find(instanceId);
+    const key = this.key(instanceId, source);
+    if (!this.helper.has(key)) {
+      if (!this.hasActive(instanceId) && instance.status !== 'stopped')
+        await this.saveStatus(instance, 'stopped');
+      return;
+    }
+    await this.saveStatus(instance, 'stopping');
+    this.stoppingKeys.add(key);
+    this.emitLauncherMessage(instanceId, source, 'info', '正在停止进程...');
+    await this.helper.stop(key);
+    this.emitLauncherMessage(instanceId, source, 'success', '进程已停止');
+    const current = await this.find(instanceId);
+    await this.saveStatus(current, this.hasActive(instanceId) ? 'running' : 'stopped');
+  }
+
+  /**
    * 重启实例：先停止再启动。
    *
    * @param instanceId - 待重启的实例 ID。
@@ -118,6 +207,17 @@ export class InstanceRuntimeService {
   async restart(instanceId: string): Promise<void> {
     await this.stop(instanceId);
     await this.start(instanceId);
+  }
+
+  /**
+   * 仅重启指定实例的单个进程源。
+   *
+   * @param instanceId - 实例 ID。
+   * @param source - 待重启的进程源。
+   */
+  async restartSource(instanceId: string, source: InstanceProcessSource): Promise<void> {
+    await this.stopSource(instanceId, source);
+    await this.startSource(instanceId, source);
   }
 
   /**
@@ -185,7 +285,8 @@ export class InstanceRuntimeService {
    */
   getStats(instanceId: string): InstanceStats {
     const stats = {} as InstanceStats;
-    for (const source of SOURCES) stats[source] = this.helper.getStats(this.key(instanceId, source));
+    for (const source of SOURCES)
+      stats[source] = this.helper.getStats(this.key(instanceId, source));
     return stats;
   }
 
@@ -220,11 +321,48 @@ export class InstanceRuntimeService {
    * @param instance - 待启动的实例。
    * @returns 进程源到启动命令的映射；无可用入口时为空集合。
    */
-  private async resolveCommands(instance: Instance): Promise<Map<InstanceProcessSource, StartCommand>> {
+  private async resolveCommands(
+    instance: Instance,
+  ): Promise<Map<InstanceProcessSource, StartCommand>> {
     const commands = new Map<InstanceProcessSource, StartCommand>();
 
-    const mofoxDir = instance.mofoxInstallDir;
-    if (mofoxDir && await exists(join(mofoxDir, 'main.py'))) {
+    const mofoxCommand = await this.resolveCommand(instance, 'mofox');
+    if (mofoxCommand) commands.set('mofox', mofoxCommand);
+
+    try {
+      const platformCommand = await this.resolveCommand(instance, 'platform');
+      if (platformCommand) commands.set('platform', platformCommand);
+    } catch (error) {
+      // 平台缺失不是致命错误：当 MoFox 本体能独立启动时允许仅启动 MoFox。
+      if (commands.size === 0) throw error;
+      this.emitLauncherMessage(
+        instance.id,
+        'platform',
+        'warn',
+        `未找到平台启动入口，仅启动 MoFox: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return commands;
+  }
+
+  /**
+   * 解析单个进程源的启动命令。
+   *
+   * MoFox 本体进程：当 `mofoxInstallDir/main.py` 存在时返回命令（venv python 优先，uv 回退）。
+   * 平台进程：遍历平台对象用安装目录调用对应平台的 `getStartCommand`；平台入口缺失时抛错。
+   *
+   * @param instance - 待解析的实例。
+   * @param source - 进程源（`mofox` 或 `platform`）。
+   * @returns 该源的启动命令；该源未配置安装目录时返回 `undefined`。
+   * @throws {MofoxError} 平台已配置但启动入口解析失败时抛出。
+   */
+  private async resolveCommand(
+    instance: Instance,
+    source: InstanceProcessSource,
+  ): Promise<StartCommand | undefined> {
+    if (source === 'mofox') {
+      const mofoxDir = instance.mofoxInstallDir;
+      if (!mofoxDir || !(await exists(join(mofoxDir, 'main.py')))) return undefined;
       const venvPython = await findVenvPython(mofoxDir);
       const env = {
         TERM: 'xterm-256color',
@@ -233,34 +371,15 @@ export class InstanceRuntimeService {
         PYTHONUNBUFFERED: '1',
         PYTHONIOENCODING: 'utf-8',
       };
-      commands.set(
-        'mofox',
-        venvPython
-          ? { command: venvPython, args: ['main.py'], cwd: mofoxDir, env }
-          : { command: 'uv', args: ['run', 'python', 'main.py'], cwd: mofoxDir, env },
-      );
+      return venvPython
+        ? { command: venvPython, args: ['main.py'], cwd: mofoxDir, env }
+        : { command: 'uv', args: ['run', 'python', 'main.py'], cwd: mofoxDir, env };
     }
 
     // 平台路径的唯一来源是平铺的 platform 对象；未安装平台时仅启动 MoFox。
     const platform = instance.platform;
-    if (platform.id && platform.installDir) {
-      try {
-        const platformCommand = await this.registry
-          .get(platform.id)
-          .getStartCommand(platform.installDir, instance.id);
-        commands.set('platform', platformCommand);
-      } catch (error) {
-        // 平台缺失不是致命错误：当 MoFox 本体能独立启动时允许仅启动 MoFox。
-        if (commands.size === 0) throw error;
-        this.emitLauncherMessage(
-          instance.id,
-          'platform',
-          'warn',
-          `未找到平台启动入口，仅启动 MoFox: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-    return commands;
+    if (!platform.id || !platform.installDir) return undefined;
+    return this.registry.get(platform.id).getStartCommand(platform.installDir, instance.id);
   }
 
   // ── Process lifecycle ─────────────────────────────────────────────
@@ -315,7 +434,8 @@ export class InstanceRuntimeService {
     const stopping = this.stoppingKeys.has(this.key(instanceId, source));
     if (!stopping) {
       if (exitCode === 0) this.emitLauncherMessage(instanceId, source, 'info', '进程已退出');
-      else this.emitLauncherMessage(instanceId, source, 'error', `进程异常退出，退出码 ${exitCode}`);
+      else
+        this.emitLauncherMessage(instanceId, source, 'error', `进程异常退出，退出码 ${exitCode}`);
     }
     if (set.size === 0) {
       this.running.delete(instanceId);
@@ -328,14 +448,6 @@ export class InstanceRuntimeService {
     }
   }
 
-  private killAll(instanceId: string): void {
-    for (const source of SOURCES) {
-      this.helper.killAll(this.key(instanceId, source));
-      this.stoppingKeys.delete(this.key(instanceId, source));
-    }
-    this.running.delete(instanceId);
-  }
-
   private hasActive(instanceId: string): boolean {
     return (this.running.get(instanceId)?.size ?? 0) > 0;
   }
@@ -344,7 +456,10 @@ export class InstanceRuntimeService {
     // 内存日志有上限，实时片段仍通过事件通道发送，供终端视图增量渲染。
     const key = this.key(instanceId, source);
     const output = `${this.logBuffers.get(key) ?? ''}${data}`;
-    this.logBuffers.set(key, output.length > LOG_BUFFER_MAX ? output.slice(-LOG_BUFFER_MAX) : output);
+    this.logBuffers.set(
+      key,
+      output.length > LOG_BUFFER_MAX ? output.slice(-LOG_BUFFER_MAX) : output,
+    );
     this.events.ptyData(instanceId, source, data);
   }
 
@@ -362,9 +477,18 @@ export class InstanceRuntimeService {
     level: 'info' | 'success' | 'warn' | 'error',
     message: string,
   ): void {
-    const colors = { info: '\x1b[36m', success: '\x1b[32m', warn: '\x1b[33m', error: '\x1b[31m' } as const;
+    const colors = {
+      info: '\x1b[36m',
+      success: '\x1b[32m',
+      warn: '\x1b[33m',
+      error: '\x1b[31m',
+    } as const;
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-    this.appendLog(instanceId, source, `\x1b[90m${time}\x1b[0m ${colors[level]}[Launcher]\x1b[0m ${message}\r\n`);
+    this.appendLog(
+      instanceId,
+      source,
+      `\x1b[90m${time}\x1b[0m ${colors[level]}[Launcher]\x1b[0m ${message}\r\n`,
+    );
   }
 
   /**
@@ -376,7 +500,9 @@ export class InstanceRuntimeService {
    */
   private async find(instanceId: string): Promise<Instance> {
     if (!instanceId.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Instance ID is required');
-    const instance = (await this.repository.list()).find((candidate) => candidate.id === instanceId);
+    const instance = (await this.repository.list()).find(
+      (candidate) => candidate.id === instanceId,
+    );
     if (!instance) throw new MofoxError('NOT_FOUND', `未知实例: ${instanceId}`);
     return instance;
   }
@@ -416,7 +542,12 @@ export class InstanceRuntimeService {
  * @returns 路径存在返回 `true`，否则返回 `false`。
  */
 async function exists(path: string): Promise<boolean> {
-  try { await access(path); return true; } catch { return false; }
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

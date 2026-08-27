@@ -21,7 +21,6 @@ const instancesStore = useInstancesStore();
 const instanceId = computed(() => String(route.params.id ?? ''));
 const instance = computed(() => instancesStore.byId(instanceId.value));
 const status = computed<InstanceStatus>(() => instance.value?.status ?? 'stopped');
-const isRunning = computed(() => status.value === 'running');
 const isBusy = computed(() => status.value === 'starting' || status.value === 'stopping');
 
 // 实例名称显示在窗口栏，跟随实例加载状态更新。
@@ -47,8 +46,20 @@ const searchQuery = ref('');
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const autoScroll = ref(true);
 const toast = ref('');
-const uptimes = reactive<Record<InstanceProcessSource, string>>({ mofox: '--:--:--', platform: '--:--:--' });
+const uptimes = reactive<Record<InstanceProcessSource, string>>({
+  mofox: '--:--:--',
+  platform: '--:--:--',
+});
 const lineCounts = reactive<Record<InstanceProcessSource, number>>({ mofox: 0, platform: 0 });
+// 独立进程控制的运行态与忙碌态，驱动单个来源的启动/重启/停止按钮。
+const processRunning = reactive<Record<InstanceProcessSource, boolean>>({
+  mofox: false,
+  platform: false,
+});
+const processBusy = reactive<Record<InstanceProcessSource, boolean>>({
+  mofox: false,
+  platform: false,
+});
 
 interface TerminalBundle {
   terminal: Terminal;
@@ -77,11 +88,22 @@ const TERMINAL_THEME = {
   foreground: '#d8e3e7',
   cursor: '#d8e3e7',
   selectionBackground: '#3b507080',
-  black: '#21262d', red: '#ff7b72', green: '#3fb950', yellow: '#d29922',
-  blue: '#58a6ff', magenta: '#bc8cff', cyan: '#39c5cf', white: '#b1bac4',
-  brightBlack: '#6e7681', brightRed: '#ffa198', brightGreen: '#56d364',
-  brightYellow: '#e3b341', brightBlue: '#79c0ff', brightMagenta: '#d2a8ff',
-  brightCyan: '#56d4dd', brightWhite: '#f0f6fc',
+  black: '#21262d',
+  red: '#ff7b72',
+  green: '#3fb950',
+  yellow: '#d29922',
+  blue: '#58a6ff',
+  magenta: '#bc8cff',
+  cyan: '#39c5cf',
+  white: '#b1bac4',
+  brightBlack: '#6e7681',
+  brightRed: '#ffa198',
+  brightGreen: '#56d364',
+  brightYellow: '#e3b341',
+  brightBlue: '#79c0ff',
+  brightMagenta: '#d2a8ff',
+  brightCyan: '#56d4dd',
+  brightWhite: '#f0f6fc',
 };
 
 function activeBundle(): TerminalBundle | undefined {
@@ -105,10 +127,12 @@ function createBundle(source: InstanceProcessSource): TerminalBundle | undefined
   const search = new SearchAddon();
   terminal.loadAddon(fit);
   terminal.loadAddon(search);
-  terminal.loadAddon(new WebLinksAddon((event, uri) => {
-    event.preventDefault();
-    window.open(uri, '_blank');
-  }));
+  terminal.loadAddon(
+    new WebLinksAddon((event, uri) => {
+      event.preventDefault();
+      window.open(uri, '_blank');
+    }),
+  );
   terminal.open(container);
   fit.fit();
 
@@ -118,9 +142,12 @@ function createBundle(source: InstanceProcessSource): TerminalBundle | undefined
   terminal.onResize(({ cols, rows }) => {
     const pending = resizeThrottles.get(source);
     if (pending) clearTimeout(pending);
-    resizeThrottles.set(source, setTimeout(() => {
-      void mofoxApi.resizeInstancePty(instanceId.value, source, cols, rows);
-    }, 80));
+    resizeThrottles.set(
+      source,
+      setTimeout(() => {
+        void mofoxApi.resizeInstancePty(instanceId.value, source, cols, rows);
+      }, 80),
+    );
   });
   terminal.onScroll(() => {
     if (source !== activeTab.value) return;
@@ -152,7 +179,9 @@ onMounted(async () => {
     try {
       const history = await mofoxApi.getInstanceLogBuffer(instanceId.value, source);
       if (history) bundle.terminal.write(history);
-    } catch { /* 日志缓冲不可用时保持终端可用 */ }
+    } catch {
+      /* 日志缓冲不可用时保持终端可用 */
+    }
   }
 
   unsubscribePty = mofoxApi.on('instance-pty-data', ({ instanceId: id, source, data }) => {
@@ -190,22 +219,28 @@ watch(activeTab, () => {
     const bundle = activeBundle();
     bundle?.fit.fit();
     if (autoScroll.value) bundle?.terminal.scrollToBottom();
-    if (searchQuery.value) bundle?.search.findNext(searchQuery.value, { decorations: SEARCH_DECORATIONS });
+    if (searchQuery.value)
+      bundle?.search.findNext(searchQuery.value, { decorations: SEARCH_DECORATIONS });
   });
 });
 
 async function refreshStats(): Promise<void> {
-  // 周期性查询两个子进程的运行时长，失败时回退占位显示。
+  // 周期性查询两个子进程的运行时长与运行态，失败时回退占位显示。
   try {
     const stats = await mofoxApi.getInstanceStats(instanceId.value);
     for (const source of SOURCES) {
       const processStats = stats[source];
-      uptimes[source] = processStats.running && processStats.uptimeMs !== null
-        ? formatUptime(processStats.uptimeMs)
-        : '--:--:--';
+      processRunning[source] = processStats.running;
+      uptimes[source] =
+        processStats.running && processStats.uptimeMs !== null
+          ? formatUptime(processStats.uptimeMs)
+          : '--:--:--';
     }
   } catch {
-    for (const source of SOURCES) uptimes[source] = '--:--:--';
+    for (const source of SOURCES) {
+      processRunning[source] = false;
+      uptimes[source] = '--:--:--';
+    }
   }
 }
 
@@ -220,7 +255,9 @@ function formatUptime(ms: number): string {
 function showToast(message: string): void {
   toast.value = message;
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.value = ''; }, 2600);
+  toastTimer = setTimeout(() => {
+    toast.value = '';
+  }, 2600);
 }
 
 async function onStart(): Promise<void> {
@@ -247,6 +284,64 @@ async function onRestart(): Promise<void> {
   }
 }
 
+async function onStartSource(source: InstanceProcessSource): Promise<void> {
+  // 独立进程控制：只影响单个来源，失败时恢复按钮可用并提示原因。
+  if (processBusy[source]) return;
+  processBusy[source] = true;
+  try {
+    await instancesStore.startProcess(instanceId.value, source);
+  } catch (error) {
+    showToast(`启动失败: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    processBusy[source] = false;
+    void refreshStats();
+  }
+}
+
+async function onStopSource(source: InstanceProcessSource): Promise<void> {
+  if (processBusy[source]) return;
+  processBusy[source] = true;
+  try {
+    await instancesStore.stopProcess(instanceId.value, source);
+  } catch (error) {
+    showToast(`停止失败: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    processBusy[source] = false;
+    void refreshStats();
+  }
+}
+
+async function onRestartSource(source: InstanceProcessSource): Promise<void> {
+  if (processBusy[source]) return;
+  processBusy[source] = true;
+  try {
+    await instancesStore.restartProcess(instanceId.value, source);
+  } catch (error) {
+    showToast(`重启失败: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    processBusy[source] = false;
+    void refreshStats();
+  }
+}
+
+function sourceLabel(source: InstanceProcessSource): string {
+  return source === 'mofox' ? 'MoFox' : platformLabel.value;
+}
+
+function canStartSource(source: InstanceProcessSource): boolean {
+  // 未配置安装目录的来源不允许单独启动。
+  if (source === 'mofox') return Boolean(instance.value?.mofoxInstallDir);
+  return Boolean(instance.value?.platform?.id && instance.value?.platform?.installDir);
+}
+
+// 全部控制：已配置来源是否全部/任一在运行，决定"全部启动"按钮的可用性。
+const allProcessesRunning = computed(() =>
+  SOURCES.every((source) => !canStartSource(source) || processRunning[source]),
+);
+const anyProcessRunning = computed(() =>
+  SOURCES.some((source) => canStartSource(source) && processRunning[source]),
+);
+
 function toggleSearch(): void {
   searchVisible.value = !searchVisible.value;
   if (searchVisible.value) {
@@ -268,11 +363,13 @@ watch(searchQuery, (query) => {
 });
 
 function searchNext(): void {
-  if (searchQuery.value) activeBundle()?.search.findNext(searchQuery.value, { decorations: SEARCH_DECORATIONS });
+  if (searchQuery.value)
+    activeBundle()?.search.findNext(searchQuery.value, { decorations: SEARCH_DECORATIONS });
 }
 
 function searchPrev(): void {
-  if (searchQuery.value) activeBundle()?.search.findPrevious(searchQuery.value, { decorations: SEARCH_DECORATIONS });
+  if (searchQuery.value)
+    activeBundle()?.search.findPrevious(searchQuery.value, { decorations: SEARCH_DECORATIONS });
 }
 
 function onSearchKeydown(event: KeyboardEvent): void {
@@ -316,7 +413,9 @@ async function clearLogs(): Promise<void> {
   instancesStore.clearLog(instanceId.value, source);
   try {
     await mofoxApi.clearInstanceLogBuffer(instanceId.value, source);
-  } catch { /* 日志缓冲不可用时仅完成本地清理 */ }
+  } catch {
+    /* 日志缓冲不可用时仅完成本地清理 */
+  }
 }
 
 async function exportLogs(): Promise<void> {
@@ -337,7 +436,13 @@ function goBack(): void {
   <div class="log-view">
     <!-- 实例运行状态、运行时长与进程控制；实例名由窗口栏展示 -->
     <header class="log-view__header">
-      <button class="icon-btn state-layer" type="button" title="返回" aria-label="返回" @click="goBack">
+      <button
+        class="icon-btn state-layer"
+        type="button"
+        title="返回"
+        aria-label="返回"
+        @click="goBack"
+      >
         <span class="msr" aria-hidden="true">arrow_back</span>
       </button>
 
@@ -350,8 +455,22 @@ function goBack(): void {
       </div>
 
       <div class="log-view__controls">
+        <span class="log-view__controls-label">
+          <span class="msr log-view__controls-icon" aria-hidden="true">all_inclusive</span>
+          全部
+        </span>
         <button
-          v-if="isRunning"
+          v-if="!allProcessesRunning"
+          class="btn btn--filled state-layer"
+          type="button"
+          :disabled="isBusy"
+          @click="onStart"
+        >
+          <span class="msr btn__icon" aria-hidden="true">play_arrow</span>
+          启动
+        </button>
+        <button
+          v-if="anyProcessRunning"
           class="btn btn--tonal state-layer"
           type="button"
           :disabled="isBusy"
@@ -361,7 +480,7 @@ function goBack(): void {
           重启
         </button>
         <button
-          v-if="isRunning || status === 'error'"
+          v-if="anyProcessRunning || status === 'error'"
           class="btn btn--danger state-layer"
           type="button"
           :disabled="isBusy"
@@ -370,18 +489,52 @@ function goBack(): void {
           <span class="msr btn__icon" aria-hidden="true">stop</span>
           停止
         </button>
-        <button
-          v-else
-          class="btn btn--filled state-layer"
-          type="button"
-          :disabled="isBusy"
-          @click="onStart"
-        >
-          <span class="msr btn__icon" aria-hidden="true">play_arrow</span>
-          启动
-        </button>
       </div>
     </header>
+
+    <!-- 平台与主程序的独立进程控制，支持单个来源启停 -->
+    <div class="log-view__process-controls">
+      <div v-for="source in SOURCES" :key="source" class="proc-group">
+        <span class="proc-group__label">
+          <span class="msr proc-group__icon" aria-hidden="true">
+            {{ source === 'mofox' ? 'smart_toy' : 'lan' }}
+          </span>
+          {{ sourceLabel(source) }}
+        </span>
+        <div class="proc-group__actions">
+          <template v-if="processRunning[source]">
+            <button
+              class="btn btn--sm btn--tonal state-layer"
+              type="button"
+              :disabled="processBusy[source] || isBusy"
+              @click="onRestartSource(source)"
+            >
+              <span class="msr btn__icon" aria-hidden="true">restart_alt</span>
+              重启
+            </button>
+            <button
+              class="btn btn--sm btn--danger state-layer"
+              type="button"
+              :disabled="processBusy[source] || isBusy"
+              @click="onStopSource(source)"
+            >
+              <span class="msr btn__icon" aria-hidden="true">stop</span>
+              停止
+            </button>
+          </template>
+          <button
+            v-else
+            class="btn btn--sm btn--filled state-layer"
+            type="button"
+            :disabled="processBusy[source] || isBusy || !canStartSource(source)"
+            @click="onStartSource(source)"
+          >
+            <span class="msr btn__icon" aria-hidden="true">play_arrow</span>
+            启动
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- 日志来源标签与搜索、复制、导出等工具栏 -->
     <div class="log-view__tabs" role="tablist" aria-label="日志来源">
@@ -414,7 +567,13 @@ function goBack(): void {
       >
         <span class="msr" aria-hidden="true">search</span>
       </button>
-      <button class="icon-btn state-layer" type="button" title="复制日志" aria-label="复制日志" @click="copyLogs">
+      <button
+        class="icon-btn state-layer"
+        type="button"
+        title="复制日志"
+        aria-label="复制日志"
+        @click="copyLogs"
+      >
         <span class="msr" aria-hidden="true">content_copy</span>
       </button>
       <button
@@ -427,10 +586,22 @@ function goBack(): void {
       >
         <span class="msr" aria-hidden="true">vertical_align_bottom</span>
       </button>
-      <button class="icon-btn state-layer" type="button" title="导出当前日志" aria-label="导出当前日志" @click="exportLogs">
+      <button
+        class="icon-btn state-layer"
+        type="button"
+        title="导出当前日志"
+        aria-label="导出当前日志"
+        @click="exportLogs"
+      >
         <span class="msr" aria-hidden="true">download</span>
       </button>
-      <button class="icon-btn state-layer" type="button" title="清空当前日志" aria-label="清空当前日志" @click="clearLogs">
+      <button
+        class="icon-btn state-layer"
+        type="button"
+        title="清空当前日志"
+        aria-label="清空当前日志"
+        @click="clearLogs"
+      >
         <span class="msr" aria-hidden="true">delete_sweep</span>
       </button>
     </div>
@@ -446,13 +617,31 @@ function goBack(): void {
         placeholder="搜索日志（Enter 下一个，Shift+Enter 上一个）"
         @keydown="onSearchKeydown"
       />
-      <button class="icon-btn icon-btn--sm state-layer" type="button" title="上一个" aria-label="上一个" @click="searchPrev">
+      <button
+        class="icon-btn icon-btn--sm state-layer"
+        type="button"
+        title="上一个"
+        aria-label="上一个"
+        @click="searchPrev"
+      >
         <span class="msr" aria-hidden="true">keyboard_arrow_up</span>
       </button>
-      <button class="icon-btn icon-btn--sm state-layer" type="button" title="下一个" aria-label="下一个" @click="searchNext">
+      <button
+        class="icon-btn icon-btn--sm state-layer"
+        type="button"
+        title="下一个"
+        aria-label="下一个"
+        @click="searchNext"
+      >
         <span class="msr" aria-hidden="true">keyboard_arrow_down</span>
       </button>
-      <button class="icon-btn icon-btn--sm state-layer" type="button" title="关闭搜索" aria-label="关闭搜索" @click="toggleSearch">
+      <button
+        class="icon-btn icon-btn--sm state-layer"
+        type="button"
+        title="关闭搜索"
+        aria-label="关闭搜索"
+        @click="toggleSearch"
+      >
         <span class="msr" aria-hidden="true">close</span>
       </button>
     </div>
@@ -491,8 +680,7 @@ function goBack(): void {
 :global(.shell--has-wallpaper .log-view) {
   background: color-mix(
     in srgb,
-    var(--md-sys-color-surface)
-      max(calc(var(--app-wallpaper-content-opacity) * 100%), 82%),
+    var(--md-sys-color-surface) max(calc(var(--app-wallpaper-content-opacity) * 100%), 82%),
     transparent
   );
 }
@@ -530,6 +718,57 @@ function goBack(): void {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.log-view__controls-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+  font: var(--md-sys-typescale-label-large);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.log-view__controls-icon {
+  font-size: 16px;
+}
+
+/* 平台与主程序的独立进程控制 */
+.log-view__process-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 32px 12px;
+}
+
+.proc-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 55%, transparent);
+}
+
+.proc-group__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+  font: var(--md-sys-typescale-label-large);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.proc-group__icon {
+  font-size: 16px;
+}
+
+.proc-group__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* 来源标签与日志工具栏 */
@@ -672,8 +911,7 @@ function goBack(): void {
 @media (prefers-reduced-motion: reduce) {
   .toast-enter-active,
   .toast-leave-active {
-    transition: opacity var(--md-sys-motion-duration-short2)
-      var(--md-sys-motion-easing-standard);
+    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
 
   .toast-enter-from,
@@ -702,6 +940,12 @@ function goBack(): void {
 
 .btn__icon {
   font-size: 18px;
+}
+
+.btn--sm {
+  height: 32px;
+  padding: 0 14px;
+  font: var(--md-sys-typescale-label-medium);
 }
 
 .btn--filled {

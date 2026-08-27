@@ -89,9 +89,10 @@ let maximized = false;
 type MockSource = 'mofox' | 'platform';
 const MOCK_SOURCES: MockSource[] = ['mofox', 'platform'];
 
-// 实时日志缓存、定时器及启动时间共同支撑日志与进程统计演示。
+// 实时日志缓存、定时器、运行键及启动时间共同支撑日志与进程统计演示。
 const logBuffers = new Map<string, string>();
 const logTimers = new Map<string, ReturnType<typeof setInterval>>();
+const runningKeys = new Set<string>();
 const startTimes = new Map<string, number>();
 
 function appendMockLog(id: string, source: MockSource, data: string): void {
@@ -117,38 +118,42 @@ const MOCK_MESSAGES: Record<MockSource, string[]> = {
   ],
 };
 
-function startMockLogStream(id: string): void {
-  // 每个来源独立追加历史日志并按固定节奏推送终端输出。
-  stopMockLogStream(id);
-  startTimes.set(id, Date.now());
-  for (const source of MOCK_SOURCES) {
-    appendMockLog(
-      id,
-      source,
-      `\x1b[36m[Launcher]\x1b[0m ${source === 'mofox' ? 'MoFox' : '平台'}进程已启动 (mock)\r\n`,
-    );
-    logTimers.set(
-      `${id}:${source}`,
-      setInterval(
-        () => {
-          const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-          const pool = MOCK_MESSAGES[source];
-          const message = pool[Math.floor(Math.random() * pool.length)];
-          appendMockLog(id, source, `\x1b[90m${time}\x1b[0m ${message}\r\n`);
-        },
-        source === 'mofox' ? 1500 : 1000,
-      ),
-    );
-  }
+function startMockLogStream(id: string, source: MockSource): void {
+  // 每个来源独立追加历史日志并按固定节奏推送终端输出；已在运行时不重复启动。
+  const key = `${id}:${source}`;
+  if (runningKeys.has(key)) return;
+  runningKeys.add(key);
+  startTimes.set(key, Date.now());
+  appendMockLog(
+    id,
+    source,
+    `\x1b[36m[Launcher]\x1b[0m ${source === 'mofox' ? 'MoFox' : '平台'}进程已启动 (mock)\r\n`,
+  );
+  logTimers.set(
+    key,
+    setInterval(
+      () => {
+        const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        const pool = MOCK_MESSAGES[source];
+        const message = pool[Math.floor(Math.random() * pool.length)];
+        appendMockLog(id, source, `\x1b[90m${time}\x1b[0m ${message}\r\n`);
+      },
+      source === 'mofox' ? 1500 : 1000,
+    ),
+  );
 }
 
-function stopMockLogStream(id: string): void {
-  for (const source of MOCK_SOURCES) {
-    const timer = logTimers.get(`${id}:${source}`);
-    if (timer) clearInterval(timer);
-    logTimers.delete(`${id}:${source}`);
-  }
-  startTimes.delete(id);
+function stopMockLogStream(id: string, source: MockSource): void {
+  const key = `${id}:${source}`;
+  const timer = logTimers.get(key);
+  if (timer) clearInterval(timer);
+  logTimers.delete(key);
+  runningKeys.delete(key);
+  startTimes.delete(key);
+}
+
+function isMockRunning(id: string, source: MockSource): boolean {
+  return runningKeys.has(`${id}:${source}`);
 }
 
 export const mockApi: MofoxApi = {
@@ -167,7 +172,7 @@ export const mockApi: MofoxApi = {
     return instances.map((i) => ({ ...i }));
   },
   async startInstance(id) {
-    // 模拟启动态到运行态的异步事件序列，并在完成后开始日志流。
+    // 模拟启动态到运行态的异步事件序列，并在完成后开始全部日志流。
     const ins = instances.find((i) => i.id === id);
     if (!ins) throw new Error(`unknown instance ${id}`);
     ins.status = 'starting';
@@ -176,18 +181,19 @@ export const mockApi: MofoxApi = {
     ins.status = 'running';
     ins.lastStartedAt = Date.now();
     emit('instance-status-changed', { instanceId: id, status: 'running' });
-    startMockLogStream(id);
+    for (const source of MOCK_SOURCES) startMockLogStream(id, source);
   },
   async stopInstance(id) {
-    // 先广播停止中，再终止日志流并提交最终停止状态。
+    // 先广播停止中，再终止全部日志流并提交最终停止状态。
     const ins = instances.find((i) => i.id === id);
     if (!ins) throw new Error(`unknown instance ${id}`);
     ins.status = 'stopping';
     emit('instance-status-changed', { instanceId: id, status: 'stopping' });
     await delay(700);
-    stopMockLogStream(id);
-    for (const source of MOCK_SOURCES)
+    for (const source of MOCK_SOURCES) {
+      stopMockLogStream(id, source);
       appendMockLog(id, source, `\x1b[36m[Launcher]\x1b[0m 进程已停止 (mock)\r\n`);
+    }
     ins.status = 'stopped';
     emit('instance-status-changed', { instanceId: id, status: 'stopped' });
   },
@@ -195,8 +201,41 @@ export const mockApi: MofoxApi = {
     await mockApi.stopInstance(id);
     await mockApi.startInstance(id);
   },
+  async startInstanceProcess(id, source) {
+    // 仅启动单个来源；实例整体状态随任一来源运行而收敛为 running。
+    const ins = instances.find((i) => i.id === id);
+    if (!ins) throw new Error(`unknown instance ${id}`);
+    if (isMockRunning(id, source)) return;
+    if (ins.status !== 'running' && ins.status !== 'starting') {
+      ins.status = 'starting';
+      emit('instance-status-changed', { instanceId: id, status: 'starting' });
+    }
+    startMockLogStream(id, source);
+    ins.status = 'running';
+    ins.lastStartedAt = Date.now();
+    emit('instance-status-changed', { instanceId: id, status: 'running' });
+  },
+  async stopInstanceProcess(id, source) {
+    const ins = instances.find((i) => i.id === id);
+    if (!ins) throw new Error(`unknown instance ${id}`);
+    if (!isMockRunning(id, source)) {
+      if (!MOCK_SOURCES.some((s) => isMockRunning(id, s))) ins.status = 'stopped';
+      return;
+    }
+    ins.status = 'stopping';
+    emit('instance-status-changed', { instanceId: id, status: 'stopping' });
+    await delay(500);
+    stopMockLogStream(id, source);
+    appendMockLog(id, source, `\x1b[36m[Launcher]\x1b[0m 进程已停止 (mock)\r\n`);
+    ins.status = MOCK_SOURCES.some((s) => isMockRunning(id, s)) ? 'running' : 'stopped';
+    emit('instance-status-changed', { instanceId: id, status: ins.status });
+  },
+  async restartInstanceProcess(id, source) {
+    await mockApi.stopInstanceProcess(id, source);
+    await mockApi.startInstanceProcess(id, source);
+  },
   async removeInstance(id) {
-    stopMockLogStream(id);
+    for (const source of MOCK_SOURCES) stopMockLogStream(id, source);
     for (const source of MOCK_SOURCES) logBuffers.delete(`${id}:${source}`);
     const idx = instances.findIndex((i) => i.id === id);
     if (idx >= 0) instances.splice(idx, 1);
@@ -233,18 +272,20 @@ export const mockApi: MofoxApi = {
   },
   async resizeInstancePty() {},
   async getInstanceStats(id) {
-    const startedAt = startTimes.get(id);
     /**
-     * 根据实例启动时间生成指定进程的模拟运行统计。
+     * 根据进程源的运行标记生成指定进程的模拟运行统计。
      *
-     * @param pidBase - 该进程的固定模拟 PID。
+     * @param source - 进程源。
+     * @param pid - 该进程的固定模拟 PID。
      * @returns 进程运行状态、运行时长和 PID。
      */
-    const stats = (pidBase: number) =>
-      startedAt === undefined
+    const stats = (source: MockSource, pid: number) => {
+      const startedAt = startTimes.get(`${id}:${source}`);
+      return startedAt === undefined
         ? { running: false, uptimeMs: null, pid: null }
-        : { running: true, uptimeMs: Date.now() - startedAt, pid: pidBase };
-    return { mofox: stats(41000), platform: stats(42000) };
+        : { running: true, uptimeMs: Date.now() - startedAt, pid };
+    };
+    return { mofox: stats('mofox', 41000), platform: stats('platform', 42000) };
   },
   async exportInstanceLogs(id, source) {
     if (!logBuffers.get(`${id}:${source}`)?.trim()) throw new Error('当前没有可导出的日志');

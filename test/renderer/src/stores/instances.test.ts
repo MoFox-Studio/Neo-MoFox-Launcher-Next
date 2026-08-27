@@ -11,6 +11,10 @@ vi.mock('@/services/mofox-api', () => ({
     listInstances,
     startInstance: vi.fn(),
     stopInstance: vi.fn(),
+    restartInstance: vi.fn(),
+    startInstanceProcess: vi.fn(),
+    stopInstanceProcess: vi.fn(),
+    restartInstanceProcess: vi.fn(),
     removeInstance: vi.fn(),
     updateInstance: vi.fn(),
     on: vi.fn((event: string, listener: (payload: unknown) => void) => {
@@ -48,7 +52,11 @@ describe('instances store', () => {
 
     await store.refresh();
     listeners.get('instance-status-changed')?.({ instanceId: 'instance-1', status: 'running' });
-    listeners.get('instance-pty-data')?.({ instanceId: 'instance-1', source: 'platform', data: 'NapCat ready\r\n' });
+    listeners.get('instance-pty-data')?.({
+      instanceId: 'instance-1',
+      source: 'platform',
+      data: 'NapCat ready\r\n',
+    });
 
     expect(store.instances[0]?.status).toBe('running');
     expect(store.running).toHaveLength(1);

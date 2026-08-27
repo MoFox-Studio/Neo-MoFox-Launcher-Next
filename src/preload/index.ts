@@ -42,6 +42,12 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     startInstance: (instanceId) => invoke(IPC_INVOKE_CHANNELS.startInstance, instanceId),
     stopInstance: (instanceId) => invoke(IPC_INVOKE_CHANNELS.stopInstance, instanceId),
     restartInstance: (instanceId) => invoke(IPC_INVOKE_CHANNELS.restartInstance, instanceId),
+    startInstanceProcess: (instanceId, source) =>
+      invoke(IPC_INVOKE_CHANNELS.startInstanceProcess, instanceId, source),
+    stopInstanceProcess: (instanceId, source) =>
+      invoke(IPC_INVOKE_CHANNELS.stopInstanceProcess, instanceId, source),
+    restartInstanceProcess: (instanceId, source) =>
+      invoke(IPC_INVOKE_CHANNELS.restartInstanceProcess, instanceId, source),
     removeInstance: (instanceId) => invoke(IPC_INVOKE_CHANNELS.removeInstance, instanceId),
     openInstanceFolder: (instanceId) => invoke(IPC_INVOKE_CHANNELS.openInstanceFolder, instanceId),
     updateInstance: (instanceId, patch) =>

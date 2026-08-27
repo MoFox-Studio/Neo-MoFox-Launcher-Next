@@ -10,11 +10,7 @@ import type {
   InstanceStatus,
   UpdateInstancePatch,
 } from './domain/instance';
-import type {
-  InstallProgressEvent,
-  InstallRequest,
-  LicenseFetchResult,
-} from './domain/install';
+import type { InstallProgressEvent, InstallRequest, LicenseFetchResult } from './domain/install';
 import type {
   ManualImportRequest,
   ManualImportResult,
@@ -49,6 +45,9 @@ export const IPC_INVOKE_CHANNELS = {
   startInstance: 'instances:start',
   stopInstance: 'instances:stop',
   restartInstance: 'instances:restart',
+  startInstanceProcess: 'instances:start-process',
+  stopInstanceProcess: 'instances:stop-process',
+  restartInstanceProcess: 'instances:restart-process',
   removeInstance: 'instances:remove',
   openInstanceFolder: 'instances:open-folder',
   updateInstance: 'instances:update',
@@ -120,6 +119,12 @@ export interface MofoxApi {
   startInstance(instanceId: string): Promise<void>;
   stopInstance(instanceId: string): Promise<void>;
   restartInstance(instanceId: string): Promise<void>;
+  /** 仅启动指定实例的单个进程源（MoFox 本体或平台适配器）。 */
+  startInstanceProcess(instanceId: string, source: InstanceProcessSource): Promise<void>;
+  /** 仅停止指定实例的单个进程源。 */
+  stopInstanceProcess(instanceId: string, source: InstanceProcessSource): Promise<void>;
+  /** 仅重启指定实例的单个进程源。 */
+  restartInstanceProcess(instanceId: string, source: InstanceProcessSource): Promise<void>;
   removeInstance(instanceId: string): Promise<void>;
   openInstanceFolder(instanceId: string): Promise<void>;
   /** 更新实例的可编辑配置字段，返回持久化后的最新实例。 */
