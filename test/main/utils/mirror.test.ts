@@ -4,8 +4,8 @@ import {
   githubMirrorsOf,
   resolveGithubUrl,
   tryEachGithubMirror,
-} from '../../../src/main/utils/mirror';
-import { fetchRepositoryFile } from '../../../src/main/utils/github-installer';
+} from '../../../src/main/utils/git/github-mirror';
+import { fetchRepositoryFile } from '../../../src/main/utils/git/github';
 
 const MIRRORS: readonly MirrorSource[] = [
   { id: 'gh-direct', type: 'github', name: 'GitHub', baseUrl: 'https://github.com' },
@@ -44,9 +44,9 @@ describe('mirror utils', () => {
   });
 
   it('throws when no github mirror is available', async () => {
-    await expect(
-      tryEachGithubMirror([], undefined, async () => 'ok', 'no source'),
-    ).rejects.toThrow('未配置任何镜像源');
+    await expect(tryEachGithubMirror([], undefined, async () => 'ok', 'no source')).rejects.toThrow(
+      '未配置任何镜像源',
+    );
   });
 
   it('tries every mirror and throws the last error with an explanation only when all fail', async () => {

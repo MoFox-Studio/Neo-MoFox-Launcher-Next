@@ -13,6 +13,8 @@ export abstract class BaseBotPlatform implements BotPlatform {
   abstract readonly id: string;
   abstract readonly name: string;
   abstract readonly description: string;
+  /** GitHub 仓库的 `owner/repo` 字符串，供版本列表查询与更新复用。 */
+  abstract readonly repository: string;
   abstract readonly supportedPlatforms: Array<'win32' | 'linux' | 'darwin'>;
   abstract readonly supportedArch: Array<'x64' | 'arm64'>;
 
@@ -81,14 +83,16 @@ export abstract class BaseBotPlatform implements BotPlatform {
   }
 
   /**
-   * 默认更新入口；子类可覆写以提供与安装等价的下载-替换流程。
+   * 默认更新入口：委托安装器完成下载-替换流程。
    *
-   * @param _context - 安装上下文。
-   * @returns 子类实现返回的安装结果。
-   * @throws {MofoxError} 始终抛出 `UNAVAILABLE`，提示未配置下载源。
+   * 平台安装与更新复用同一套「按版本下载解压」逻辑，`context.version` 决定
+   * 拉取最新发行版还是指定 tag 的发行版；子类可覆写以注入平台特定行为。
+   *
+   * @param context - 安装上下文。
+   * @returns 安装结果（版本与安装路径）。
    */
-  async update(_context: InstallContext): Promise<InstallResult> {
-    throw new MofoxError('UNAVAILABLE', `${this.name} 更新器尚未配置下载源`);
+  async update(context: InstallContext): Promise<InstallResult> {
+    return this.install(context);
   }
 
   /**

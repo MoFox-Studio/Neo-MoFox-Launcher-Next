@@ -15,6 +15,13 @@ import type {
   MigrationResult,
 } from '@shared/domain/migration';
 import type { OobeCompletionSummary, OobeDependencyStatus } from '@shared/domain/oobe';
+import type {
+  MofoxCommit,
+  MofoxUpdateInfo,
+  PlatformUpdateInfo,
+  UpdateProgressEvent,
+} from '@shared/domain/update';
+import type { GithubRelease } from '@shared/domain/github';
 
 type Listener<K extends keyof MofoxEventMap> = (payload: MofoxEventMap[K]) => void;
 
@@ -88,6 +95,73 @@ let maximized = false;
 
 type MockSource = 'mofox' | 'platform';
 const MOCK_SOURCES: MockSource[] = ['mofox', 'platform'];
+
+// 更新演示数据：模拟主程序分支/提交信息与平台 Release 列表。
+const mockCommits: MofoxCommit[] = [
+  {
+    hash: 'a1b2c3d',
+    fullHash: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0',
+    message: 'feat: 新增记忆插件上下文压缩',
+    date: '2026-08-20 14:30:00 +0800',
+    isCurrent: true,
+  },
+  {
+    hash: 'b2c3d4e',
+    fullHash: 'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c',
+    message: 'fix: 修复 WebSocket 重连抖动',
+    date: '2026-08-19 09:12:00 +0800',
+    isCurrent: false,
+  },
+  {
+    hash: 'c3d4e5f',
+    fullHash: 'c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1',
+    message: 'feat: 支持 OpenAI 兼容接口',
+    date: '2026-08-18 22:05:00 +0800',
+    isCurrent: false,
+  },
+];
+
+const mockReleases: GithubRelease[] = [
+  {
+    tag_name: 'v2.1.0',
+    name: 'v2.1.0',
+    body: '新增命令面板与多标签页支持',
+    published_at: '2026-08-20T08:00:00Z',
+    prerelease: false,
+    assets: [
+      { name: 'SnowLuma-v2.1.0-linux-x64.tar.gz', browser_download_url: 'https://example.com/x' },
+    ],
+  },
+  {
+    tag_name: 'v2.0.3',
+    name: 'v2.0.3',
+    body: '修复若干稳定性问题',
+    published_at: '2026-08-10T08:00:00Z',
+    prerelease: false,
+    assets: [
+      { name: 'SnowLuma-v2.0.3-linux-x64.tar.gz', browser_download_url: 'https://example.com/x' },
+    ],
+  },
+  {
+    tag_name: 'v2.1.0-beta.1',
+    name: 'v2.1.0-beta.1',
+    body: '预览版，包含命令面板',
+    published_at: '2026-08-01T08:00:00Z',
+    prerelease: true,
+    assets: [
+      {
+        name: 'SnowLuma-v2.1.0-beta.1-linux-x64.tar.gz',
+        browser_download_url: 'https://example.com/x',
+      },
+    ],
+  },
+];
+
+function emitUpdateProgress(
+  payload: Omit<UpdateProgressEvent, 'instanceId'> & { instanceId: string },
+): void {
+  emit('update-progress', payload);
+}
 
 // 实时日志缓存、定时器、运行键及启动时间共同支撑日志与进程统计演示。
 const logBuffers = new Map<string, string>();
@@ -582,6 +656,118 @@ export const mockApi: MofoxApi = {
       wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     };
     return { ...settings };
+  },
+
+  async getMofoxUpdateInfo(instanceId): Promise<MofoxUpdateInfo> {
+    await delay(150);
+    const ins = instances.find((i) => i.id === instanceId);
+    if (!ins) throw new Error(`unknown instance ${instanceId}`);
+    return {
+      isRepository: true,
+      branch: 'main',
+      currentCommit: {
+        hash: 'a1b2c3d',
+        message: mockCommits[0].message,
+        date: mockCommits[0].date,
+      },
+      branches: ['main', 'dev'],
+      commits: mockCommits.map((c) => ({ ...c })),
+      hasUpdate: true,
+      behindCount: 2,
+      aheadCount: 0,
+    };
+  },
+
+  async switchMofoxBranch(instanceId, branch): Promise<MofoxUpdateInfo> {
+    emitUpdateProgress({
+      instanceId,
+      phase: 'switch-branch',
+      percent: 0,
+      message: '开始切换分支...',
+    });
+    await delay(400);
+    emitUpdateProgress({
+      instanceId,
+      phase: 'switch-branch',
+      percent: 1,
+      message: `已切换到 ${branch}`,
+    });
+    return this.getMofoxUpdateInfo(instanceId);
+  },
+
+  async checkoutMofoxCommit(instanceId, commitHash): Promise<MofoxUpdateInfo> {
+    emitUpdateProgress({
+      instanceId,
+      phase: 'checkout-commit',
+      percent: 0,
+      message: `正在回退到 ${commitHash}...`,
+    });
+    await delay(400);
+    emitUpdateProgress({ instanceId, phase: 'checkout-commit', percent: 1, message: '回退完成' });
+    return this.getMofoxUpdateInfo(instanceId);
+  },
+
+  async updateMofox(instanceId): Promise<MofoxUpdateInfo> {
+    emitUpdateProgress({
+      instanceId,
+      phase: 'update-mofox',
+      percent: 0,
+      message: '开始更新主程序...',
+    });
+    for (let p = 10; p <= 90; p += 20) {
+      await delay(220);
+      emitUpdateProgress({
+        instanceId,
+        phase: 'update-mofox',
+        percent: p / 100,
+        message: `更新进度 ${p}%`,
+      });
+    }
+    emitUpdateProgress({
+      instanceId,
+      phase: 'update-mofox',
+      percent: 1,
+      message: '主程序已更新到最新提交',
+    });
+    return this.getMofoxUpdateInfo(instanceId);
+  },
+
+  async getPlatformUpdateInfo(instanceId): Promise<PlatformUpdateInfo> {
+    await delay(150);
+    const ins = instances.find((i) => i.id === instanceId);
+    return {
+      installed: ins?.platform?.id !== undefined && ins?.platform?.id !== null,
+      currentVersion: ins?.platform?.version ?? null,
+      releases: mockReleases.map((r) => ({ ...r, assets: r.assets.map((a) => ({ ...a })) })),
+    };
+  },
+
+  async updatePlatform(instanceId, version): Promise<PlatformUpdateInfo> {
+    const target = version || '最新版本';
+    emitUpdateProgress({
+      instanceId,
+      phase: 'update-platform',
+      percent: 0,
+      message: `开始更新平台到 ${target}...`,
+    });
+    for (let p = 10; p <= 90; p += 20) {
+      await delay(220);
+      emitUpdateProgress({
+        instanceId,
+        phase: 'update-platform',
+        percent: p / 100,
+        message: `平台更新进度 ${p}%`,
+      });
+    }
+    emitUpdateProgress({
+      instanceId,
+      phase: 'update-platform',
+      percent: 1,
+      message: '平台更新完成',
+    });
+    const ins = instances.find((i) => i.id === instanceId);
+    if (ins?.platform) ins.platform = { ...ins.platform, version: version || 'v2.1.0' };
+    return this.getPlatformUpdateInfo(instanceId);
   },
 
   on(event, listener) {

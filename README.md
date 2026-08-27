@@ -167,10 +167,10 @@ Neo-MoFox-Launcher-Next/
 ├── src/
 │   ├── main/                 # Electron 主进程
 │   │   ├── index.ts          # 组合根：窗口、服务装配、IPC 注册
-│   │   ├── ipc/              # IPC handler（core / install / instances / migration / window）
-│   │   ├── platforms/        # Bot 平台适配层（napcat / snowluma + github-installer + registry）
-│   │   ├── services/         # 业务服务（实例、安装任务、环境、设置、迁移、镜像等）
-│   │   └── utils/            # Node 工具层（logger、range-downloader、process-service 等）
+│   │   ├── ipc/              # IPC handler（core / install / instances / update / migration / window）
+│   │   ├── platforms/        # Bot 平台适配层（napcat / snowluma + registry）
+│   │   ├── services/         # 业务服务（实例、安装任务、更新、环境、设置、迁移、镜像等）
+│   │   └── utils/            # Node 工具层（logger、range-downloader、git、process-service 等）
 │   ├── preload/              # 预加载桥：contextBridge 暴露白名单 mofoxAPI
 │   ├── renderer/             # Vue 3 渲染层
 │   │   └── src/

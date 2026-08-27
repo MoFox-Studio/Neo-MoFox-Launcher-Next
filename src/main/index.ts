@@ -12,6 +12,7 @@ import { registerOobeIpc } from './ipc/oobe';
 import { registerShellIpc } from './ipc/shell';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerInstanceManageIpc } from './ipc/instance-manage';
+import { registerUpdateIpc } from './ipc/update';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
 import { PlatformRegistry } from './platforms/registry';
@@ -20,6 +21,7 @@ import { InstallTaskService } from './services/install-task-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
 import { InstanceManageService } from './services/instance-manage-service';
+import { InstanceUpdateService } from './services/instance-update-service';
 import {
   inspectImportPath,
   inspectPlatformPath,
@@ -273,6 +275,23 @@ if (!hasSingleInstanceLock) {
       remove: (instanceId) => manage.remove(instanceId),
       openFolder: (instanceId) => manage.openFolder(instanceId),
       update: (instanceId, patch) => manage.update(instanceId, patch),
+    });
+    const updates = new InstanceUpdateService(
+      instances,
+      platforms,
+      mirrors,
+      { stopSource: (instanceId, source) => runtime.stopSource(instanceId, source) },
+      {
+        progress: (event) => send(IPC_EVENT_CHANNELS['update-progress'], event),
+      },
+    );
+    registerUpdateIpc(ipcMain, {
+      getMofoxInfo: (instanceId) => updates.getMofoxInfo(instanceId),
+      switchBranch: (instanceId, branch) => updates.switchBranch(instanceId, branch),
+      checkoutCommit: (instanceId, commitHash) => updates.checkoutCommit(instanceId, commitHash),
+      updateMofox: (instanceId) => updates.updateMofox(instanceId),
+      getPlatformInfo: (instanceId) => updates.getPlatformInfo(instanceId),
+      updatePlatform: (instanceId, version) => updates.updatePlatform(instanceId, version),
     });
     const installTasks = new InstallTaskService(
       platforms,

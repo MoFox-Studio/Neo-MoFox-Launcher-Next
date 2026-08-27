@@ -1,6 +1,6 @@
 import { mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
-import { downloadReleaseAsset } from '../git/github-installer';
+import { downloadReleaseAsset } from '../git/github';
 import type { InstallTaskContext } from './types';
 
 // Neo-MoFox WebUI 插件的发布仓库；`.mfp` 作为发行版资产发布。

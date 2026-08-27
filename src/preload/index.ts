@@ -91,6 +91,16 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     commitWallpaper: (assetId) => invoke(IPC_INVOKE_CHANNELS.commitWallpaper, assetId),
     discardWallpaper: (assetId) => invoke(IPC_INVOKE_CHANNELS.discardWallpaper, assetId),
     removeWallpaper: () => invoke(IPC_INVOKE_CHANNELS.removeWallpaper),
+    getMofoxUpdateInfo: (instanceId) => invoke(IPC_INVOKE_CHANNELS.getMofoxUpdateInfo, instanceId),
+    switchMofoxBranch: (instanceId, branch) =>
+      invoke(IPC_INVOKE_CHANNELS.switchMofoxBranch, instanceId, branch),
+    checkoutMofoxCommit: (instanceId, commitHash) =>
+      invoke(IPC_INVOKE_CHANNELS.checkoutMofoxCommit, instanceId, commitHash),
+    updateMofox: (instanceId) => invoke(IPC_INVOKE_CHANNELS.updateMofox, instanceId),
+    getPlatformUpdateInfo: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.getPlatformUpdateInfo, instanceId),
+    updatePlatform: (instanceId, version) =>
+      invoke(IPC_INVOKE_CHANNELS.updatePlatform, instanceId, version),
     on: <K extends keyof MofoxEventMap>(
       event: K,
       listener: (payload: MofoxEventMap[K]) => void,

@@ -92,5 +92,7 @@ export interface PlatformRuntime {
 /** 一个完整平台实现必须同时提供元数据、可用性、安装、配置、更新和运行能力。 */
 export interface BotPlatform
   extends BotPlatformMetadata, PlatformInstaller, PlatformConfig, PlatformUpdater, PlatformRuntime {
+  /** GitHub 仓库的 `owner/repo` 字符串，供版本列表查询与更新复用。 */
+  readonly repository: string;
   isAvailable(): Promise<PlatformAvailability>;
 }

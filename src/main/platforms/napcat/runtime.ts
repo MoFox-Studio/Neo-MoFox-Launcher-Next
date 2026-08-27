@@ -8,7 +8,7 @@ import type {
   PlatformConfigureInput,
 } from '../../../shared/domain/bot-platform';
 import { MofoxError } from '../../../shared/domain/error';
-import { hasFiles, installGithubRelease } from '../../utils/git/github-installer';
+import { hasFiles, installGithubRelease } from '../../utils/git/github';
 import { writeOnebotAdapterConfig } from '../onebot-adapter';
 
 // NapCat 平台适配器：固定 Windows Release 资产，并解析当前及旧版目录中的启动入口。
@@ -16,6 +16,7 @@ export class NapCatPlatform extends BaseBotPlatform {
   readonly id = 'napcat';
   readonly name = 'NapCat';
   readonly description = '基于 NapCatQQ 的 OneBot 11 接入，仅支持 Windows，不推荐使用。';
+  readonly repository = 'NapNeko/NapCatQQ';
   readonly supportedPlatforms = ['win32'] as Array<'win32'>;
   readonly supportedArch = ['x64'] as Array<'x64'>;
 
@@ -80,7 +81,12 @@ export class NapCatPlatform extends BaseBotPlatform {
       enableLocalFile2Url: false,
       parseMultMsg: false,
     });
-    await writeOnebotAdapterConfig(options.mofoxConfigDir, options.wsPort, options.botQQ, options.botNickname);
+    await writeOnebotAdapterConfig(
+      options.mofoxConfigDir,
+      options.wsPort,
+      options.botQQ,
+      options.botNickname,
+    );
   }
 
   /**

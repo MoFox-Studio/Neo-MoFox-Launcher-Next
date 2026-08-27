@@ -11,6 +11,7 @@ import type {
   UpdateInstancePatch,
 } from './domain/instance';
 import type { InstallProgressEvent, InstallRequest, LicenseFetchResult } from './domain/install';
+import type { MofoxUpdateInfo, PlatformUpdateInfo, UpdateProgressEvent } from './domain/update';
 import type {
   ManualImportRequest,
   ManualImportResult,
@@ -84,6 +85,12 @@ export const IPC_INVOKE_CHANNELS = {
   commitWallpaper: 'wallpaper:commit',
   discardWallpaper: 'wallpaper:discard',
   removeWallpaper: 'wallpaper:remove',
+  getMofoxUpdateInfo: 'update:mofox-info',
+  switchMofoxBranch: 'update:mofox-branch',
+  checkoutMofoxCommit: 'update:mofox-commit',
+  updateMofox: 'update:mofox',
+  getPlatformUpdateInfo: 'update:platform-info',
+  updatePlatform: 'update:platform',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -94,6 +101,7 @@ export const IPC_EVENT_CHANNELS = {
   'window-maximize-changed': 'event:window-maximize-changed',
   'download-progress': 'event:download-progress',
   'oobe-progress': 'event:oobe-progress',
+  'update-progress': 'event:update-progress',
 } as const satisfies Record<keyof MofoxEventMap, string>;
 
 /** 从主进程推送至渲染进程的事件载荷映射。 */
@@ -105,6 +113,7 @@ export interface MofoxEventMap {
   'window-maximize-changed': boolean;
   'download-progress': DownloadProgress;
   'oobe-progress': OobeProgress;
+  'update-progress': UpdateProgressEvent;
 }
 
 export interface MofoxApi {
@@ -191,6 +200,15 @@ export interface MofoxApi {
   commitWallpaper(assetId: string): Promise<LauncherSettings>;
   discardWallpaper(assetId: string): Promise<void>;
   removeWallpaper(): Promise<LauncherSettings>;
+
+  /** 实例更新：主程序分支切换、提交回退与平台版本更新。 */
+  getMofoxUpdateInfo(instanceId: string): Promise<MofoxUpdateInfo>;
+  switchMofoxBranch(instanceId: string, branch: string): Promise<MofoxUpdateInfo>;
+  checkoutMofoxCommit(instanceId: string, commitHash: string): Promise<MofoxUpdateInfo>;
+  updateMofox(instanceId: string): Promise<MofoxUpdateInfo>;
+  getPlatformUpdateInfo(instanceId: string): Promise<PlatformUpdateInfo>;
+  /** 把平台更新到指定版本；空字符串表示最新发行版。 */
+  updatePlatform(instanceId: string, version: string): Promise<PlatformUpdateInfo>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

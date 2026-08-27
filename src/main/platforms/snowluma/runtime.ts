@@ -8,7 +8,7 @@ import type {
   PlatformConfigureInput,
 } from '../../../shared/domain/bot-platform';
 import { MofoxError } from '../../../shared/domain/error';
-import { hasFiles, installGithubRelease } from '../../utils/git/github-installer';
+import { hasFiles, installGithubRelease } from '../../utils/git/github';
 import { writeOnebotAdapterConfig } from '../onebot-adapter';
 
 // SnowLuma 平台适配器：定义 Release 资产筛选、安装根校验与多级启动入口探测。
@@ -16,6 +16,7 @@ export class SnowLumaPlatform extends BaseBotPlatform {
   readonly id = 'snowluma';
   readonly name = 'SnowLuma';
   readonly description = '基于 SnowLuma 的 OneBot 11 接入，跨平台轻量，推荐使用。';
+  readonly repository = 'SnowLuma/SnowLuma';
   readonly supportedPlatforms = ['win32', 'linux'] as Array<'win32' | 'linux'>;
   readonly supportedArch = ['x64', 'arm64'] as Array<'x64' | 'arm64'>;
 
@@ -91,7 +92,12 @@ export class SnowLumaPlatform extends BaseBotPlatform {
       },
       musicSignUrl: '',
     });
-    await writeOnebotAdapterConfig(options.mofoxConfigDir, options.wsPort, options.botQQ, options.botNickname);
+    await writeOnebotAdapterConfig(
+      options.mofoxConfigDir,
+      options.wsPort,
+      options.botQQ,
+      options.botNickname,
+    );
   }
 
   /**

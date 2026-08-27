@@ -5,22 +5,18 @@ import { basename, join } from 'node:path';
 import extractZip from 'extract-zip';
 import type { InstallContext, InstallResult } from '../../../shared/domain/bot-platform';
 import type { MirrorSource } from '../../../shared/domain/mirror';
+import type { GithubRelease, GithubReleaseAsset } from '../../../shared/domain/github';
 import { MofoxError } from '../../../shared/domain/error';
 import { downloadRange } from '../range-downloader';
 import { runOneShot } from '../process-helper';
 import { resolveGithubUrl, tryEachGithubMirror } from './github-mirror';
 import { describeHttpStatus } from '../http-status';
 
-// GitHub Release 安装流水线的最小元数据结构，仅保留选择资产与校验所需字段。
-export interface ReleaseAsset {
-  name: string;
-  browser_download_url: string;
-  digest?: string;
-}
-export interface Release {
-  tag_name: string;
-  assets: ReleaseAsset[];
-}
+// GitHub Release 下载与查询的镜像轮询实现，供平台安装/更新与版本列表复用。
+
+/** GitHub Release 资产；`digest` 仅在发布元数据提供 SHA-256 时存在。 */
+export type Release = GithubRelease;
+export type ReleaseAsset = GithubReleaseAsset;
 
 /**
  * 通过 GitHub Release 资产完成平台安装。
@@ -28,7 +24,10 @@ export interface Release {
  * 流水线依次执行：发行版查询、资产选择、分镜下载、可选 SHA-256 校验、
  * ZIP/tar.gz 解压与根目录确认；每一步均按 `github` 类镜像顺序轮询。
  *
- * @param context - 安装上下文（工作目录、目标目录、镜像源、取消信号等）。
+ * `context.version` 为 `latest` 时拉取最新发行版，否则拉取对应 tag 的发行版，
+ * 供版本切换/回退复用同一套下载解压逻辑。
+ *
+ * @param context - 安装上下文（工作目录、目标目录、版本、镜像源、取消信号等）。
  * @param mirrors - 全部镜像源，函数内部只使用 `github` 类型。
  * @param repository - GitHub 仓库的 `owner/repo` 字符串。
  * @param selectAsset - 在发行版资产列表中选择当前系统适用资产的回调。
@@ -42,7 +41,12 @@ export async function installGithubRelease(
   selectAsset: (release: Release) => ReleaseAsset | undefined,
   isRoot: (path: string) => Promise<boolean>,
 ): Promise<InstallResult> {
-  const release = await fetchRelease(mirrors, repository, context.signal);
+  const release = await fetchRelease(
+    mirrors,
+    repository,
+    context.version ?? 'latest',
+    context.signal,
+  );
   const asset = selectAsset(release);
   if (!asset)
     throw new MofoxError('UNAVAILABLE', `发行版 ${release.tag_name} 没有适合当前系统的完整包`);
@@ -95,7 +99,7 @@ export async function downloadReleaseAsset(options: {
   signal?: AbortSignal;
 }): Promise<{ assetName: string; version: string }> {
   const { mirrors, repository, selectAsset, destination, signal } = options;
-  const release = await fetchRelease(mirrors, repository, signal);
+  const release = await fetchRelease(mirrors, repository, 'latest', signal);
   const asset = selectAsset(release);
   if (!asset) throw new MofoxError('UNAVAILABLE', `发行版 ${release.tag_name} 没有匹配的资产`);
   await downloadAsset(mirrors, asset, destination, signal);
@@ -103,10 +107,50 @@ export async function downloadReleaseAsset(options: {
 }
 
 /**
+ * 获取指定仓库的 Release 列表（含预发布与旧版本），供版本选择界面使用。
+ *
+ * @param mirrors - 仅消费 `github` 类型的镜像列表。
+ * @param repository - GitHub 仓库的 `owner/repo` 字符串。
+ * @param signal - 可选的取消信号；触发后立即抛出当前错误。
+ * @param limit - 返回的最大条数，默认 20。
+ * @returns 按发布时间倒序的 Release 列表。
+ * @throws {MofoxError} 镜像列表为空或所有镜像均失败时抛出最后一个错误。
+ */
+export async function fetchReleases(
+  mirrors: readonly MirrorSource[],
+  repository: string,
+  signal?: AbortSignal,
+  limit = 20,
+): Promise<Release[]> {
+  return tryEachGithubMirror(
+    mirrors,
+    signal,
+    async (mirror) => {
+      const url = resolveGithubUrl(
+        mirror,
+        `https://api.github.com/repos/${repository}/releases?per_page=${limit}`,
+      );
+      const response = await fetch(url, {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
+        ...(signal ? { signal } : {}),
+      });
+      if (!response.ok)
+        throw new MofoxError(
+          'IO_ERROR',
+          `GitHub releases 请求失败: HTTP ${response.status}（${describeHttpStatus(response.status)}）`,
+        );
+      return (await response.json()) as Release[];
+    },
+    `所有镜像均无法获取 ${repository} 发行版列表`,
+  );
+}
+
+/**
  * 顺序尝试每个镜像获取 GitHub 发行版元数据，首个成功即采用。
  *
  * @param mirrors - 仅消费 `github` 类型的镜像列表。
  * @param repository - GitHub 仓库的 `owner/repo` 字符串。
+ * @param version - `latest` 表示最新发行版，其余值按 tag 拉取对应发行版。
  * @param signal - 可选的取消信号；触发后立即抛出当前错误。
  * @returns 解析后的 GitHub Release 元数据。
  * @throws {MofoxError} 镜像列表为空或所有镜像均失败时抛出最后一个错误。
@@ -114,19 +158,22 @@ export async function downloadReleaseAsset(options: {
 async function fetchRelease(
   mirrors: readonly MirrorSource[],
   repository: string,
+  version: string,
   signal?: AbortSignal,
 ): Promise<Release> {
   return tryEachGithubMirror(
     mirrors,
     signal,
     async (mirror) => {
+      const endpoint =
+        version === 'latest' ? `releases/latest` : `releases/tags/${encodeURIComponent(version)}`;
       const url = resolveGithubUrl(
         mirror,
-        `https://api.github.com/repos/${repository}/releases/latest`,
+        `https://api.github.com/repos/${repository}/${endpoint}`,
       );
       const response = await fetch(url, {
         headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
-        signal,
+        ...(signal ? { signal } : {}),
       });
       if (!response.ok)
         throw new MofoxError(
@@ -189,7 +236,7 @@ export async function fetchRepositoryFile(options: {
       const url = resolveGithubUrl(mirror, original);
       const response = await fetch(url, {
         headers: { 'User-Agent': 'Neo-MoFox-Launcher' },
-        signal,
+        ...(signal ? { signal } : {}),
       });
       if (!response.ok)
         throw new MofoxError(

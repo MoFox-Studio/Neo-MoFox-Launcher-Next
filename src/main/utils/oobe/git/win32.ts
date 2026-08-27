@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MofoxError } from '../../../../shared/domain/error';
-import { downloadReleaseAsset } from '../../git/github-installer';
+import { downloadReleaseAsset } from '../../git/github';
 import { runOneShot } from '../../process-helper';
 import type { DependencyInstallContext } from '../types';
 
@@ -66,7 +66,7 @@ async function runWinget(context: DependencyInstallContext): Promise<void> {
 /**
  * 下载 Git for Windows 安装包并静默执行；安装包在执行完成后回收。
  *
- * 发行版查询、资产选择与下载统一复用 `github-installer` 的镜像轮询逻辑，
+ * 发行版查询、资产选择与下载统一复用 `github` 的镜像轮询逻辑，
  * 首个成功即采用；下载失败或安装包执行失败时抛出。
  */
 async function downloadAndInstall(context: DependencyInstallContext): Promise<string> {

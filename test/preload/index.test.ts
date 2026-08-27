@@ -81,6 +81,12 @@ describe('createMofoxApi', () => {
     await api.commitWallpaper('asset-1');
     await api.discardWallpaper('asset-1');
     await api.removeWallpaper();
+    await api.getMofoxUpdateInfo('instance-1');
+    await api.switchMofoxBranch('instance-1', 'dev');
+    await api.checkoutMofoxCommit('instance-1', 'a1b2c3d');
+    await api.updateMofox('instance-1');
+    await api.getPlatformUpdateInfo('instance-1');
+    await api.updatePlatform('instance-1', 'v2.0.3');
 
     expect(ipcRenderer.invoke.mock.calls.map(([channel]) => channel)).toEqual(
       Object.values(IPC_INVOKE_CHANNELS),
