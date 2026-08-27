@@ -10,10 +10,14 @@ import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
  *
  * @param mofoxConfigDir - MoFox 的 config 目录绝对路径。
  * @param wsPort - 平台 WS 客户端要连接的 OneBot 服务端口。
+ * @param botQQ - 机器人账号 QQ 号，写入 `[bot].qq_id`。
+ * @param botNickname - 机器人账号昵称；非空时写入 `[bot].qq_nickname`，为空则保留配置中已有值。
  */
 export async function writeOnebotAdapterConfig(
   mofoxConfigDir: string,
   wsPort: number,
+  botQQ: string,
+  botNickname = '',
 ): Promise<void> {
   const path = join(mofoxConfigDir, 'plugins', 'onebot_adapter', 'config.toml');
   const data = await readTomlFile(path);
@@ -23,6 +27,10 @@ export async function writeOnebotAdapterConfig(
   server.mode = 'reverse';
   server.host = 'localhost';
   server.port = wsPort;
+  const bot = ensureSection(data, 'bot');
+  bot.qq_id = botQQ;
+  const nickname = botNickname.trim();
+  if (nickname) bot.qq_nickname = nickname;
   await writeTomlFile(path, data);
 }
 

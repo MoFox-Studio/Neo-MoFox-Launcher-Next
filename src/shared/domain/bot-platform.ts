@@ -63,6 +63,8 @@ export interface PlatformConfigureInput {
   wsPort: number;
   /** 机器人账号 QQ 号；平台 WS 端点按此 QQ 号写入平台配置。 */
   botQQ: string;
+  /** 机器人账号昵称；平台写入 OneBot 适配器的 `[bot]` 节。 */
+  botNickname: string;
   /** MoFox 的 config 目录绝对路径，供平台写入 OneBot 适配器配置。 */
   mofoxConfigDir: string;
 }

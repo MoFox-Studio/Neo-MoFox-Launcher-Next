@@ -91,7 +91,7 @@ export class SnowLumaPlatform extends BaseBotPlatform {
       },
       musicSignUrl: '',
     });
-    await writeOnebotAdapterConfig(options.mofoxConfigDir, options.wsPort);
+    await writeOnebotAdapterConfig(options.mofoxConfigDir, options.wsPort, options.botQQ, options.botNickname);
   }
 
   /**

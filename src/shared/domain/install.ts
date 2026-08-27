@@ -23,6 +23,8 @@ export interface InstallRequest {
   wsPort: number;
   /** 机器人账号 QQ 号；平台 WS 端点按此 QQ 号写入平台配置。 */
   botQQ: string;
+  /** 机器人账号昵称，写入 OneBot 适配器的 `[bot]` 节。 */
+  botNickname: string;
   /** 具有管理权限的主人 QQ 号，写入 `core.toml` 的 `owner_list`。 */
   ownerQQ: string;
   /** 大语言模型 API 密钥，写入 `model.toml`。 */

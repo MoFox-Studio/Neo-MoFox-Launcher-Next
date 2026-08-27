@@ -70,6 +70,7 @@ function sampleRequest(overrides: Partial<InstallRequest> = {}): InstallRequest 
     mofoxBranch: 'main',
     wsPort: 8095,
     botQQ: '12345678901',
+    botNickname: '灵语雪',
     ownerQQ: '98765432101',
     apiKey: 'sk-test-1234',
     installWebui: true,

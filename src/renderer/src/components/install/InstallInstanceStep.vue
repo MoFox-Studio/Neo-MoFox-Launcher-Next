@@ -10,27 +10,48 @@ const draft = store.draft;
   <section class="step">
     <div class="step-header">
       <h1>实例信息</h1>
-      <p>为你的 Bot 实例设置名称，并填写机器人与主人的 QQ 账号。</p>
+      <p>为你的 Bot 实例设置名称与昵称，并填写机器人与主人的 QQ 账号。</p>
     </div>
 
     <form class="config-form" @submit.prevent>
-      <div class="form-group">
-        <label class="field" :class="{ 'field--error': store.isInvalid('instanceName') }">
-          <input
-            id="input-instance-name"
-            v-model="draft.instanceName"
-            class="field__input"
-            type="text"
-            placeholder=" "
-            maxlength="32"
-            @input="store.touch('instanceName')"
-          />
-          <span class="field__label">实例名称 *</span>
-        </label>
-        <p v-if="store.isInvalid('instanceName')" class="field__support field__support--error">
-          {{ store.fieldErrors.instanceName }}
-        </p>
-        <p v-else class="field__support">1-32 字符，用于在启动器中标识此实例</p>
+      <div class="form-row two-cols">
+        <div class="form-group">
+          <label class="field" :class="{ 'field--error': store.isInvalid('instanceName') }">
+            <input
+              id="input-instance-name"
+              v-model="draft.instanceName"
+              class="field__input"
+              type="text"
+              placeholder=" "
+              maxlength="32"
+              @input="store.touch('instanceName')"
+            />
+            <span class="field__label">实例名称 *</span>
+          </label>
+          <p v-if="store.isInvalid('instanceName')" class="field__support field__support--error">
+            {{ store.fieldErrors.instanceName }}
+          </p>
+          <p v-else class="field__support">1-32 字符，用于在启动器中标识此实例</p>
+        </div>
+
+        <div class="form-group">
+          <label class="field" :class="{ 'field--error': store.isInvalid('botNickname') }">
+            <input
+              id="input-bot-nickname"
+              v-model="draft.botNickname"
+              class="field__input"
+              type="text"
+              placeholder=" "
+              maxlength="32"
+              @input="store.touch('botNickname')"
+            />
+            <span class="field__label">Bot 昵称 *</span>
+          </label>
+          <p v-if="store.isInvalid('botNickname')" class="field__support field__support--error">
+            {{ store.fieldErrors.botNickname }}
+          </p>
+          <p v-else class="field__support">1-32 字符，写入 OneBot 适配器的 Bot 昵称</p>
+        </div>
       </div>
 
       <div class="form-row two-cols">

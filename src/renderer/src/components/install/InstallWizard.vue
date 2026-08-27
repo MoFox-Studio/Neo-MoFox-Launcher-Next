@@ -113,6 +113,7 @@ const canGoNext = computed(() => {
       return (
         draftStore.fieldErrors.instanceName === '' &&
         draftStore.fieldErrors.botQQ === '' &&
+        draftStore.fieldErrors.botNickname === '' &&
         draftStore.fieldErrors.ownerQQ === ''
       );
     case 3:

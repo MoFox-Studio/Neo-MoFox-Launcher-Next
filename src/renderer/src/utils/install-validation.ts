@@ -20,6 +20,14 @@ export function validateQQNumber(value: string): string {
   return '';
 }
 
+/** Bot 昵称：必填字段，最多 32 个字符。 */
+export function validateBotNickname(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return 'Bot 昵称不能为空';
+  if (trimmed.length > 32) return 'Bot 昵称不能超过 32 个字符';
+  return '';
+}
+
 /** API 密钥：非空即可，建议以 `sk-` 开头（不做强制）。 */
 export function validateApiKey(value: string): string {
   const trimmed = value.trim();

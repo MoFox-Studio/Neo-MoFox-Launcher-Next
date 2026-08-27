@@ -29,6 +29,7 @@ export async function configureInstance(ctx: InstallTaskContext): Promise<void> 
     await ctx.platform.configure(ctx.request.instanceName, join(ctx.stageDir, 'platform'), {
       wsPort: ctx.request.wsPort,
       botQQ: ctx.request.botQQ,
+      botNickname: ctx.request.botNickname,
       mofoxConfigDir,
     });
   }

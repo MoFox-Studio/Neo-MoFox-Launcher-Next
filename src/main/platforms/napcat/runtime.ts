@@ -80,7 +80,7 @@ export class NapCatPlatform extends BaseBotPlatform {
       enableLocalFile2Url: false,
       parseMultMsg: false,
     });
-    await writeOnebotAdapterConfig(options.mofoxConfigDir, options.wsPort);
+    await writeOnebotAdapterConfig(options.mofoxConfigDir, options.wsPort, options.botQQ, options.botNickname);
   }
 
   /**

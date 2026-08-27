@@ -4,6 +4,7 @@ import type { InstallRequest, InstallTargetCheck } from '@shared/domain/install'
 import { mofoxApi } from '@/services/mofox-api';
 import {
   validateApiKey,
+  validateBotNickname,
   validateInstanceName,
   validateQQNumber,
   validateTargetDir,
@@ -20,6 +21,7 @@ const createEmptyDraft = (): InstallRequest => ({
   mofoxBranch: 'main',
   wsPort: 8095,
   botQQ: '',
+  botNickname: '',
   ownerQQ: '',
   apiKey: '',
   installWebui: true,
@@ -38,6 +40,7 @@ export const useInstallDraftStore = defineStore('install-draft', () => {
   const fieldErrors = computed(() => ({
     instanceName: validateInstanceName(draft.value.instanceName),
     botQQ: validateQQNumber(draft.value.botQQ),
+    botNickname: validateBotNickname(draft.value.botNickname),
     ownerQQ: validateQQNumber(draft.value.ownerQQ),
     apiKey: validateApiKey(draft.value.apiKey),
     wsPort: validateWsPort(draft.value.wsPort),

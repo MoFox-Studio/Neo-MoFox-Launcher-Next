@@ -45,6 +45,13 @@ const webuiLabel = computed(() => (draft.installWebui ? '是' : '否'));
         </div>
         <div class="summary-item">
           <span class="summary-item-icon"
+            ><span class="msr" aria-hidden="true">badge</span></span
+          >
+          <span class="summary-item-label">Bot 昵称</span>
+          <span class="summary-item-value">{{ draft.botNickname || '-' }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-icon"
             ><span class="msr" aria-hidden="true">admin_panel_settings</span></span
           >
           <span class="summary-item-label">主人 QQ</span>

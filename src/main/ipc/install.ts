@@ -57,6 +57,7 @@ function requireRequest(value: unknown): InstallRequest {
     typeof request.mofoxBranch !== 'string' ||
     typeof request.wsPort !== 'number' ||
     typeof request.botQQ !== 'string' ||
+    typeof request.botNickname !== 'string' ||
     typeof request.ownerQQ !== 'string' ||
     typeof request.apiKey !== 'string' ||
     typeof request.installWebui !== 'boolean' ||

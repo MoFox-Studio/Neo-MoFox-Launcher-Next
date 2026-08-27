@@ -548,6 +548,12 @@ function validateRequest(request: InstallRequest): void {
   if (!/^\d{5,12}$/.test(request.botQQ.trim())) {
     throw new MofoxError('INVALID_ARGUMENT', 'Bot QQ 号格式错误');
   }
+  if (!request.botNickname.trim()) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Bot 昵称不能为空');
+  }
+  if (request.botNickname.trim().length > 32) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Bot 昵称不能超过 32 个字符');
+  }
   if (!/^\d{5,12}$/.test(request.ownerQQ.trim())) {
     throw new MofoxError('INVALID_ARGUMENT', '主人 QQ 号格式错误');
   }
