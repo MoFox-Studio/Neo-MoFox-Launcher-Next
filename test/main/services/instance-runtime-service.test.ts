@@ -402,6 +402,38 @@ describe('InstanceRuntimeService', () => {
     expect(content).not.toContain('\x1b');
   });
 
+  it('treats a user-initiated stop that exits with a non-zero code as stopped, not error', async () => {
+    const instance = createInstance();
+    const repository = createRepository(instance);
+    const platform = {
+      id: 'test',
+      getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })),
+    };
+    const pty = createPty();
+    // 树杀阶段不自动退出，进程退出时机由 emitExit 控制，以模拟 Ctrl+C 后以非零退出码结束。
+    pty.kill = vi.fn();
+    const helper = new ProcessHelper(
+      vi.fn(() => pty),
+      FAST_TIMINGS,
+    );
+    const service = new InstanceRuntimeService(
+      repository,
+      new PlatformRegistry([platform as never]),
+      { statusChanged: vi.fn(), ptyData: vi.fn() },
+      helper,
+    );
+
+    await service.start(instance.id);
+    const stopPromise = service.stop(instance.id);
+    // 等待 stop 进入 stopping 阶段（此时停止标记已登记），再模拟进程以非零退出码结束。
+    await vi.waitFor(() => expect(repository.current.status).toBe('stopping'));
+    pty.emitExit(2);
+    await stopPromise;
+
+    await vi.waitFor(() => expect(repository.current.status).toBe('stopped'));
+    expect(service.getLogBuffer(instance.id, 'platform')).not.toContain('退出码');
+  });
+
   it('marks the instance as error when the process exits abnormally', async () => {
     const instance = createInstance();
     const repository = createRepository(instance);

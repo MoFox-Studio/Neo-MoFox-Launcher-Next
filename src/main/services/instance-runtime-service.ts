@@ -400,12 +400,10 @@ export class InstanceRuntimeService {
       env: command.env ?? {},
       onData: (data) => this.appendLog(instanceId, source, data),
       onExit: ({ exitCode }) => {
-        this.stoppingKeys.delete(key);
         void this.onSourceExit(instanceId, source, exitCode);
       },
       onError: (error) => {
         this.emitLauncherMessage(instanceId, source, 'error', `进程启动失败: ${error.message}`);
-        this.stoppingKeys.delete(key);
         void this.onSourceExit(instanceId, source, 1);
       },
     });
@@ -431,7 +429,7 @@ export class InstanceRuntimeService {
   ): Promise<void> {
     const set = this.running.get(instanceId);
     if (!set || !set.delete(source)) return;
-    const stopping = this.stoppingKeys.has(this.key(instanceId, source));
+    const stopping = this.stoppingKeys.delete(this.key(instanceId, source));
     if (!stopping) {
       if (exitCode === 0) this.emitLauncherMessage(instanceId, source, 'info', '进程已退出');
       else

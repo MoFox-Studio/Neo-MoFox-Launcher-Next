@@ -341,7 +341,11 @@ export class ProcessHelper {
 
     if (pty?.write) {
       const write = pty.write;
-      write('\x03');
+      try {
+        write('\x03');
+      } catch {
+        /* already dead */
+      }
       // 批处理收到 Ctrl+C 后 cmd 会询问 “Terminate batch job (Y/N)?”，
       // 延迟应答 Y 让解释器连同其子进程一起优雅退出，避免干等后续升级窗口。
       timers.push(
