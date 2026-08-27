@@ -2,7 +2,6 @@ import { access, readFile } from 'node:fs/promises';
 import { homedir, hostname, platform, release, tmpdir, type, arch } from 'node:os';
 import { delimiter, join } from 'node:path';
 import extract from 'extract-zip';
-import treeKill from 'tree-kill';
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
 import { runOneShot, spawnProcess, type ExecOptions, type ExecResult } from './process-helper';
 
@@ -107,7 +106,12 @@ export function pythonExeName(): string {
  * @returns venv Python 路径；不存在时为 `undefined`。
  */
 export async function findVenvPython(projectDirectory: string): Promise<string | undefined> {
-  const candidate = join(projectDirectory, '.venv', isWindows() ? 'Scripts' : 'bin', pythonExeName());
+  const candidate = join(
+    projectDirectory,
+    '.venv',
+    isWindows() ? 'Scripts' : 'bin',
+    pythonExeName(),
+  );
   try {
     await access(candidate);
     return candidate;
@@ -132,31 +136,6 @@ export function execCommand(
   options: ExecOptions = {},
 ): Promise<ExecResult> {
   return runOneShot(command, args, { ...options, env: buildSpawnEnv(options.env) });
-}
-
-/**
- * 杀死指定 PID 对应的进程树。
- *
- * `tree-kill` 失败时回退到系统原生命令（taskkill/kill）。
- *
- * @param pid - 待杀死的进程 ID。
- * @param signal - 使用的信号，默认 `SIGTERM`。
- * @throws {Error} 所有方式均失败时抛出。
- */
-export function killProcessTree(pid: number, signal: NodeJS.Signals = 'SIGTERM'): Promise<void> {
-  return new Promise((resolve, reject) => {
-    treeKill(pid, signal, async (error) => {
-      if (!error) {
-        resolve();
-        return;
-      }
-      // tree-kill 失败时调用系统原生命令，处理平台工具无法覆盖的进程树。
-      const fallback = nativeKillCommand(pid, signal);
-      const result = await runOneShot(fallback.command, fallback.args);
-      if (result.exitCode === 0) resolve();
-      else reject(error);
-    });
-  });
 }
 
 /**
@@ -209,7 +188,9 @@ export function buildSpawnEnv(extraEnvironment: NodeJS.ProcessEnv = {}): NodeJS.
   };
   if (!isWindows()) {
     // GUI 启动的进程常缺少交互 shell 注入的 PATH，补齐常见用户级可执行目录。
-    const additions = ['.cargo/bin', '.local/bin', 'bin'].map((directory) => join(homedir(), directory));
+    const additions = ['.cargo/bin', '.local/bin', 'bin'].map((directory) =>
+      join(homedir(), directory),
+    );
     environment.PATH = [...additions, environment.PATH ?? ''].filter(Boolean).join(delimiter);
   }
   return environment;
@@ -229,20 +210,13 @@ export function nativeRemovalCommand(path: string): { command: string; args: str
     const escaped = path.replace(/%/g, '%%').replace(/"/g, '""');
     return {
       command: 'cmd.exe',
-      args: ['/d', '/s', '/c', `if exist "${escaped}\\*" (rmdir /s /q "${escaped}") else del /f /q "${escaped}"`],
+      args: [
+        '/d',
+        '/s',
+        '/c',
+        `if exist "${escaped}\\*" (rmdir /s /q "${escaped}") else del /f /q "${escaped}"`,
+      ],
     };
   }
   return { command: 'rm', args: ['-rf', '--', path] };
-}
-
-/**
- * 构造平台原生的进程树杀死命令。
- *
- * @param pid - 待杀死的进程 ID。
- * @param signal - 使用的信号（仅 POSIX 平台有效）。
- * @returns 包含 `command` 与 `args` 的命令描述对象。
- */
-function nativeKillCommand(pid: number, signal: NodeJS.Signals): { command: string; args: string[] } {
-  if (isWindows()) return { command: 'taskkill.exe', args: ['/PID', String(pid), '/T', '/F'] };
-  return { command: 'kill', args: [`-${signal}`, String(pid)] };
 }

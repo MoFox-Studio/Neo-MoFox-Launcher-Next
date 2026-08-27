@@ -1,5 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runOneShot, ProcessHelper, type ProcessHandle } from '../../../src/main/utils/process-helper';
+import {
+  runOneShot,
+  ProcessHelper,
+  type ProcessHandle,
+} from '../../../src/main/utils/process-helper';
+
+// 树杀能力通过 tree-kill 实现，测试中替换为成功回调，避免对真实系统进程发信号。
+const { treeKillMock } = vi.hoisted(() => ({ treeKillMock: vi.fn() }));
+vi.mock('tree-kill', () => ({
+  default: (pid: number, signal: string, callback: (error?: Error) => void) => {
+    treeKillMock(pid, signal, callback);
+    callback();
+  },
+}));
 
 describe('runOneShot', () => {
   // 分别验证子进程输出边界、启动失败结算和超时后的终止路径。
@@ -33,7 +46,10 @@ describe('runOneShot with stdin input', () => {
   it('writes the input string to child stdin', async () => {
     const result = await runOneShot(
       process.execPath,
-      ['-e', "process.stdin.on('data', d => process.stdout.write(d)); process.stdin.on('end', () => process.exit(0))"],
+      [
+        '-e',
+        "process.stdin.on('data', d => process.stdout.write(d)); process.stdin.on('end', () => process.exit(0))",
+      ],
       { input: 'hello-stdin\n', timeoutMs: 5_000 },
     );
 
@@ -60,9 +76,17 @@ function createPty() {
     resize: ReturnType<typeof vi.fn>;
   } = {
     pid: 1234,
-    onData: vi.fn((listener: (data: string) => void) => { dataListener = listener; return { dispose: vi.fn() }; }),
-    onExit: vi.fn((listener: (event: { exitCode: number; signal?: number }) => void) => { exitListener = listener; return { dispose: vi.fn() }; }),
-    kill: vi.fn(() => { exitListener?.({ exitCode: 0 }); }),
+    onData: vi.fn((listener: (data: string) => void) => {
+      dataListener = listener;
+      return { dispose: vi.fn() };
+    }),
+    onExit: vi.fn((listener: (event: { exitCode: number; signal?: number }) => void) => {
+      exitListener = listener;
+      return { dispose: vi.fn() };
+    }),
+    kill: vi.fn(() => {
+      exitListener?.({ exitCode: 0 });
+    }),
     write: vi.fn(),
     resize: vi.fn(),
     emitData: (data: string) => dataListener?.(data),
@@ -87,7 +111,10 @@ function makeOptions(overrides: Partial<Parameters<ProcessHelper['spawn']>[1]> =
 describe('ProcessHelper', () => {
   it('spawns a PTY, forwards data and reports stats', () => {
     const pty = createPty();
-    const helper = new ProcessHelper(vi.fn(() => pty), FAST_TIMINGS);
+    const helper = new ProcessHelper(
+      vi.fn(() => pty),
+      FAST_TIMINGS,
+    );
     const options = makeOptions();
     helper.spawn('key', options);
 
@@ -99,23 +126,51 @@ describe('ProcessHelper', () => {
     expect(stats.pid).toBe(1234);
   });
 
-  it('stops a PTY via Ctrl+C then SIGTERM escalation', async () => {
+  it('stops a PTY via Ctrl+C then process-tree escalation', async () => {
     const pty = createPty();
-    const helper = new ProcessHelper(vi.fn(() => pty), FAST_TIMINGS);
+    const helper = new ProcessHelper(
+      vi.fn(() => pty),
+      FAST_TIMINGS,
+    );
     const options = makeOptions();
     helper.spawn('key', options);
+    treeKillMock.mockClear();
 
     await helper.stop('key');
 
     expect(pty.write).toHaveBeenCalledWith('\x03');
+    // 升级阶段按进程树终止：先 SIGTERM 再 SIGKILL，均以进程 pid 为目标而非仅直接句柄。
+    expect(treeKillMock).toHaveBeenCalledWith(1234, 'SIGTERM', expect.any(Function));
+    expect(treeKillMock).toHaveBeenCalledWith(1234, 'SIGKILL', expect.any(Function));
     expect(options.onExit).toHaveBeenCalled();
     expect(helper.has('key')).toBe(false);
     expect(helper.getStats('key').running).toBe(false);
   });
 
+  it('falls back to the direct handle when the process has no pid', async () => {
+    const pty = createPty();
+    pty.pid = undefined;
+    const helper = new ProcessHelper(
+      vi.fn(() => pty),
+      FAST_TIMINGS,
+    );
+    const options = makeOptions();
+    helper.spawn('key', options);
+
+    await helper.stop('key');
+
+    expect(treeKillMock).not.toHaveBeenCalled();
+    expect(pty.kill).toHaveBeenCalled();
+    expect(options.onExit).toHaveBeenCalled();
+    expect(helper.has('key')).toBe(false);
+  });
+
   it('writes and resizes only an active PTY', () => {
     const pty = createPty();
-    const helper = new ProcessHelper(vi.fn(() => pty), FAST_TIMINGS);
+    const helper = new ProcessHelper(
+      vi.fn(() => pty),
+      FAST_TIMINGS,
+    );
     helper.resize('key', 100, 40);
     helper.spawn('key', makeOptions());
 
@@ -128,7 +183,10 @@ describe('ProcessHelper', () => {
 
   it('removes a key and clears its stats', () => {
     const pty = createPty();
-    const helper = new ProcessHelper(vi.fn(() => pty), FAST_TIMINGS);
+    const helper = new ProcessHelper(
+      vi.fn(() => pty),
+      FAST_TIMINGS,
+    );
     helper.spawn('key', makeOptions());
     expect(helper.has('key')).toBe(true);
 
@@ -138,18 +196,19 @@ describe('ProcessHelper', () => {
     expect(helper.getStats('key')).toEqual({ running: false, uptimeMs: null, pid: null });
   });
 
-  it('killAll terminates every tracked process', () => {
+  it('killAll terminates every tracked process tree', () => {
     const ptyA = createPty();
     const ptyB = createPty();
     const factory = vi.fn().mockReturnValueOnce(ptyA).mockReturnValueOnce(ptyB);
     const helper = new ProcessHelper(factory, FAST_TIMINGS);
     helper.spawn('a', makeOptions());
     helper.spawn('b', makeOptions());
+    treeKillMock.mockClear();
 
     helper.killAll();
 
-    expect(ptyA.kill).toHaveBeenCalledWith('SIGKILL');
-    expect(ptyB.kill).toHaveBeenCalledWith('SIGKILL');
+    expect(treeKillMock).toHaveBeenCalledWith(1234, 'SIGKILL', expect.any(Function));
+    expect(treeKillMock).toHaveBeenCalledTimes(2);
     expect(helper.has('a')).toBe(false);
     expect(helper.has('b')).toBe(false);
   });

@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { MofoxError } from '../../../shared/domain/error';
 import { cloneRepository } from '../git/git';
-import { buildSpawnEnv, findVenvPython, killProcessTree } from '../platform-helper';
-import { runOneShot, spawnProcess } from '../process-helper';
+import { buildSpawnEnv, findVenvPython } from '../platform-helper';
+import { killProcessTree, runOneShot, spawnProcess } from '../process-helper';
 import type { InstallTaskContext } from './types';
 
 // Neo-MoFox 本体仓库；分支由用户在向导中选择（main/dev）。

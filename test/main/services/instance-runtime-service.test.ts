@@ -8,6 +8,11 @@ import { PlatformRegistry } from '../../../src/main/platforms/registry';
 import { InstanceRuntimeService } from '../../../src/main/services/instance-runtime-service';
 import { ProcessHelper, type ProcessHandle } from '../../../src/main/utils/process-helper';
 
+// 测试 PTY 的 pid 为占位值，进程树终止统一走 tree-kill，这里替换为成功回调避免误杀真实进程。
+vi.mock('tree-kill', () => ({
+  default: (_pid: number, _signal: string, callback: (error?: Error) => void) => callback(),
+}));
+
 /** 覆盖进程生命周期、双进程状态收敛、PTY 状态同步与日志导出。 */
 const FAST_TIMINGS = { sigterm: 10, sigkill: 10 };
 const temporaryDirectories: string[] = [];

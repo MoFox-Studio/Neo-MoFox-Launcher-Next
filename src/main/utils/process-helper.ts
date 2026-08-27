@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import treeKill from 'tree-kill';
 import type { ProcessStats } from '../../shared/domain/instance';
 
 // 主进程对外部命令的最小封装，统一隐藏窗口、采集输出和处理进程生命周期。
@@ -24,7 +25,11 @@ export interface ExecResult {
  * @param options - 透传给 `spawn` 的选项。
  * @returns ChildProcess 实例。
  */
-export function spawnProcess(command: string, args: readonly string[], options: SpawnOptions = {}): ChildProcess {
+export function spawnProcess(
+  command: string,
+  args: readonly string[],
+  options: SpawnOptions = {},
+): ChildProcess {
   return spawn(command, [...args], {
     windowsHide: true,
     ...options,
@@ -118,6 +123,47 @@ function toError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
 }
 
+/**
+ * 杀死指定 PID 对应的进程树。
+ *
+ * `tree-kill` 失败时回退到系统原生命令（taskkill/kill）。
+ *
+ * @param pid - 待杀死的进程 ID。
+ * @param signal - 使用的信号，默认 `SIGTERM`。
+ * @throws {Error} 所有方式均失败时抛出。
+ */
+export function killProcessTree(pid: number, signal: NodeJS.Signals = 'SIGTERM'): Promise<void> {
+  return new Promise((resolve, reject) => {
+    treeKill(pid, signal, async (error) => {
+      if (!error) {
+        resolve();
+        return;
+      }
+      // tree-kill 失败时调用系统原生命令，处理平台工具无法覆盖的进程树。
+      const fallback = nativeKillCommand(pid, signal);
+      const result = await runOneShot(fallback.command, fallback.args);
+      if (result.exitCode === 0) resolve();
+      else reject(error);
+    });
+  });
+}
+
+/**
+ * 构造平台原生的进程树杀死命令。
+ *
+ * @param pid - 待杀死的进程 ID。
+ * @param signal - 使用的信号（仅 POSIX 平台有效）。
+ * @returns 包含 `command` 与 `args` 的命令描述对象。
+ */
+function nativeKillCommand(
+  pid: number,
+  signal: NodeJS.Signals,
+): { command: string; args: string[] } {
+  if (process.platform === 'win32')
+    return { command: 'taskkill.exe', args: ['/PID', String(pid), '/T', '/F'] };
+  return { command: 'kill', args: [`-${signal}`, String(pid)] };
+}
+
 /** 与实例解耦的进程句柄抽象：PTY 与普通子进程共用同一生命周期接口。 */
 export interface ProcessHandle {
   pid?: number;
@@ -190,20 +236,47 @@ export class ProcessHelper {
   spawn(key: string, options: ProcessSpawnOptions): void {
     const env = { ...process.env, ...options.env } as Record<string, string>;
     let resolveExited = () => undefined as void;
-    const exited = new Promise<void>((resolve) => { resolveExited = resolve; });
+    const exited = new Promise<void>((resolve) => {
+      resolveExited = resolve;
+    });
     let entry: ManagedProcess;
     if (this.ptyFactory) {
       const size = this.sizes.get(key) ?? DEFAULT_SIZE;
-      const pty = this.ptyFactory(options.command, options.args, { cwd: options.cwd, env, ...size });
-      entry = { process: pty, kind: 'pty', startedAt: Date.now(), exited, resolveExited, stopping: false };
+      const pty = this.ptyFactory(options.command, options.args, {
+        cwd: options.cwd,
+        env,
+        ...size,
+      });
+      entry = {
+        process: pty,
+        kind: 'pty',
+        startedAt: Date.now(),
+        exited,
+        resolveExited,
+        stopping: false,
+      };
       pty.onData(options.onData);
-      pty.onExit(options.onExit);
+      // 进程真实退出时结算 stop 等待，避免优雅停止被完整升级窗口拖慢。
+      pty.onExit((event) => {
+        resolveExited();
+        options.onExit(event);
+      });
     } else {
       const child = spawnProcess(options.command, options.args, { cwd: options.cwd, env });
-      entry = { process: child, kind: 'child', startedAt: Date.now(), exited, resolveExited, stopping: false };
+      entry = {
+        process: child,
+        kind: 'child',
+        startedAt: Date.now(),
+        exited,
+        resolveExited,
+        stopping: false,
+      };
       child.stdout?.on('data', (data: Buffer) => options.onData(data.toString()));
       child.stderr?.on('data', (data: Buffer) => options.onData(data.toString()));
-      child.once('close', (code) => options.onExit({ exitCode: code ?? 0 }));
+      child.once('close', (code) => {
+        resolveExited();
+        options.onExit({ exitCode: code ?? 0 });
+      });
       child.once('error', (error) => options.onError(error));
     }
     this.active.set(key, entry);
@@ -213,6 +286,8 @@ export class ProcessHelper {
    * 优雅停止指定键的进程。
    *
    * 采用 Ctrl+C → SIGTERM → SIGKILL 三级升级策略，等待退出后从注册表移除。
+   * 升级阶段按进程树终止，确保批处理/启动脚本拉起的子进程一并退出，避免孤儿进程；
+   * 直接句柄仅在进程树终止失败时兜底，防止先杀父进程导致子进程失去进程树关联。
    *
    * @param key - 待停止的进程键。
    */
@@ -227,26 +302,64 @@ export class ProcessHelper {
 
     const pty = entry.kind === 'pty' ? (entry.process as ProcessHandle) : undefined;
     const child = entry.kind === 'child' ? (entry.process as ChildProcess) : undefined;
+    const pid = pty?.pid ?? child?.pid;
+    const direct = () => (pty ?? child) as ProcessHandle | ChildProcess | undefined;
+    const killTree = (signal: NodeJS.Signals, fallbackToDirect: boolean) => {
+      if (!pid) {
+        try {
+          direct()?.kill(signal);
+        } catch {
+          /* already dead */
+        }
+        return;
+      }
+      // 先终止整棵进程树（Windows 上 taskkill /T 依赖父子关系），失败或为最终强制阶段时再兜底直接句柄。
+      const onSettled = fallbackToDirect
+        ? () => {
+            try {
+              direct()?.kill(signal);
+            } catch {
+              /* already dead */
+            }
+          }
+        : undefined;
+      void (
+        onSettled ? killProcessTree(pid, signal).finally(onSettled) : killProcessTree(pid, signal)
+      ).catch(() => {
+        try {
+          direct()?.kill(signal);
+        } catch {
+          /* already dead */
+        }
+      });
+    };
+
     if (pty?.write) pty.write('\x03');
-    else if (pty) pty.kill('SIGTERM');
-    else child?.kill('SIGTERM');
+    else killTree('SIGTERM', false);
 
     const timers: NodeJS.Timeout[] = [];
     if (pty?.write) {
-      timers.push(setTimeout(() => { try { pty.kill('SIGTERM'); } catch { /* already dead */ } }, this.stopTimings.sigterm));
+      timers.push(
+        setTimeout(() => {
+          // Ctrl+C 未被响应时升级为进程树 SIGTERM，覆盖 cmd 批处理解释器及其子进程。
+          killTree('SIGTERM', false);
+        }, this.stopTimings.sigterm),
+      );
     }
     timers.push(
       setTimeout(() => {
-        try {
-          if (pty) pty.kill('SIGKILL');
-          else child?.kill('SIGKILL');
-        } catch { /* already dead */ }
+        // 最终强制阶段：先终止整棵进程树，再兜底直接句柄，忽略已退出进程的报错。
+        killTree('SIGKILL', true);
       }, this.stopTimings.sigterm + this.stopTimings.sigkill),
     );
 
     await Promise.race([
       entry.exited,
-      new Promise<void>((resolve) => timers.push(setTimeout(resolve, this.stopTimings.sigterm + this.stopTimings.sigkill + 1000))),
+      new Promise<void>((resolve) =>
+        timers.push(
+          setTimeout(resolve, this.stopTimings.sigterm + this.stopTimings.sigkill + 1000),
+        ),
+      ),
     ]);
     for (const timer of timers) clearTimeout(timer);
     this.active.delete(key);
@@ -255,6 +368,8 @@ export class ProcessHelper {
   /**
    * 强制终止进程，可指定单个键或全部。
    *
+   * 先按进程树终止，确保批处理/启动脚本拉起的子进程一并退出；无 PID 或树杀失败时兜底直接句柄。
+   *
    * @param key - 可选的进程键；省略时终止所有已注册进程。
    */
   killAll(key?: string): void {
@@ -262,10 +377,22 @@ export class ProcessHelper {
     for (const target of targets) {
       const entry = this.active.get(target);
       if (!entry) continue;
-      try {
-        if (entry.kind === 'pty') (entry.process as ProcessHandle).kill('SIGKILL');
-        else (entry.process as ChildProcess).kill('SIGKILL');
-      } catch { /* already dead */ }
+      const process = entry.process as ProcessHandle | ChildProcess;
+      if (process.pid) {
+        void killProcessTree(process.pid, 'SIGKILL').catch(() => {
+          try {
+            process.kill('SIGKILL');
+          } catch {
+            /* already dead */
+          }
+        });
+      } else {
+        try {
+          process.kill('SIGKILL');
+        } catch {
+          /* already dead */
+        }
+      }
       this.active.delete(target);
     }
   }
@@ -296,7 +423,9 @@ export class ProcessHelper {
     if (!entry || entry.kind !== 'pty') return;
     try {
       (entry.process as ProcessHandle).resize?.(cols, rows);
-    } catch { /* process may have just exited */ }
+    } catch {
+      /* process may have just exited */
+    }
   }
 
   /**
@@ -308,9 +437,10 @@ export class ProcessHelper {
   getStats(key: string): ProcessStats {
     const entry = this.active.get(key);
     if (!entry) return { running: false, uptimeMs: null, pid: null };
-    const pid = entry.kind === 'pty'
-      ? (entry.process as ProcessHandle).pid ?? null
-      : (entry.process as ChildProcess).pid ?? null;
+    const pid =
+      entry.kind === 'pty'
+        ? ((entry.process as ProcessHandle).pid ?? null)
+        : ((entry.process as ChildProcess).pid ?? null);
     return { running: true, uptimeMs: Date.now() - entry.startedAt, pid };
   }
 

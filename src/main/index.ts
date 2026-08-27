@@ -223,6 +223,7 @@ if (!hasSingleInstanceLock) {
         env: options.env,
       }),
     );
+
     const runtime = new InstanceRuntimeService(
       instances,
       platforms,
@@ -317,5 +318,10 @@ if (!hasSingleInstanceLock) {
 
   app.on('window-all-closed', () => {
     app.quit();
+  });
+
+  // 应用退出前强制回收所有托管进程树，避免关闭启动器后遗留平台子进程。
+  app.on('before-quit', () =>{ 
+    processHelper.killAll()
   });
 }
