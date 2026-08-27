@@ -5,6 +5,7 @@ import type { MofoxUpdateInfo, PlatformUpdateInfo, UpdateProgressEvent } from '@
 import { mofoxApi } from '@/services/mofox-api';
 
 // 更新面板：参照旧启动器「版本管理」，顶部切换主程序 / 平台两个更新目标。
+// 主程序采用左右双栏：左侧为版本信息 + 分支切换，右侧为检查更新 + 提交历史。
 // 页面固定高度不整体滚动，只有提交历史 / 可用版本列表在内部滚动。
 type UpdateTarget = 'mofox' | 'platform';
 
@@ -204,39 +205,49 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- ─── 主程序更新 ─── -->
+    <!-- ─── 主程序更新：左侧版本信息 + 分支切换，右侧检查更新 + 提交历史 ─── -->
     <div v-if="target === 'mofox'" class="update-two-col">
-      <div class="update-col update-col--fixed">
-        <div class="update-card">
-          <h3 class="update-card__title">
-            <span class="msr" aria-hidden="true">info</span>
-            当前版本信息
-          </h3>
-          <div class="update-item">
-            <span class="update-item__label">当前分支</span>
-            <span class="update-badge">{{ mofoxInfo?.branch ?? '—' }}</span>
-          </div>
-          <div class="update-item">
-            <span class="update-item__label">当前版本</span>
-            <span class="update-value update-value--mono">{{
-              mofoxInfo?.currentCommit?.hash ?? '—'
-            }}</span>
-          </div>
-          <div class="update-item">
-            <span class="update-item__label">最新提交</span>
-            <div class="update-commit">
-              <code class="update-commit__hash">{{ mofoxInfo?.currentCommit?.hash ?? '—' }}</code>
-              <span class="update-commit__message">{{
-                mofoxInfo?.currentCommit?.message || '—'
+      <div class="update-panel update-panel--left">
+        <!-- 版本信息卡片：双栏展示当前版本信息与提交信息 -->
+        <div class="update-card info-card-split">
+          <div class="info-split-col">
+            <h3 class="update-card__title">
+              <span class="msr" aria-hidden="true">info</span>
+              当前版本信息
+            </h3>
+            <div class="update-item">
+              <span class="update-item__label">当前分支</span>
+              <span class="update-badge">{{ mofoxInfo?.branch ?? '—' }}</span>
+            </div>
+            <div class="update-item">
+              <span class="update-item__label">当前版本</span>
+              <span class="update-value update-value--mono">{{
+                mofoxInfo?.currentCommit?.hash ?? '—'
               }}</span>
             </div>
           </div>
-          <div class="update-item">
-            <span class="update-item__label">提交时间</span>
-            <span class="update-value">{{ formatDate(mofoxInfo?.currentCommit?.date) }}</span>
+          <div class="info-split-col">
+            <h3 class="update-card__title">
+              <span class="msr" aria-hidden="true">update</span>
+              提交信息
+            </h3>
+            <div class="update-item">
+              <span class="update-item__label">最新提交</span>
+              <div class="commit-box">
+                <code class="commit-box__hash">{{ mofoxInfo?.currentCommit?.hash ?? '—' }}</code>
+                <span class="commit-box__message">{{
+                  mofoxInfo?.currentCommit?.message || '—'
+                }}</span>
+              </div>
+            </div>
+            <div class="update-item">
+              <span class="update-item__label">提交时间</span>
+              <span class="update-value">{{ formatDate(mofoxInfo?.currentCommit?.date) }}</span>
+            </div>
           </div>
         </div>
 
+        <!-- 分支切换 -->
         <div class="update-card">
           <h3 class="update-card__title">
             <span class="msr" aria-hidden="true">account_tree</span>
@@ -271,7 +282,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="update-col update-col--grow">
+      <div class="update-panel update-panel--right">
+        <!-- 检查更新 -->
         <div class="update-card">
           <h3 class="update-card__title">
             <span class="msr" aria-hidden="true">system_update</span>
@@ -322,30 +334,29 @@ onBeforeUnmount(() => {
             <span>暂无提交记录</span>
           </div>
           <div v-else class="update-scroll">
-            <ul class="commit-list">
+            <ul class="version-list">
               <li
                 v-for="commit in mofoxCommits"
                 :key="commit.fullHash"
-                class="commit-item"
-                :class="{ 'commit-item--current': commit.isCurrent }"
+                class="version-item"
+                :class="{ 'version-item--current': commit.isCurrent }"
               >
-                <div class="commit-item__body">
-                  <code class="commit-item__hash">{{ commit.hash }}</code>
-                  <span class="commit-item__message">{{ commit.message }}</span>
-                  <span class="commit-item__date">{{ formatDate(commit.date) }}</span>
+                <div class="version-item__info">
+                  <span class="version-item__tag">
+                    <code class="version-item__hash">{{ commit.hash }}</code>
+                    <span v-if="commit.isCurrent" class="version-item__current-badge">当前</span>
+                  </span>
+                  <span class="version-item__message">{{ commit.message }}</span>
+                  <span class="version-item__date">{{ formatDate(commit.date) }}</span>
                 </div>
                 <button
-                  v-if="!commit.isCurrent"
                   class="btn btn--tonal btn--small state-layer"
                   type="button"
-                  :disabled="checkingOut || busy"
+                  :disabled="commit.isCurrent || checkingOut || busy"
                   @click="doCheckout(commit.hash)"
                 >
-                  {{ checkingOut ? '回退中…' : '回退' }}
+                  {{ commit.isCurrent ? '当前版本' : checkingOut ? '回退中…' : '回退' }}
                 </button>
-                <span v-else class="commit-item__current" aria-label="当前提交">
-                  <span class="msr" aria-hidden="true">check_circle</span>
-                </span>
               </li>
             </ul>
           </div>
@@ -397,16 +408,22 @@ onBeforeUnmount(() => {
             <span>加载版本列表...</span>
           </div>
           <div v-else class="update-scroll">
-            <ul class="release-list">
-              <li v-for="release in releases" :key="release.tag_name" class="release-item">
-                <div class="release-item__body">
-                  <span class="release-item__tag">
+            <ul class="version-list">
+              <li
+                v-for="release in releases"
+                :key="release.tag_name"
+                class="version-item"
+                :class="{ 'version-item--current': release.tag_name === platformCurrentVersion }"
+              >
+                <div class="version-item__info">
+                  <span class="version-item__tag">
                     {{ release.tag_name }}
-                    <span v-if="release.prerelease" class="release-item__tag release-item__tag--pre"
-                      >预发布</span
-                    >
+                    <span
+                      v-if="release.prerelease"
+                      class="version-item__prerelease"
+                    >预发布</span>
                   </span>
-                  <span class="release-item__date">{{ formatDate(release.published_at) }}</span>
+                  <span class="version-item__date">{{ formatDate(release.published_at) }}</span>
                 </div>
                 <button
                   class="btn btn--tonal btn--small state-layer"
@@ -463,7 +480,7 @@ onBeforeUnmount(() => {
 /* 固定高度：整体不滚动，只有提交历史 / 版本列表在内部滚动。 */
 .update-view {
   width: 100%;
-  max-width: 1080px;
+  max-width: 1120px;
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
@@ -547,33 +564,30 @@ onBeforeUnmount(() => {
   color: var(--md-sys-color-on-primary);
 }
 
-/* 主程序：左右双栏，整体占满剩余高度 */
+/* 主程序：左右双栏等宽等高，整体占满剩余高度 */
 .update-two-col {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
-.update-col {
+.update-panel {
   display: flex;
   flex-direction: column;
+  gap: 16px;
   min-height: 0;
 }
 
-/* 左栏内容超出时仅在内部滚动，避免整页滚动；最后一张卡片填充剩余高度，与右栏等高。 */
-.update-col--fixed {
-  gap: 16px;
+/* 左栏内容超出时仅在内部滚动，避免整页滚动。 */
+.update-panel--left {
   overflow-y: auto;
 }
 
-.update-col--fixed > .update-card:last-child {
-  flex: 1;
-}
-
-.update-col--grow {
-  gap: 16px;
+/* 右栏禁止整栏滚动，由提交历史卡片内部滚动。 */
+.update-panel--right {
+  overflow: hidden;
 }
 
 /* 平台：整列占满剩余高度 */
@@ -593,6 +607,25 @@ onBeforeUnmount(() => {
   box-shadow: var(--app-glass-card-shadow);
   backdrop-filter: var(--app-glass-filter);
   -webkit-backdrop-filter: var(--app-glass-filter);
+}
+
+/* 版本信息卡片：内部双栏（当前版本信息 | 提交信息） */
+.info-card-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.info-split-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.info-split-col + .info-split-col {
+  padding-left: 16px;
+  border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
 /* 内部滚动的卡片：标题固定，列表区域伸缩并滚动。 */
@@ -630,7 +663,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 0;
+  padding: 4px 0;
 }
 
 .update-item__label {
@@ -665,20 +698,26 @@ onBeforeUnmount(() => {
   color: var(--md-sys-color-tertiary);
 }
 
-.update-commit {
+/* 最新提交信息框 */
+.commit-box {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--md-sys-shape-corner-small);
 }
 
-.update-commit__hash {
+.commit-box__hash {
   font-family: var(--md-ref-typeface-mono);
+  font-size: 12px;
   color: var(--md-sys-color-primary);
+  font-weight: 500;
 }
 
-.update-commit__message {
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-medium);
+.commit-box__message {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -697,6 +736,10 @@ onBeforeUnmount(() => {
 
 .update-hint {
   margin: 10px 0 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--md-sys-color-primary);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
 }
@@ -733,35 +776,35 @@ onBeforeUnmount(() => {
   font-size: 32px;
 }
 
-.commit-list,
-.release-list {
+/* 提交历史 / 版本列表（卡片式条目） */
+.version-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
-.commit-item,
-.release-item {
+.version-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  padding: 12px 16px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-low);
+  transition:
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.commit-item:last-child,
-.release-item:last-child {
-  border-bottom: none;
+.version-item--current {
+  border-color: var(--md-sys-color-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary-container) 60%, transparent);
 }
 
-.commit-item--current {
-  opacity: 0.62;
-}
-
-.commit-item__body,
-.release-item__body {
+.version-item__info {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -769,44 +812,50 @@ onBeforeUnmount(() => {
   gap: 2px;
 }
 
-.commit-item__hash {
-  font-family: var(--md-ref-typeface-mono);
-  color: var(--md-sys-color-primary);
-}
-
-.commit-item__message {
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-medium);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.commit-item__date,
-.release-item__date {
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-small);
-}
-
-.commit-item__current {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  color: var(--md-sys-color-tertiary);
-}
-
-.release-item__tag {
+.version-item__tag {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: var(--md-sys-color-on-surface);
   font: var(--md-sys-typescale-label-large);
 }
 
-.release-item__tag--pre {
+.version-item__hash {
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+  color: var(--md-sys-color-primary);
+}
+
+.version-item__current-badge {
   padding: 1px 8px;
   border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font: var(--md-sys-typescale-label-small);
+}
+
+.version-item__message {
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.version-item__date {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+}
+
+.version-item__prerelease {
+  padding: 1px 6px;
+  border-radius: var(--md-sys-shape-corner-small);
   background: color-mix(in srgb, var(--md-sys-color-error) 14%, transparent);
   color: var(--md-sys-color-error);
   font: var(--md-sys-typescale-label-small);
