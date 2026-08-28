@@ -83,6 +83,7 @@ describe('InstanceUpdateService', () => {
     await mkdir(join(root, 'mofox'), { recursive: true });
     await mkdir(join(root, 'platform', 'config'), { recursive: true });
     await writeFile(join(root, 'platform', 'config', 'onebot.json'), '{"enable":true}');
+    githubHelpers.fetchReleases.mockResolvedValue([]);
   });
 
   afterEach(async () => {

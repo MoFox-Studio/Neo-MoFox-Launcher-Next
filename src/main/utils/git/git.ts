@@ -369,10 +369,11 @@ async function stashIfDirty(
 }
 
 /**
- * 执行 `uv sync` 同步 Python 依赖；失败仅记录进度而不中断流程。
+ * 执行 `uv sync` 同步 Python 依赖；失败时抛出可读错误。
  *
  * @param directory - 仓库目录绝对路径。
  * @param onProgress - 可选的阶段进度回调。
+ * @throws {MofoxError} `uv sync` 退出码非零时抛出 `IO_ERROR`。
  */
 async function syncDependencies(
   directory: string,
@@ -384,7 +385,10 @@ async function syncDependencies(
     timeoutMs: 600_000,
   });
   if (result.exitCode !== 0) {
-    onProgress?.('依赖同步失败，可稍后手动执行 uv sync');
+    throw new MofoxError(
+      'IO_ERROR',
+      `依赖同步失败: ${result.stderr?.trim() || `uv sync 退出码 ${result.exitCode}`}`,
+    );
   }
 }
 

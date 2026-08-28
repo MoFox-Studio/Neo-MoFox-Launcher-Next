@@ -284,6 +284,9 @@ if (!hasSingleInstanceLock) {
       {
         progress: (event) => send(IPC_EVENT_CHANNELS['update-progress'], event),
       },
+      (level, message) => {
+        void logger.log('update', level, message);
+      },
     );
     registerUpdateIpc(ipcMain, {
       getMofoxInfo: (instanceId) => updates.getMofoxInfo(instanceId),

@@ -2,8 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Instance } from '@shared/domain/instance';
 import type { SystemEnvInfo } from '@shared/domain/system-env';
-import type { MofoxUpdateInfo, PlatformUpdateInfo, UpdateProgressEvent } from '@shared/domain/update';
+import type {
+  MofoxUpdateInfo,
+  PlatformUpdateInfo,
+  UpdateProgressEvent,
+} from '@shared/domain/update';
 import { mofoxApi } from '@/services/mofox-api';
+import ErrorDialog from '@/components/ErrorDialog.vue';
 
 // 更新面板：参照旧启动器「版本管理」，顶部切换主程序 / 平台两个更新目标。
 // 主程序采用左右双栏：左侧为版本信息 + 分支切换，右侧为检查更新 + 提交历史。
@@ -18,7 +23,25 @@ const emit = defineEmits<{
   toast: [message: string];
 }>();
 
+// 更新失败时弹出的应用内错误框；`stack` 可选，仅 Error 实例携带。
+interface UpdateErrorState {
+  title: string;
+  description: string;
+  stack?: string;
+}
+
 const MOFOX_REPOSITORY_URL = 'https://github.com/MoFox-Studio/Neo-MoFox';
+
+const errorDialog = ref<UpdateErrorState | null>(null);
+
+// 打开错误弹窗；空标题按“更新失败”兜底，非 Error 值字符串化后展示。
+function showUpdateError(title: string, error: unknown): void {
+  errorDialog.value = {
+    title: title || '更新失败',
+    description: error instanceof Error ? error.message : String(error),
+    ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
+  };
+}
 
 function openRepository(): void {
   void mofoxApi.openExternal(MOFOX_REPOSITORY_URL);
@@ -65,7 +88,10 @@ async function refreshMofox(): Promise<void> {
       selectedBranch.value = mofoxInfo.value.branch;
     }
   } catch (error) {
-    emit('toast', `主程序版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`);
+    emit(
+      'toast',
+      `主程序版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`,
+    );
   } finally {
     loadingMofox.value = false;
   }
@@ -76,7 +102,10 @@ async function refreshPlatform(): Promise<void> {
   try {
     platformInfo.value = await mofoxApi.getPlatformUpdateInfo(props.instance.id);
   } catch (error) {
-    emit('toast', `平台版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`);
+    emit(
+      'toast',
+      `平台版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`,
+    );
   } finally {
     loadingPlatform.value = false;
   }
@@ -97,7 +126,7 @@ async function doSwitchBranch(): Promise<void> {
     mofoxInfo.value = await mofoxApi.switchMofoxBranch(props.instance.id, selectedBranch.value);
     emit('toast', `已切换到分支 ${selectedBranch.value}`);
   } catch (error) {
-    emit('toast', `分支切换失败: ${error instanceof Error ? error.message : String(error)}`);
+    showUpdateError('分支切换失败', error);
   } finally {
     switchingBranch.value = false;
   }
@@ -110,7 +139,7 @@ async function doCheckout(commitHash: string): Promise<void> {
     mofoxInfo.value = await mofoxApi.checkoutMofoxCommit(props.instance.id, commitHash);
     emit('toast', `已回退到提交 ${commitHash}`);
   } catch (error) {
-    emit('toast', `回退失败: ${error instanceof Error ? error.message : String(error)}`);
+    showUpdateError('回退失败', error);
   } finally {
     checkingOut.value = false;
   }
@@ -123,7 +152,7 @@ async function doUpdateMofox(): Promise<void> {
     mofoxInfo.value = await mofoxApi.updateMofox(props.instance.id);
     emit('toast', '主程序已更新到最新提交');
   } catch (error) {
-    emit('toast', `主程序更新失败: ${error instanceof Error ? error.message : String(error)}`);
+    showUpdateError('主程序更新失败', error);
   } finally {
     updatingMofox.value = false;
   }
@@ -136,7 +165,7 @@ async function doUpdatePlatform(version: string): Promise<void> {
     platformInfo.value = await mofoxApi.updatePlatform(props.instance.id, version);
     emit('toast', version ? `平台已更改到 ${version}` : '平台已更新到最新版本');
   } catch (error) {
-    emit('toast', `平台更新失败: ${error instanceof Error ? error.message : String(error)}`);
+    showUpdateError('平台更新失败', error);
   } finally {
     updatingPlatform.value = false;
   }
@@ -155,8 +184,8 @@ onMounted(() => {
   unsubscribeProgress = mofoxApi.on('update-progress', (event) => {
     if (event.instanceId !== props.instance.id) return;
     if (event.error) {
-      emit('toast', event.message);
       progress.value = null;
+      showUpdateError('更新失败', new Error(event.error));
       return;
     }
     if (event.percent >= 1) {
@@ -339,7 +368,11 @@ onBeforeUnmount(() => {
           <div class="update-repo-row">
             <span class="msr" aria-hidden="true">link</span>
             <span class="update-repo-row__text">MoFox-Studio/Neo-MoFox</span>
-            <button class="btn btn--tonal btn--small state-layer" type="button" @click="openRepository">
+            <button
+              class="btn btn--tonal btn--small state-layer"
+              type="button"
+              @click="openRepository"
+            >
               <span class="msr btn__icon" aria-hidden="true">open_in_new</span>
               打开仓库
             </button>
@@ -470,7 +503,7 @@ onBeforeUnmount(() => {
               {{ updatingPlatform ? '更新中…' : '更新到最新' }}
             </button>
           </div>
-<div v-if="loadingPlatform" class="update-placeholder">
+          <div v-if="loadingPlatform" class="update-placeholder">
             <span class="msr update-placeholder__icon spinning" aria-hidden="true"
               >progress_activity</span
             >
@@ -487,17 +520,16 @@ onBeforeUnmount(() => {
                 <div class="version-item__info">
                   <span class="version-item__tag">
                     {{ release.tag_name }}
-                    <span
-                      v-if="release.prerelease"
-                      class="version-item__prerelease"
-                    >预发布</span>
+                    <span v-if="release.prerelease" class="version-item__prerelease">预发布</span>
                   </span>
                   <span class="version-item__date">{{ formatDate(release.published_at) }}</span>
                 </div>
                 <button
                   class="btn btn--tonal btn--small state-layer"
                   type="button"
-                  :disabled="updatingPlatform || busy || release.tag_name === platformCurrentVersion"
+                  :disabled="
+                    updatingPlatform || busy || release.tag_name === platformCurrentVersion
+                  "
                   @click="doUpdatePlatform(release.tag_name)"
                 >
                   {{
@@ -542,6 +574,15 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- 更新失败时的应用内错误框 -->
+    <ErrorDialog
+      :open="errorDialog !== null"
+      :title="errorDialog?.title ?? '更新失败'"
+      :description="errorDialog?.description ?? '更新失败，请稍后重试'"
+      :stack="errorDialog?.stack"
+      @close="errorDialog = null"
+    />
   </section>
 </template>
 

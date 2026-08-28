@@ -22,6 +22,9 @@ import {
 } from '../utils/git/git';
 import { fetchReleases } from '../utils/git/github';
 
+/** 更新操作写入主进程日志文件的回调；`level` 区分信息与错误。 */
+export type UpdateLogWriter = (level: 'info' | 'error', message: string) => void;
+
 /**
  * 实例更新服务：管理主程序（Neo-MoFox）分支切换、提交回退与更新，
  * 以及平台适配器的版本切换。
@@ -40,6 +43,7 @@ export class InstanceUpdateService {
     private readonly mirrors: { list(): MirrorSource[] },
     private readonly runtime: { stopSource(instanceId: string, source: 'platform'): Promise<void> },
     private readonly events: { progress(event: UpdateProgressEvent): void },
+    private readonly log: UpdateLogWriter = () => undefined,
   ) {}
 
   /**
@@ -53,6 +57,7 @@ export class InstanceUpdateService {
     const directory = instance.mofoxInstallDir;
     const isRepository = await isGitRepository(directory);
     if (!isRepository) {
+      this.log('error', `[${instance.name}] 主程序目录不是 Git 仓库: ${directory}`);
       return {
         isRepository: false,
         branch: null,
@@ -71,6 +76,12 @@ export class InstanceUpdateService {
     const updateStatus = await checkUpdateStatus(directory);
     const branches = await fetchRemoteBranches(this.mirrors.list()).catch(() => [] as string[]);
     if (branch && !branches.includes(branch)) branches.unshift(branch);
+    this.log(
+      'info',
+      `[${instance.name}] 主程序版本信息: 分支=${branch ?? '未知'} 提交=${currentCommit?.hash ?? '未知'} ` +
+        `落后=${updateStatus.behindCount} 领先=${updateStatus.aheadCount} 可更新=${updateStatus.hasUpdate} ` +
+        `远程分支=${branches.length} 个`,
+    );
     return {
       isRepository: true,
       branch,
@@ -90,9 +101,16 @@ export class InstanceUpdateService {
    */
   async switchBranch(instanceId: string, branch: string): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
-    await switchBranch(instance.mofoxInstallDir, branch, (message) =>
-      this.emit(instanceId, 'switch-branch', -1, message),
-    );
+    this.log('info', `[${instance.name}] 开始切换分支到 ${branch}`);
+    try {
+      await switchBranch(instance.mofoxInstallDir, branch, (message) =>
+        this.emit(instanceId, 'switch-branch', -1, message),
+      );
+      this.log('info', `[${instance.name}] 分支切换完成: ${branch}`);
+    } catch (error) {
+      this.log('error', `[${instance.name}] 分支切换失败: ${describeError(error)}`);
+      throw error;
+    }
     return this.getMofoxInfo(instanceId);
   }
 
@@ -105,9 +123,16 @@ export class InstanceUpdateService {
    */
   async checkoutCommit(instanceId: string, commitHash: string): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
-    await checkoutCommit(instance.mofoxInstallDir, commitHash, (message) =>
-      this.emit(instanceId, 'checkout-commit', -1, message),
-    );
+    this.log('info', `[${instance.name}] 开始回退到提交 ${commitHash}`);
+    try {
+      await checkoutCommit(instance.mofoxInstallDir, commitHash, (message) =>
+        this.emit(instanceId, 'checkout-commit', -1, message),
+      );
+      this.log('info', `[${instance.name}] 回退到提交完成: ${commitHash}`);
+    } catch (error) {
+      this.log('error', `[${instance.name}] 回退到提交失败: ${describeError(error)}`);
+      throw error;
+    }
     return this.getMofoxInfo(instanceId);
   }
 
@@ -119,9 +144,16 @@ export class InstanceUpdateService {
    */
   async updateMofox(instanceId: string): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
-    await updateToLatest(instance.mofoxInstallDir, (message) =>
-      this.emit(instanceId, 'update-mofox', -1, message),
-    );
+    this.log('info', `[${instance.name}] 开始更新主程序到最新提交`);
+    try {
+      await updateToLatest(instance.mofoxInstallDir, (message) =>
+        this.emit(instanceId, 'update-mofox', -1, message),
+      );
+      this.log('info', `[${instance.name}] 主程序更新完成`);
+    } catch (error) {
+      this.log('error', `[${instance.name}] 主程序更新失败: ${describeError(error)}`);
+      throw error;
+    }
     return this.getMofoxInfo(instanceId);
   }
 
@@ -134,10 +166,15 @@ export class InstanceUpdateService {
   async getPlatformInfo(instanceId: string): Promise<PlatformUpdateInfo> {
     const instance = await this.find(instanceId);
     if (!instance.platform?.id) {
+      this.log('error', `[${instance.name}] 实例未安装平台`);
       return { installed: false, currentVersion: null, releases: [] };
     }
     const platform = this.registry.get(instance.platform.id);
     const releases = await fetchReleases(this.mirrors.list(), platform.repository);
+    this.log(
+      'info',
+      `[${instance.name}] 平台版本信息: 当前=${instance.platform.version ?? '未知'} 可用版本=${releases.length} 个`,
+    );
     return {
       installed: true,
       currentVersion: instance.platform.version,
@@ -166,7 +203,9 @@ export class InstanceUpdateService {
     const installDir = instance.platform.installDir;
     const cacheDir = join(dirname(instance.mofoxInstallDir), '.update-cache');
     const backup = join(cacheDir, 'existing');
+    const target = version.trim() || 'latest';
 
+    this.log('info', `[${instance.name}] 开始更新平台 ${platform.name} 到 ${target}`);
     this.emit(instanceId, 'update-platform', 0.02, '正在停止平台进程...');
     await this.runtime.stopSource(instanceId, 'platform');
 
@@ -176,7 +215,6 @@ export class InstanceUpdateService {
     await movePath(installDir, backup);
 
     try {
-      const target = version.trim() || 'latest';
       this.emit(
         instanceId,
         'update-platform',
@@ -206,15 +244,12 @@ export class InstanceUpdateService {
         platform: { ...instance.platform, version: result.version },
       });
       this.emit(instanceId, 'update-platform', 1, '平台更新完成');
+      this.log('info', `[${instance.name}] 平台更新完成: ${result.version}`);
       return this.getPlatformInfo(instanceId);
     } catch (error) {
-      this.emit(
-        instanceId,
-        'update-platform',
-        -1,
-        '更新失败，正在恢复原版本...',
-        error instanceof Error ? error.message : String(error),
-      );
+      const message = describeError(error);
+      this.log('error', `[${instance.name}] 平台更新失败: ${message}`);
+      this.emit(instanceId, 'update-platform', -1, '更新失败，正在恢复原版本...', message);
       await rm(installDir, { recursive: true, force: true }).catch(() => undefined);
       if (await pathExists(backup)) await movePath(backup, installDir);
       throw error;
@@ -255,6 +290,7 @@ export class InstanceUpdateService {
     message: string,
     error?: string,
   ): void {
+    this.log(error ? 'error' : 'info', `${phase}: ${message}${error ? ` - ${error}` : ''}`);
     this.events.progress({ instanceId, phase, percent, message, error });
   }
 }
@@ -274,6 +310,16 @@ async function movePath(source: string, target: string): Promise<void> {
     await cp(source, target, { recursive: true, force: true });
     await rm(source, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+/**
+ * 把任意异常转成可写日志的单行文本。
+ *
+ * @param error - 待描述的异常值。
+ * @returns 异常对象的消息或字符串化结果。
+ */
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
