@@ -174,50 +174,53 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="update-view">
-    <!-- 头部：返回主界面操作与实例名徽标 -->
-    <div class="update-head">
-      <div class="update-head__info">
-        <span class="msr update-head__icon" aria-hidden="true">system_update</span>
-        <div>
-          <h2 class="update-head__title">版本管理</h2>
-          <span class="update-head__badge">{{ instance.name }}</span>
+    <!-- 顶部工具条：标题与更新目标切换共用同一玻璃背景 -->
+    <div class="update-toolbar">
+      <!-- 头部：返回主界面操作与实例名徽标 -->
+      <div class="update-head">
+        <div class="update-head__info">
+          <span class="msr update-head__icon" aria-hidden="true">system_update</span>
+          <div>
+            <h2 class="update-head__title">版本管理</h2>
+            <span class="update-head__badge">{{ instance.name }}</span>
+          </div>
         </div>
+        <button
+          class="icon-btn state-layer"
+          type="button"
+          title="刷新版本信息"
+          aria-label="刷新版本信息"
+          @click="refresh"
+        >
+          <span class="msr" aria-hidden="true">refresh</span>
+        </button>
       </div>
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="刷新版本信息"
-        aria-label="刷新版本信息"
-        @click="refresh"
-      >
-        <span class="msr" aria-hidden="true">refresh</span>
-      </button>
-    </div>
 
-    <!-- 顶部切换：Neo-MoFox / 平台 -->
-    <div class="update-targets" role="tablist" aria-label="更新目标">
-      <button
-        class="update-target state-layer"
-        :class="{ 'update-target--active': target === 'mofox' }"
-        type="button"
-        role="tab"
-        :aria-selected="target === 'mofox'"
-        @click="target = 'mofox'"
-      >
-        <span class="msr" aria-hidden="true">smart_toy</span>
-        Neo-MoFox
-      </button>
-      <button
-        class="update-target state-layer"
-        :class="{ 'update-target--active': target === 'platform' }"
-        type="button"
-        role="tab"
-        :aria-selected="target === 'platform'"
-        @click="target = 'platform'"
-      >
-        <span class="msr" aria-hidden="true">terminal</span>
-        平台
-      </button>
+      <!-- 顶部切换：Neo-MoFox / 平台 -->
+      <div class="update-targets" role="tablist" aria-label="更新目标">
+        <button
+          class="update-target state-layer"
+          :class="{ 'update-target--active': target === 'mofox' }"
+          type="button"
+          role="tab"
+          :aria-selected="target === 'mofox'"
+          @click="target = 'mofox'"
+        >
+          <span class="msr" aria-hidden="true">smart_toy</span>
+          Neo-MoFox
+        </button>
+        <button
+          class="update-target state-layer"
+          :class="{ 'update-target--active': target === 'platform' }"
+          type="button"
+          role="tab"
+          :aria-selected="target === 'platform'"
+          @click="target = 'platform'"
+        >
+          <span class="msr" aria-hidden="true">terminal</span>
+          平台
+        </button>
+      </div>
     </div>
 
     <!-- ─── 主程序更新：左侧版本信息 + 分支切换，右侧检查更新 + 提交历史 ─── -->
@@ -352,7 +355,7 @@ onBeforeUnmount(() => {
             检查更新
           </h3>
           <div class="update-status" :class="{ 'update-status--ok': hasMofoxUpdate }">
-            <span class="msr" aria-hidden="true">
+            <span class="msr" :class="{ spinning: loadingMofox }" aria-hidden="true">
               {{
                 loadingMofox
                   ? 'progress_activity'
@@ -389,7 +392,9 @@ onBeforeUnmount(() => {
             提交历史
           </h3>
           <div v-if="loadingMofox" class="update-placeholder">
-            <span class="msr update-placeholder__icon" aria-hidden="true">progress_activity</span>
+            <span class="msr update-placeholder__icon spinning" aria-hidden="true"
+              >progress_activity</span
+            >
             <span>加载提交历史...</span>
           </div>
           <div v-else-if="mofoxCommits.length === 0" class="update-placeholder">
@@ -465,8 +470,10 @@ onBeforeUnmount(() => {
               {{ updatingPlatform ? '更新中…' : '更新到最新' }}
             </button>
           </div>
-          <div v-if="loadingPlatform" class="update-placeholder">
-            <span class="msr update-placeholder__icon" aria-hidden="true">progress_activity</span>
+<div v-if="loadingPlatform" class="update-placeholder">
+            <span class="msr update-placeholder__icon spinning" aria-hidden="true"
+              >progress_activity</span
+            >
             <span>加载版本列表...</span>
           </div>
           <div v-else class="update-scroll">
@@ -553,12 +560,25 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+/* 顶部工具条：标题与更新目标切换共用同一玻璃背景，与设置页卡片一致。 */
+.update-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 20px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 20px;
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter);
+}
+
 .update-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 4px 0;
 }
 
 .update-head__info {
@@ -601,7 +621,8 @@ onBeforeUnmount(() => {
   padding: 4px;
   border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-high);
+  /* 嵌套在玻璃工具条内使用半透明内嵌面，避免重复模糊造成堆叠。 */
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 72%, transparent);
 }
 
 .update-target {
