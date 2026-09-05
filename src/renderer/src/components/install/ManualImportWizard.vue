@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useInstancesStore } from '@/stores/instances';
 import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
@@ -23,6 +23,7 @@ const currentStep = ref<Step>(1);
 const direction = ref<Direction>('forward');
 const instanceName = ref('');
 const mofoxInstallDir = ref('');
+const venvDir = ref('');
 const platforms = ref<BotPlatformMetadata[]>([]);
 const platformsLoading = ref(false);
 const platformError = ref<string | null>(null);
@@ -39,14 +40,43 @@ const showErrorDialog = ref(false);
 // 只有按下"继续/开始导入"才校验；错误由校验函数写入，输入过程不做即时判断。
 const nameError = ref('');
 const mofoxDirError = ref('');
+const venvDirError = ref('');
 const platformDirError = ref('');
 const checkingMofoxDir = ref(false);
+const checkingVenvDir = ref(false);
 const checkingPlatformDir = ref(false);
 const validating = ref(false);
 
 const showNameError = computed(() => nameError.value !== '');
 const showMofoxDirError = computed(() => mofoxDirError.value !== '');
+const showVenvDirError = computed(() => venvDirError.value !== '');
 const showPlatformDirError = computed(() => platformDirError.value !== '');
+
+/** 按主程序目录推断默认的虚拟环境路径（uv 虚拟环境固定为 `.venv`）。 */
+function defaultVenvDirFor(mofoxDir: string): string {
+  return mofoxDir ? `${mofoxDir.replace(/[\\/]+$/, '')}\\.venv` : '';
+}
+
+/** 切换主程序路径时，若虚拟环境仍跟随旧主程序目录的默认 .venv，则自动跟随。 */
+function followVenvDefaultIfNeeded(nextMofox: string): void {
+  const current = venvDir.value.trim();
+  if (!current || current === defaultVenvDirFor(mofoxInstallDir.value.trim())) {
+    venvDir.value = defaultVenvDirFor(nextMofox);
+  }
+}
+
+// 主程序路径变化时自动切换虚拟环境路径。
+watch(mofoxInstallDir, (next, previous) => {
+  const nextTrimmed = next.trim();
+  const previousTrimmed = previous?.trim() ?? '';
+  if (!nextTrimmed || nextTrimmed === previousTrimmed) return;
+  const previousDefault = defaultVenvDirFor(previousTrimmed);
+  const currentVenv = venvDir.value.trim();
+  // 仅当虚拟环境为空或仍指向旧主程序目录的默认 .venv 时才自动跟随。
+  if (!currentVenv || currentVenv === previousDefault) {
+    venvDir.value = defaultVenvDirFor(nextTrimmed);
+  }
+});
 
 function validateName(): boolean {
   nameError.value = instanceName.value.trim() ? '' : '实例名称不能为空';
@@ -74,6 +104,27 @@ async function validateMofoxDir(): Promise<boolean> {
     checkingMofoxDir.value = false;
   }
   return mofoxDirError.value === '';
+}
+
+async function validateVenvDir(): Promise<boolean> {
+  const value = venvDir.value.trim();
+  if (!value) {
+    venvDirError.value = '虚拟环境路径不能为空';
+    return false;
+  }
+  venvDirError.value = '';
+  checkingVenvDir.value = true;
+  try {
+    const check = await mofoxApi.inspectVenvPath(value);
+    if (!check.absolute) venvDirError.value = '请输入绝对路径';
+    else if (check.exists && !check.isDirectory) venvDirError.value = '必须是目录';
+    // 目录尚不存在是允许的（uv 同步依赖时会自动创建）；仅提示不阻断。
+  } catch {
+    venvDirError.value = '目录校验失败，请稍后重试';
+  } finally {
+    checkingVenvDir.value = false;
+  }
+  return venvDirError.value === '';
 }
 
 async function validatePlatformDir(): Promise<boolean> {
@@ -122,6 +173,10 @@ function onMofoxDirFocus(): void {
   mofoxDirError.value = '';
 }
 
+function onVenvDirFocus(): void {
+  venvDirError.value = '';
+}
+
 function onPlatformDirFocus(): void {
   platformDirError.value = '';
 }
@@ -134,6 +189,7 @@ async function next(): Promise<void> {
     if (currentStep.value === 2) {
       valid = validateName();
       valid = (await validateMofoxDir()) && valid;
+      valid = (await validateVenvDir()) && valid;
     }
     if (!valid) return;
     direction.value = 'forward';
@@ -159,8 +215,19 @@ async function chooseMofoxDirectory(): Promise<void> {
     defaultPath: mofoxInstallDir.value || settingsStore.settings.defaultInstallDir || undefined,
   });
   if (!selected) return;
+  followVenvDefaultIfNeeded(selected);
   mofoxInstallDir.value = selected;
   if (!instanceName.value.trim()) instanceName.value = pathName(selected);
+}
+
+async function chooseVenvDirectory(): Promise<void> {
+  const selected = await mofoxApi.pickDirectory({
+    title: '选择虚拟环境目录',
+    defaultPath: venvDir.value || defaultVenvDirFor(mofoxInstallDir.value.trim()) || undefined,
+  });
+  if (!selected) return;
+  venvDir.value = selected;
+  venvDirError.value = '';
 }
 
 async function choosePlatformDirectory(): Promise<void> {
@@ -184,6 +251,7 @@ async function submit(): Promise<void> {
       await mofoxApi.manualImportInstance({
         instanceName: instanceName.value.trim(),
         mofoxInstallDir: mofoxInstallDir.value.trim(),
+        venvDir: venvDir.value.trim() || defaultVenvDirFor(mofoxInstallDir.value.trim()),
         ...(includePlatform.value
           ? { platformId: platformId.value, platformDir: platformDir.value.trim() }
           : {}),
@@ -324,6 +392,35 @@ onMounted(async () => {
               <p v-else key="hint" class="field__support">
                 <template v-if="checkingMofoxDir">正在校验目录…</template>
                 <template v-else>目录内需要包含 Neo-MoFox 的 <code>main.py</code> 文件。</template>
+              </p>
+            </Transition>
+
+            <div class="path-field">
+              <label class="field field--grow" :class="{ 'field--error': showVenvDirError }">
+                <input
+                  v-model="venvDir"
+                  class="field__input"
+                  type="text"
+                  placeholder=" "
+                  @focus="onVenvDirFocus"
+                />
+                <span class="field__label">虚拟环境路径</span>
+              </label>
+              <button type="button" class="btn btn--tonal state-layer" @click="chooseVenvDirectory">
+                <span class="msr" aria-hidden="true">folder_open</span>
+                浏览
+              </button>
+            </div>
+            <Transition name="field-error" mode="out-in">
+              <p v-if="showVenvDirError" key="error" class="field__support field__support--error">
+                {{ venvDirError }}
+              </p>
+              <p v-else key="hint" class="field__support">
+                <template v-if="checkingVenvDir">正在校验目录…</template>
+                <template v-else>
+                  默认使用主程序目录下的 <code>.venv</code>；目录尚不存在时会由 uv
+                  在首次同步时创建。
+                </template>
               </p>
             </Transition>
           </template>

@@ -106,12 +106,20 @@ export function pythonExeName(): string {
  * @returns venv Python 路径；不存在时为 `undefined`。
  */
 export async function findVenvPython(projectDirectory: string): Promise<string | undefined> {
-  const candidate = join(
-    projectDirectory,
-    '.venv',
-    isWindows() ? 'Scripts' : 'bin',
-    pythonExeName(),
-  );
+  return venvPythonOf(join(projectDirectory, '.venv'));
+}
+
+/**
+ * 在指定虚拟环境目录下查找 Python 可执行文件。
+ *
+ * 同时兼容 POSIX（`bin/python3`）与 Windows（`Scripts/python.exe`）布局。
+ *
+ * @param venvDir - 虚拟环境根目录。
+ * @returns venv Python 绝对路径；目录不存在或缺少解释器时为 `undefined`。
+ */
+export async function venvPythonOf(venvDir: string): Promise<string | undefined> {
+  if (!venvDir) return undefined;
+  const candidate = join(venvDir, isWindows() ? 'Scripts' : 'bin', pythonExeName());
   try {
     await access(candidate);
     return candidate;

@@ -65,6 +65,9 @@ function requirePatch(value: unknown): UpdateInstancePatch {
   if (patch.mofoxInstallDir !== undefined && typeof patch.mofoxInstallDir !== 'string') {
     throw new MofoxError('INVALID_ARGUMENT', 'mofoxInstallDir must be a string');
   }
+  if (patch.venvDir !== undefined && typeof patch.venvDir !== 'string') {
+    throw new MofoxError('INVALID_ARGUMENT', 'venvDir must be a string');
+  }
   if (patch.autoStart !== undefined && typeof patch.autoStart !== 'boolean') {
     throw new MofoxError('INVALID_ARGUMENT', 'autoStart must be a boolean');
   }

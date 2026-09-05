@@ -29,6 +29,7 @@ import type {
 } from './domain/file-picker';
 import type { WallpaperAsset } from './domain/wallpaper';
 import type { InstallTargetCheck } from './domain/install';
+import type { VenvInfo, VenvPackageResult, VenvPathInspection } from './domain/venv';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
@@ -91,6 +92,12 @@ export const IPC_INVOKE_CHANNELS = {
   updateMofox: 'update:mofox',
   getPlatformUpdateInfo: 'update:platform-info',
   updatePlatform: 'update:platform',
+  inspectVenvPath: 'venv:inspect',
+  getVenvInfo: 'venv:info',
+  installVenvPackage: 'venv:install',
+  uninstallVenvPackage: 'venv:uninstall',
+  updateVenvPackage: 'venv:update',
+  queryVenvPackageVersions: 'venv:versions',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -209,6 +216,24 @@ export interface MofoxApi {
   getPlatformUpdateInfo(instanceId: string): Promise<PlatformUpdateInfo>;
   /** 把平台更新到指定版本；空字符串表示最新发行版。 */
   updatePlatform(instanceId: string, version: string): Promise<PlatformUpdateInfo>;
+
+  /** 虚拟环境管理：路径探测、包列表、安装、卸载与更新。 */
+  /** 探测虚拟环境路径的有效性，供输入时即时校验。 */
+  inspectVenvPath(path: string): Promise<VenvPathInspection>;
+  /** 汇总虚拟环境的包列表与可升级依赖。 */
+  getVenvInfo(instanceId: string): Promise<VenvInfo>;
+  /** 安装指定包；`version` 省略时安装最新版。 */
+  installVenvPackage(
+    instanceId: string,
+    name: string,
+    version?: string,
+  ): Promise<VenvPackageResult>;
+  /** 卸载指定包。 */
+  uninstallVenvPackage(instanceId: string, name: string): Promise<VenvPackageResult>;
+  /** 升级指定包到最新版；`name` 省略时升级全部可升级依赖。 */
+  updateVenvPackage(instanceId: string, name?: string): Promise<VenvPackageResult>;
+  /** 查询包在 pip 镜像上可用的版本列表。 */
+  queryVenvPackageVersions(instanceId: string, name: string): Promise<string[]>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

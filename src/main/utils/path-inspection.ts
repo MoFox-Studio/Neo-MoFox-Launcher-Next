@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { PathInspection } from '../../shared/domain/manual-import';
 import type { InstallTargetCheck } from '../../shared/domain/install';
+import type { VenvPathInspection } from '../../shared/domain/venv';
 import { MofoxError } from '../../shared/domain/error';
 
 /**
@@ -79,6 +80,84 @@ export async function inspectPath(value: string): Promise<PathInspection> {
 }
 
 /**
+ * 校验并规范化虚拟环境目录路径。
+ *
+ * 与主程序/平台目录不同，venv 目录允许尚不存在（首次同步依赖时由 uv 创建），
+ * 因此只要求绝对路径；若路径已存在则必须是目录。
+ *
+ * @param value - 用户填写的 venv 目录路径。
+ * @param label - 用于错误信息的字段名称。
+ * @returns 规范化后的绝对目录路径。
+ * @throws {MofoxError} 路径为空、非绝对路径或存在但非目录时抛出。
+ */
+export async function requireVenvDir(value: string, label: string): Promise<string> {
+  const path = requireText(value, `${label}不能为空`);
+  if (!isAbsolute(path)) throw new MofoxError('INVALID_ARGUMENT', `${label}必须是绝对路径`);
+  const resolved = resolve(path);
+  try {
+    if ((await stat(resolved)).isDirectory()) return resolved;
+    throw new MofoxError('INVALID_ARGUMENT', `${label}必须是目录`);
+  } catch (error) {
+    if (error instanceof MofoxError) throw error;
+    // 目录不存在是允许的（uv 会在同步依赖时创建），返回规范化路径。
+    return resolved;
+  }
+}
+
+/**
+ * 探测虚拟环境路径的绝对性、存在性、目录类型、有效性（`pyvenv.cfg`）与 Python 解释器。
+ *
+ * 供输入 venv 目录时即时反馈使用，不替代写入前的完整校验。
+ *
+ * @param value - 用户填写的 venv 目录路径。
+ * @returns 非阻断的路径探测结果。
+ */
+export async function inspectVenvPath(value: string): Promise<VenvPathInspection> {
+  const absolute = isAbsolute(value);
+  if (!absolute) {
+    return {
+      absolute: false,
+      exists: false,
+      isDirectory: false,
+      valid: false,
+      pythonExists: false,
+    };
+  }
+  const resolved = resolve(value);
+  let isDirectory: boolean;
+  try {
+    isDirectory = (await stat(resolved)).isDirectory();
+  } catch {
+    return { absolute: true, exists: false, isDirectory: false, valid: false, pythonExists: false };
+  }
+  if (!isDirectory) {
+    return { absolute: true, exists: true, isDirectory: false, valid: false, pythonExists: false };
+  }
+  const [valid, pythonExists] = await Promise.all([
+    fileExists(join(resolved, 'pyvenv.cfg')),
+    fileExists(venvPythonPath(resolved)),
+  ]);
+  return { absolute: true, exists: true, isDirectory: true, valid, pythonExists };
+}
+
+/** venv 目录下按当前平台布局的 Python 解释器相对路径。 */
+function venvPythonPath(venvDir: string): string {
+  const layout = process.platform === 'win32' ? 'Scripts' : 'bin';
+  const name = process.platform === 'win32' ? 'python.exe' : 'python3';
+  return join(venvDir, layout, name);
+}
+
+/** 检查文件是否存在。 */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 探测安装目标目录的可用性：所在盘符/文件系统的剩余空间与写入权限。
  *
  * 供安装向导在进入下一步前校验，不替代安装过程中对目录的最终检查。
@@ -90,7 +169,14 @@ export async function inspectPath(value: string): Promise<PathInspection> {
 export async function inspectInstallTarget(value: string): Promise<InstallTargetCheck> {
   const absolute = isAbsolute(value);
   if (!absolute) {
-    return { absolute: false, exists: false, isDirectory: false, writable: false, freeSpaceBytes: null, totalSpaceBytes: null };
+    return {
+      absolute: false,
+      exists: false,
+      isDirectory: false,
+      writable: false,
+      freeSpaceBytes: null,
+      totalSpaceBytes: null,
+    };
   }
   const resolved = resolve(value);
   let exists = false;

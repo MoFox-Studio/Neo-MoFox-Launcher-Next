@@ -2,10 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InstanceRepository } from '../../../src/main/services/instance-repository';
-import {
-  DEFAULT_INSTANCE,
-  normalizeInstance,
-} from '../../../src/main/utils/instance-migrations';
+import { DEFAULT_INSTANCE, normalizeInstance } from '../../../src/main/utils/instance-migrations';
 import { INSTANCES_VERSION, type Instance } from '../../../src/shared/domain/instance';
 
 /** 验证仓库首次加载、历史格式归一化、坏记录隔离及原子增删后的状态。 */
@@ -102,6 +99,7 @@ describe('InstanceRepository', () => {
       id: 'instance-1',
       name: 'Test',
       mofoxInstallDir: 'D:\\Bots\\Test',
+      venvDir: 'D:\\Bots\\Test/.venv',
       platform: { id: 'snowluma', installDir: 'D:\\Bots\\Test\\snowluma', version: '1.0.0' },
       status: 'stopped',
       createdAt: expect.any(Number),
@@ -199,6 +197,7 @@ describe('InstanceRepository', () => {
         id: 'bot-1',
         name: 'Bot 1',
         mofoxInstallDir: '/bots/1',
+        venvDir: '/bots/1/.venv',
         createdAt: 123,
       },
     ]);
@@ -210,6 +209,7 @@ describe('InstanceRepository', () => {
           id: 'bot-1',
           name: 'Bot 1',
           mofoxInstallDir: '/bots/1',
+          venvDir: '/bots/1/.venv',
           createdAt: 123,
         },
       ],
@@ -238,6 +238,7 @@ describe('InstanceRepository', () => {
           id: 'bot-1',
           name: 'Bot 1',
           mofoxInstallDir: '/bots/1',
+          venvDir: '/bots/1/.venv',
           createdAt: 123,
         },
       ],
@@ -264,7 +265,8 @@ describe('InstanceRepository', () => {
         id: '',
         name: '',
         mofoxInstallDir: '',
-        platform: null,
+        venvDir: '',
+        platform: { id: null, installDir: null, version: null },
         status: 'stopped' as const,
         createdAt: 2,
         lastStartedAt: null,
@@ -275,6 +277,7 @@ describe('InstanceRepository', () => {
         id: 'ins-b',
         name: 'B',
         mofoxInstallDir: 'D:\\Bots\\b',
+        venvDir: 'D:\\Bots\\b/.venv',
         platform: { id: 'snowluma', installDir: 'D:\\Bots\\b\\snowluma', version: '2.0.0' },
         status: 'stopped' as const,
         createdAt: 3,

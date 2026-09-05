@@ -35,7 +35,7 @@ export interface OobeDependencies {
   settings: SettingsService;
   legacy: LegacyMigrationService;
   mirrors: {
-    list(): { id: string; type: 'github' | 'python-ftp'; name: string; baseUrl: string }[];
+    list(): { id: string; type: 'github' | 'python-ftp' | 'pip'; name: string; baseUrl: string }[];
   };
   /** 环境检测服务，用于在安装前后判断各依赖是否已可用。 */
   environment: { detect(): Promise<SystemEnvInfo> };

@@ -16,6 +16,31 @@ const MIRRORS: readonly MirrorSource[] = [
     name: 'Huawei Python',
     baseUrl: 'https://repo.huaweicloud.com',
   },
+  {
+    id: 'pip-tsinghua',
+    type: 'pip',
+    name: '清华 PyPI',
+    baseUrl: 'https://pypi.tuna.tsinghua.edu.cn/simple',
+  },
+  {
+    id: 'pip-aliyun',
+    type: 'pip',
+    name: '阿里云 PyPI',
+    baseUrl: 'https://mirrors.aliyun.com/pypi/simple',
+  },
+  {
+    id: 'pip-ustc',
+    type: 'pip',
+    name: '中科大 PyPI',
+    baseUrl: 'https://pypi.mirrors.ustc.edu.cn/simple',
+  },
+  {
+    id: 'pip-tencent',
+    type: 'pip',
+    name: '腾讯云 PyPI',
+    baseUrl: 'https://mirrors.cloud.tencent.com/pypi/simple',
+  },
+  { id: 'pip-official', type: 'pip', name: '官方 PyPI', baseUrl: 'https://pypi.org/simple' },
 ];
 
 export class MirrorService {

@@ -4,7 +4,8 @@ import type { ManualImportRequest, ManualImportResult } from '../../shared/domai
 import type { BotPlatform } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { CreateInstanceInput } from '../../shared/domain/instance';
-import { requireDirectory, requireFile, samePath } from '../utils/path-inspection';
+import { inferVenvDir } from '../utils/instance-migrations';
+import { requireDirectory, requireFile, requireVenvDir, samePath } from '../utils/path-inspection';
 
 /** 已有实例导入时依赖的最小仓库能力。 */
 interface InstanceRepository {
@@ -45,6 +46,11 @@ export class ManualImportService {
       '所选目录不是有效的 Neo-MoFox 安装目录（缺少 main.py）',
     );
 
+    // venv 目录允许尚不存在（首次同步依赖时由 uv 创建）；显式输入时校验绝对路径。
+    const venvDir = request.venvDir?.trim()
+      ? await requireVenvDir(request.venvDir, '虚拟环境路径')
+      : inferVenvDir('', mofoxInstallDir);
+
     const platformId = request.platformId?.trim() ?? '';
     const platformDir = request.platformDir?.trim() ?? '';
     if (Boolean(platformId) !== Boolean(platformDir)) {
@@ -81,6 +87,7 @@ export class ManualImportService {
     const instance = await this.repository.create({
       name: instanceName,
       mofoxInstallDir,
+      venvDir,
       platform:
         platformId && resolvedPlatformDir
           ? { id: platformId, installDir: resolvedPlatformDir, version: null }

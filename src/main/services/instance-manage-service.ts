@@ -3,7 +3,8 @@ import type { Instance, UpdateInstancePatch } from '../../shared/domain/instance
 import type { BotPlatform } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { InstanceRuntimeService } from './instance-runtime-service';
-import { requireDirectory, requireFile } from '../utils/path-inspection';
+import { inferVenvDir } from '../utils/instance-migrations';
+import { requireDirectory, requireFile, requireVenvDir } from '../utils/path-inspection';
 
 /**
  * 实例管理服务：负责删除、打开安装目录与更新配置。
@@ -68,6 +69,14 @@ export class InstanceManageService {
         '所选目录不是有效的 Neo-MoFox 安装目录（缺少 main.py）',
       );
       validated = { ...validated, mofoxInstallDir };
+    }
+    if (patch.venvDir !== undefined && patch.venvDir.trim()) {
+      const venvDir = await requireVenvDir(patch.venvDir, '虚拟环境路径');
+      validated = { ...validated, venvDir };
+    } else if (patch.venvDir !== undefined) {
+      // 显式传入空字符串时视为跟随主程序目录的默认 .venv。
+      const current = await this.find(instanceId);
+      validated = { ...validated, venvDir: inferVenvDir('', current.mofoxInstallDir) };
     }
     if (patch.platform && patch.platform.id && patch.platform.installDir) {
       const platformDir = await requireDirectory(patch.platform.installDir, '平台安装目录');

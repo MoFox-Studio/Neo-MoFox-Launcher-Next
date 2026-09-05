@@ -2,7 +2,7 @@
  * 实例仓库文件格式版本；每次字段或语义变更必须递增版本号，
  * 并在 `src/main/utils/instance-migrations.ts` 中提供从旧版本到新版本的一步迁移分支。
  */
-export const INSTANCES_VERSION = 7;
+export const INSTANCES_VERSION = 8;
 
 /** 实例仓库磁盘布局：版本号 + 规范化实例数组。 */
 export interface InstanceRepositoryFile {
@@ -34,6 +34,8 @@ export interface Instance {
   mofoxInstallDir: string;
   /** 已安装的平台适配器信息；未安装平台时所有字段为 `null`。 */
   platform: InstalledPlatform;
+  /** 虚拟环境（uv）目录绝对路径；默认推断为 `<mofoxInstallDir>/.venv`。 */
+  venvDir: string;
   status: InstanceStatus;
   createdAt: number;
   /** 最后一次成功启动的时间戳（毫秒）；从未启动过时为 `null`。 */
@@ -49,6 +51,8 @@ export interface CreateInstanceInput {
   /** MoFox 本体安装目录；安装向导只装平台适配器时可留空，由后续流程回填。 */
   mofoxInstallDir?: string;
   platform?: InstalledPlatform | null;
+  /** 虚拟环境目录；缺省时推断为 `<mofoxInstallDir>/.venv`。 */
+  venvDir?: string;
   autoStart?: boolean;
 }
 
@@ -57,6 +61,8 @@ export interface UpdateInstancePatch {
   name?: string;
   mofoxInstallDir?: string;
   platform?: InstalledPlatform | null;
+  /** 虚拟环境目录；未提供时保持原值。 */
+  venvDir?: string;
   status?: InstanceStatus;
   lastStartedAt?: number | null;
   autoStart?: boolean;

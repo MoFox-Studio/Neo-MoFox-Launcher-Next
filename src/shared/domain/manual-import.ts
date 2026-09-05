@@ -4,6 +4,8 @@ export interface ManualImportRequest {
   instanceName: string;
   /** 已存在的 Neo-MoFox 安装目录绝对路径。 */
   mofoxInstallDir: string;
+  /** 虚拟环境目录绝对路径；缺省时推断为 `<mofoxInstallDir>/.venv`。 */
+  venvDir?: string;
   /** 已存在的平台适配器 ID；不配置平台时省略。 */
   platformId?: string;
   /** 与 platformId 对应的平台适配器目录；不配置平台时省略。 */

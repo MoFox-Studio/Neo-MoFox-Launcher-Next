@@ -143,7 +143,13 @@ describe('InstanceRepository legacy migration', () => {
         version: 1,
         instances: [
           { id: 'a', name: 'A', platformId: 'napcat', installPath: '/bots/a/mofox', createdAt: 1 },
-          { id: 'b', name: 'B', platformId: 'snowluma', installPath: '/bots/b/mofox', createdAt: 2 },
+          {
+            id: 'b',
+            name: 'B',
+            platformId: 'snowluma',
+            installPath: '/bots/b/mofox',
+            createdAt: 2,
+          },
         ],
       }),
     );
@@ -169,6 +175,7 @@ describe('InstanceRepository legacy migration', () => {
           id: 'bot-1',
           name: 'Bot 1',
           mofoxInstallDir: '/bots/mofox',
+          venvDir: '/bots/mofox/.venv',
           platform: { id: 'napcat', installDir: '/bots/napcat', version: '1.0.0' },
           status: 'stopped',
           createdAt: 123,
@@ -193,7 +200,13 @@ describe('InstanceRepository legacy migration', () => {
       JSON.stringify({
         version: 1,
         instances: [
-          { id: 'bot-1', name: 'Bot', platformId: 'napcat', installPath: '/bots/mofox', createdAt: 1 },
+          {
+            id: 'bot-1',
+            name: 'Bot',
+            platformId: 'napcat',
+            installPath: '/bots/mofox',
+            createdAt: 1,
+          },
         ],
       }),
     );

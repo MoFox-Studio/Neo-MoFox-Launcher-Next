@@ -22,6 +22,7 @@ export const DEFAULT_INSTANCE: Required<Omit<Instance, 'id'>> = {
   name: '',
   mofoxInstallDir: '',
   platform: { id: null, installDir: null, version: null },
+  venvDir: '',
   status: 'stopped',
   createdAt: 0,
   lastStartedAt: null,
@@ -47,6 +48,7 @@ const MIGRATIONS: Readonly<Record<number, (file: VersionedFile) => VersionedFile
   4: migrateV4ToV5,
   5: migrateV5ToV6,
   6: migrateV6ToV7,
+  7: migrateV7ToV8,
 };
 
 /**
@@ -130,12 +132,39 @@ export function normalizeInstance(value: unknown): Instance {
     id: value.id,
     name,
     mofoxInstallDir,
+    venvDir: inferVenvDir(firstString(value.venvDir), mofoxInstallDir),
     platform: resolvePlatform(value),
     status: value.status === 'error' ? 'error' : 'stopped',
     createdAt,
     lastStartedAt: typeof value.lastStartedAt === 'number' ? value.lastStartedAt : null,
     autoStart: value.autoStart === true,
   };
+}
+
+// ─── 虚拟环境路径推断 ─────────────────────────────────────────────────
+
+/**
+ * 计算主程序目录下的默认虚拟环境路径（uv 虚拟环境固定为 `.venv`）。
+ *
+ * @param mofoxInstallDir - MoFox 本体安装目录绝对路径。
+ * @returns `<mofoxInstallDir>/.venv`；主程序目录为空时返回空串。
+ */
+export function defaultVenvDir(mofoxInstallDir: string): string {
+  return mofoxInstallDir ? `${mofoxInstallDir.replace(/[\\/]+$/, '')}/.venv` : '';
+}
+
+/**
+ * 推断实例的虚拟环境路径：优先采用用户显式配置的值，缺省时自动跟随主程序目录。
+ *
+ * 手动导入、实例文件迁移与修改主程序路径时共用此规则，保证默认值始终是
+ * `<mofoxInstallDir>/.venv`。
+ *
+ * @param venvDir - 用户显式配置的虚拟环境路径（可为空串表示未配置）。
+ * @param mofoxInstallDir - MoFox 本体安装目录。
+ * @returns 解析后的虚拟环境绝对路径。
+ */
+export function inferVenvDir(venvDir: string, mofoxInstallDir: string): string {
+  return venvDir.trim() ? venvDir.trim() : defaultVenvDir(mofoxInstallDir);
 }
 
 // ─── 版本迁移分支 ────────────────────────────────────────────────────────
@@ -250,6 +279,25 @@ function migrateV6ToV7(file: VersionedFile): VersionedFile {
     return value;
   });
   return { version: 7, instances };
+}
+
+/**
+ * v7 → v8：新增 `venvDir` 字段；按规则推断默认值——优先采用已显式写入的值，
+ * 否则推断为 `<mofoxInstallDir>/.venv`，主程序目录缺失时保持为空。
+ * 历史记录统一收敛为自动推断值，与 {@link normalizeInstance} 的兜底保持一致。
+ */
+function migrateV7ToV8(file: VersionedFile): VersionedFile {
+  const instances = file.instances.map((record) => {
+    const value = asRecord(record);
+    const mofoxInstallDir = firstString(
+      value.mofoxInstallDir,
+      value.installPath,
+      value.neomofoxDir,
+    );
+    value.venvDir = inferVenvDir(firstString(value.venvDir), mofoxInstallDir);
+    return value;
+  });
+  return { version: 8, instances };
 }
 
 // ─── Legacy instance path migration ───────────────────────────────────────

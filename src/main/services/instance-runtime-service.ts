@@ -10,7 +10,8 @@ import type { StartCommand } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';
 import { ProcessHelper } from '../utils/process-helper';
-import { findVenvPython } from '../utils/platform-helper';
+import { venvPythonOf } from '../utils/platform-helper';
+import { defaultVenvDir } from '../utils/instance-migrations';
 import type { UpdateInstancePatch } from '../../shared/domain/instance';
 
 /**
@@ -363,7 +364,8 @@ export class InstanceRuntimeService {
     if (source === 'mofox') {
       const mofoxDir = instance.mofoxInstallDir;
       if (!mofoxDir || !(await exists(join(mofoxDir, 'main.py')))) return undefined;
-      const venvPython = await findVenvPython(mofoxDir);
+      // 优先使用实例配置的 venv 目录下的解释器，找不到时回退到 uv run。
+      const venvPython = await venvPythonOf(instance.venvDir || defaultVenvDir(mofoxDir));
       const env = {
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',

@@ -22,6 +22,13 @@ import type {
   UpdateProgressEvent,
 } from '@shared/domain/update';
 import type { GithubRelease } from '@shared/domain/github';
+import type {
+  VenvInfo,
+  VenvPackage,
+  VenvPackageResult,
+  VenvPathInspection,
+  VenvUpgrade,
+} from '@shared/domain/venv';
 
 type Listener<K extends keyof MofoxEventMap> = (payload: MofoxEventMap[K]) => void;
 
@@ -46,6 +53,7 @@ const instances: Instance[] = [
     id: 'ins-aurora',
     name: '墨狐 · 主号',
     mofoxInstallDir: 'D:\\MoFox\\aurora',
+    venvDir: 'D:\\MoFox\\aurora\\.venv',
     platform: { id: 'napcat', installDir: 'D:\\MoFox\\aurora\\napcat', version: '4.2.19' },
     status: 'running',
     createdAt: Date.now() - 86_400_000 * 42,
@@ -56,6 +64,7 @@ const instances: Instance[] = [
     id: 'ins-dev',
     name: '开发测试机',
     mofoxInstallDir: 'D:\\MoFox\\dev',
+    venvDir: 'D:\\MoFox\\dev\\.venv',
     platform: { id: 'snowluma', installDir: 'D:\\MoFox\\dev\\snowluma', version: '1.3.0' },
     status: 'stopped',
     createdAt: Date.now() - 86_400_000 * 9,
@@ -66,6 +75,7 @@ const instances: Instance[] = [
     id: 'ins-guard',
     name: '群管理助手',
     mofoxInstallDir: 'E:\\Bots\\guard',
+    venvDir: 'E:\\Bots\\guard\\.venv',
     platform: { id: 'napcat', installDir: 'E:\\Bots\\guard\\napcat', version: '4.2.0' },
     status: 'error',
     createdAt: Date.now() - 86_400_000 * 120,
@@ -230,6 +240,17 @@ function isMockRunning(id: string, source: MockSource): boolean {
   return runningKeys.has(`${id}:${source}`);
 }
 
+// 虚拟环境演示数据：模拟已安装包、可升级依赖与可用的安装版本。
+const mockVenvPackages: { name: string; version: string; latest: string }[] = [
+  { name: 'napcat', version: '4.2.19', latest: '4.2.19' },
+  { name: 'pydantic-core', version: '2.23.4', latest: '2.27.1' },
+  { name: 'numpy', version: '1.26.4', latest: '2.1.2' },
+  { name: 'httpx', version: '0.27.2', latest: '0.27.2' },
+  { name: 'aiohttp', version: '3.10.5', latest: '3.11.0' },
+];
+
+const mockPackageVersions: string[] = ['4.2.19', '4.2.18', '4.2.17', '4.2.16', '4.2.15', '4.2.14'];
+
 export const mockApi: MofoxApi = {
   async windowMinimize() {},
   async windowToggleMaximize() {
@@ -321,6 +342,7 @@ export const mockApi: MofoxApi = {
     if (!ins) throw new Error(`unknown instance ${id}`);
     if (patch.name !== undefined) ins.name = patch.name;
     if (patch.mofoxInstallDir !== undefined) ins.mofoxInstallDir = patch.mofoxInstallDir;
+    if (patch.venvDir !== undefined) ins.venvDir = patch.venvDir;
     if (patch.platform !== undefined) {
       ins.platform =
         patch.platform === null
@@ -403,10 +425,12 @@ export const mockApi: MofoxApi = {
         message: '安装完成',
       });
       const instanceId = `ins-${Date.now()}`;
+      const installDir = `${request.targetDir}/${instanceId}/mofox`;
       instances.push({
         id: instanceId,
         name: request.instanceName,
-        mofoxInstallDir: `${request.targetDir}/${instanceId}/mofox`,
+        mofoxInstallDir: installDir,
+        venvDir: `${installDir}/.venv`,
         platform: request.platformId
           ? {
               id: request.platformId,
@@ -459,6 +483,7 @@ export const mockApi: MofoxApi = {
       id: instanceId,
       name: request.instanceName,
       mofoxInstallDir: request.mofoxInstallDir,
+      venvDir: request.venvDir || `${request.mofoxInstallDir}/.venv`,
       platform:
         request.platformId && request.platformDir
           ? { id: request.platformId, installDir: request.platformDir, version: null }
@@ -768,6 +793,60 @@ export const mockApi: MofoxApi = {
     const ins = instances.find((i) => i.id === instanceId);
     if (ins?.platform) ins.platform = { ...ins.platform, version: version || 'v2.1.0' };
     return this.getPlatformUpdateInfo(instanceId);
+  },
+
+  async inspectVenvPath(path): Promise<VenvPathInspection> {
+    await delay(120);
+    const absolute = /^[a-zA-Z]:[\\/]|\//.test(path);
+    return {
+      absolute,
+      exists: absolute,
+      isDirectory: absolute,
+      valid: absolute,
+      pythonExists: absolute,
+    };
+  },
+
+  async getVenvInfo(_instanceId): Promise<VenvInfo> {
+    await delay(150);
+    const packages: VenvPackage[] = mockVenvPackages.map((p) => ({ ...p }));
+    const upgrades: VenvUpgrade[] = mockVenvPackages
+      .filter((p) => p.version < p.latest)
+      .map((p) => ({ name: p.name, current: p.version, latest: p.latest }));
+    return {
+      valid: true,
+      pythonExists: true,
+      packages,
+      hasUpgrades: upgrades.length > 0,
+      upgrades,
+    };
+  },
+
+  async installVenvPackage(_instanceId, name, version?): Promise<VenvPackageResult> {
+    await delay(400);
+    const spec = version ? `${name}==${version}` : name;
+    return {
+      name,
+      version,
+      installed: true,
+      ok: true,
+      ...(version ? {} : { message: `已安装最新版 ${spec}` }),
+    };
+  },
+
+  async uninstallVenvPackage(_instanceId, name): Promise<VenvPackageResult> {
+    await delay(300);
+    return { name, removed: true, ok: true };
+  },
+
+  async updateVenvPackage(_instanceId, name?): Promise<VenvPackageResult> {
+    await delay(400);
+    return { name: name ?? '*', upgraded: true, ok: true };
+  },
+
+  async queryVenvPackageVersions(_instanceId, _name): Promise<string[]> {
+    await delay(200);
+    return mockPackageVersions;
   },
 
   on(event, listener) {

@@ -14,6 +14,7 @@ import { writeJsonAtomic } from '../utils/atomic-json';
 import { generateInstanceId } from '../utils/id-generator';
 import {
   DEFAULT_INSTANCE,
+  inferVenvDir,
   normalizePlatformValue,
   normalizeRepositoryFile,
 } from '../utils/instance-migrations';
@@ -56,10 +57,12 @@ export class InstanceRepository {
    */
   async create(input: CreateInstanceInput): Promise<Instance> {
     const name = requireText(input.name, '实例名称不能为空');
+    const mofoxInstallDir = input.mofoxInstallDir?.trim() ?? '';
     const instance = buildInstance({
       id: input.id?.trim() || generateInstanceId(),
       name,
-      mofoxInstallDir: input.mofoxInstallDir?.trim() ?? '',
+      mofoxInstallDir,
+      venvDir: inferVenvDir(input.venvDir ?? '', mofoxInstallDir),
       platform: normalizePlatformValue(input.platform),
       status: 'stopped',
       createdAt: Date.now(),
@@ -94,18 +97,23 @@ export class InstanceRepository {
       const index = instances.findIndex((candidate) => candidate.id === instanceId);
       if (index < 0) throw new MofoxError('NOT_FOUND', `未知实例: ${instanceId}`);
       const current = instances[index];
+      const mofoxInstallDir =
+        patch.mofoxInstallDir !== undefined
+          ? patch.mofoxInstallDir.trim()
+          : current.mofoxInstallDir;
+      const venvDir = patch.venvDir !== undefined ? patch.venvDir : current.venvDir;
       updated = buildInstance({
         ...current,
         ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
-        ...(patch.mofoxInstallDir !== undefined
-          ? { mofoxInstallDir: patch.mofoxInstallDir.trim() }
-          : {}),
+        mofoxInstallDir,
         ...(patch.platform !== undefined
           ? { platform: normalizePlatformValue(patch.platform) }
           : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.lastStartedAt !== undefined ? { lastStartedAt: patch.lastStartedAt } : {}),
         ...(patch.autoStart !== undefined ? { autoStart: patch.autoStart } : {}),
+        // 虚拟环境路径由前端在切换主程序路径时自动跟随，后端仅做默认值兜底。
+        venvDir: inferVenvDir(venvDir, mofoxInstallDir),
       });
       instances[index] = cloneInstance(updated);
     });
@@ -206,6 +214,7 @@ function buildInstance(seed: {
   name?: string;
   mofoxInstallDir?: string;
   platform?: InstalledPlatform;
+  venvDir?: string;
   status?: InstanceStatus;
   createdAt?: number;
   lastStartedAt?: number | null;

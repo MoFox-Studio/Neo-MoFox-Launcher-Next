@@ -48,7 +48,7 @@ function requireRequest(value: unknown): ManualImportRequest {
   if (request.version !== undefined) {
     throw new MofoxError('INVALID_ARGUMENT', 'MoFox version is no longer supported');
   }
-  for (const field of ['platformId', 'platformDir'] as const) {
+  for (const field of ['platformId', 'platformDir', 'venvDir'] as const) {
     if (request[field] !== undefined && typeof request[field] !== 'string') {
       throw new MofoxError('INVALID_ARGUMENT', `${field} must be a string`);
     }

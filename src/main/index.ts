@@ -15,6 +15,7 @@ import { registerInstanceManageIpc } from './ipc/instance-manage';
 import { registerUpdateIpc } from './ipc/update';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
+import { registerVenvIpc } from './ipc/venv';
 import { PlatformRegistry } from './platforms/registry';
 import { OobeService } from './services/oobe-service';
 import { InstallTaskService } from './services/install-task-service';
@@ -37,6 +38,7 @@ import { ManualImportService } from './services/manual-import-service';
 import { PlatformMetadataService } from './services/platform-metadata-service';
 import { SettingsService } from './services/settings-service';
 import { WallpaperService } from './services/wallpaper-service';
+import { VenvService } from './services/venv-service';
 import { createWallpaperProtocolHandler } from './wallpaper-protocol';
 import { EnvironmentService } from './utils/environment-service';
 import { ProcessHelper } from './utils/process-helper';
@@ -308,6 +310,15 @@ if (!hasSingleInstanceLock) {
       },
     });
     registerManualImportIpc(ipcMain, new ManualImportService(instances, platforms));
+    const venvs = new VenvService({ list: () => instances.list(), mirrors });
+    registerVenvIpc(ipcMain, {
+      inspect: (value) => venvs.inspect(value),
+      getVenvInfo: (instanceId) => venvs.getVenvInfo(instanceId),
+      install: (instanceId, name, version) => venvs.install(instanceId, name, version),
+      uninstall: (instanceId, name) => venvs.uninstall(instanceId, name),
+      update: (instanceId, name) => venvs.upgrade(instanceId, name),
+      queryVersions: (instanceId, name) => venvs.queryVersions(instanceId, name),
+    });
     // 旧启动器迁移：默认指向与当前 userData 同级的 Neo-MoFox-Launcher 目录。
     const legacyDataDir = resolveLegacyLauncherDataDir({
       appDataDir: app.getPath('appData'),

@@ -8,9 +8,10 @@ import { useWindowTitle } from '@/composables/use-window-title';
 import InstanceInfoPanel from '@/components/instance-manage/InstanceInfoPanel.vue';
 import InstanceMorePanel from '@/components/instance-manage/InstanceMorePanel.vue';
 import InstanceUpdatePanel from '@/components/instance-manage/InstanceUpdatePanel.vue';
+import InstanceVenvPanel from '@/components/instance-manage/InstanceVenvPanel.vue';
 
-// 实例管理页：内容分区抽为独立面板，新增「更新」分区用于主程序与平台版本管理。
-type ManageTab = 'info' | 'more' | 'update';
+// 实例管理页：内容分区抽为独立面板，新增「更新」与「虚拟环境」分区。
+type ManageTab = 'info' | 'more' | 'venv' | 'update';
 
 const route = useRoute();
 const router = useRouter();
@@ -25,6 +26,7 @@ useWindowTitle({ title: () => instance.value?.name ?? '实例管理', subtitle: 
 const NAV_ITEMS: { id: ManageTab; label: string; description: string; icon: string }[] = [
   { id: 'info', label: '信息查看', description: '实例的运行状态与目录信息', icon: 'info' },
   { id: 'more', label: '更多', description: '文件系统操作与实例信息修改', icon: 'more_horiz' },
+  { id: 'venv', label: '虚拟环境', description: 'Python 环境与依赖包管理', icon: 'science' },
   { id: 'update', label: '更新', description: '主程序与平台版本管理', icon: 'system_update' },
 ];
 
@@ -124,6 +126,11 @@ function onDeleted(): void {
         :platforms="platforms"
         @toast="showToast"
         @deleted="onDeleted"
+      />
+      <InstanceVenvPanel
+        v-else-if="instance && activeTab === 'venv'"
+        :instance="instance"
+        @toast="showToast"
       />
       <InstanceUpdatePanel
         v-else-if="instance && activeTab === 'update'"

@@ -58,6 +58,10 @@ function formatDate(value: number | null): string {
           <dd class="info-grid__value--mono">{{ instance.mofoxInstallDir || '—' }}</dd>
         </div>
         <div class="info-grid__item">
+          <dt>虚拟环境目录</dt>
+          <dd class="info-grid__value--mono">{{ instance.venvDir || '—' }}</dd>
+        </div>
+        <div class="info-grid__item">
           <dt>平台种类</dt>
           <dd>{{ instance.platform?.id ?? '未安装' }}</dd>
         </div>

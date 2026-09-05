@@ -101,6 +101,16 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
       invoke(IPC_INVOKE_CHANNELS.getPlatformUpdateInfo, instanceId),
     updatePlatform: (instanceId, version) =>
       invoke(IPC_INVOKE_CHANNELS.updatePlatform, instanceId, version),
+    inspectVenvPath: (path) => invoke(IPC_INVOKE_CHANNELS.inspectVenvPath, path),
+    getVenvInfo: (instanceId) => invoke(IPC_INVOKE_CHANNELS.getVenvInfo, instanceId),
+    installVenvPackage: (instanceId, name, version) =>
+      invoke(IPC_INVOKE_CHANNELS.installVenvPackage, instanceId, name, version),
+    uninstallVenvPackage: (instanceId, name) =>
+      invoke(IPC_INVOKE_CHANNELS.uninstallVenvPackage, instanceId, name),
+    updateVenvPackage: (instanceId, name) =>
+      invoke(IPC_INVOKE_CHANNELS.updateVenvPackage, instanceId, name),
+    queryVenvPackageVersions: (instanceId, name) =>
+      invoke(IPC_INVOKE_CHANNELS.queryVenvPackageVersions, instanceId, name),
     on: <K extends keyof MofoxEventMap>(
       event: K,
       listener: (payload: MofoxEventMap[K]) => void,
