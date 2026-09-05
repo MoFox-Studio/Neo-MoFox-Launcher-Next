@@ -245,6 +245,37 @@ describe('VenvService', () => {
     expect(versions).toEqual(['4.2.19', '4.2.18', '4.2.17']);
   });
 
+  it('falls back to the PEP 503 simple index when uv lacks the index subcommand', async () => {
+    const root = await createTemporaryDirectory();
+    const venvDir = await createVenv(root);
+    const html =
+      '<a href="/simple/napcat/napcat-4.2.17-py3-none-any.whl#sha256=x">napcat-4.2.17-py3-none-any.whl</a>' +
+      '<a href="/simple/napcat/napcat-4.2.19-py3-none-any.whl#sha256=y">napcat-4.2.19-py3-none-any.whl</a>';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://pypi.tuna.tsinghua.edu.cn/simple/napcat/') {
+        return { ok: true, status: 200, text: async () => html } as Response;
+      }
+      return { ok: false, status: 404, text: async () => '' } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { service } = createService({
+        // 第一次 uv 调用（`pip index` 子命令缺失）返回非零退出码，触发 simple index 回退。
+        runner: async (command, args) => {
+          expect(command).toBe('uv');
+          if (args.includes('index')) return okResult('', 2);
+          return okResult('');
+        },
+        instances: [instanceFixture('ins-1', venvDir)],
+      });
+
+      const versions = await service.queryVersions('ins-1', 'napcat');
+      expect(versions).toEqual(['4.2.19', '4.2.17']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('throws a readable error when the venv python is missing', async () => {
     const { service } = createService({
       instances: [instanceFixture('ins-1', '/bots/mofox/.venv')],

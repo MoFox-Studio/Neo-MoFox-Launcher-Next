@@ -6,6 +6,7 @@ import type { PathInspection } from '../../shared/domain/manual-import';
 import type { InstallTargetCheck } from '../../shared/domain/install';
 import type { VenvPathInspection } from '../../shared/domain/venv';
 import { MofoxError } from '../../shared/domain/error';
+import { venvPythonOf } from './platform-helper';
 
 /**
  * 校验并规范化目录路径，拒绝不存在或非目录的用户输入。
@@ -135,16 +136,9 @@ export async function inspectVenvPath(value: string): Promise<VenvPathInspection
   }
   const [valid, pythonExists] = await Promise.all([
     fileExists(join(resolved, 'pyvenv.cfg')),
-    fileExists(venvPythonPath(resolved)),
+    venvPythonOf(resolved).then(Boolean),
   ]);
   return { absolute: true, exists: true, isDirectory: true, valid, pythonExists };
-}
-
-/** venv 目录下按当前平台布局的 Python 解释器相对路径。 */
-function venvPythonPath(venvDir: string): string {
-  const layout = process.platform === 'win32' ? 'Scripts' : 'bin';
-  const name = process.platform === 'win32' ? 'python.exe' : 'python3';
-  return join(venvDir, layout, name);
 }
 
 /** 检查文件是否存在。 */

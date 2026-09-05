@@ -100,6 +100,18 @@ export function pythonExeName(): string {
 }
 
 /**
+ * 返回当前平台在 venv 中可能出现的 Python 可执行文件名（按优先级排列）。
+ *
+ * venv 的符号链接可能因目录迁移而失效（如安装时从临时目录搬入），
+ * 因此会依次尝试多个候选名，优先选择仍可访问的解释器。
+ *
+ * @returns 候选解释器文件名数组。
+ */
+export function venvPythonCandidates(): string[] {
+  return isWindows() ? ['python.exe'] : ['python3', 'python'];
+}
+
+/**
  * 在项目目录下查找虚拟环境的 Python 可执行文件。
  *
  * @param projectDirectory - 项目根目录。
@@ -112,20 +124,25 @@ export async function findVenvPython(projectDirectory: string): Promise<string |
 /**
  * 在指定虚拟环境目录下查找 Python 可执行文件。
  *
- * 同时兼容 POSIX（`bin/python3`）与 Windows（`Scripts/python.exe`）布局。
+ * 同时兼容 POSIX（`bin/`）与 Windows（`Scripts/`）布局，并依次尝试候选名，
+ * 返回第一个仍可访问的解释器（跳过因目录迁移而失效的符号链接）。
  *
  * @param venvDir - 虚拟环境根目录。
  * @returns venv Python 绝对路径；目录不存在或缺少解释器时为 `undefined`。
  */
 export async function venvPythonOf(venvDir: string): Promise<string | undefined> {
   if (!venvDir) return undefined;
-  const candidate = join(venvDir, isWindows() ? 'Scripts' : 'bin', pythonExeName());
-  try {
-    await access(candidate);
-    return candidate;
-  } catch {
-    return undefined;
+  const binDir = join(venvDir, isWindows() ? 'Scripts' : 'bin');
+  for (const name of venvPythonCandidates()) {
+    const candidate = join(binDir, name);
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // 尝试下一个候选名。
+    }
   }
+  return undefined;
 }
 
 export { spawnProcess };

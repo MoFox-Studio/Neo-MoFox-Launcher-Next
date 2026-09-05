@@ -9,7 +9,8 @@ import type {
   VenvPathInspection,
 } from '../../shared/domain/venv';
 import { MofoxError } from '../../shared/domain/error';
-import { execCommand, isWindows, pythonExeName } from '../utils/platform-helper';
+import { execCommand } from '../utils/platform-helper';
+import { venvPythonOf } from '../utils/platform-helper';
 import type { ExecOptions, ExecResult } from '../utils/process-helper';
 
 /** uv 命令在指定 venv 上执行的最小仓库与镜像能力。 */
@@ -126,6 +127,10 @@ export class VenvService {
   /**
    * 查询指定包在 pip 镜像上可用的全部版本，用于安装前选择版本。
    *
+   * 通过 PEP 503 simple index（`<mirror>/<normalized-name>/`）逐个镜像轮询，
+   * 从返回的下载链接中解析版本号。不同 uv 版本可能没有 `uv pip index`，
+   * 直接请求索引既保证可用性也满足镜像轮询的要求。
+   *
    * @param instanceId - 实例 ID。
    * @param name - 包名。
    * @returns 从高到低排列的可用版本字符串列表。
@@ -209,9 +214,14 @@ export class VenvService {
     const target = name?.trim();
     if (target) requirePackageName(target);
     try {
-      const args = ['pip', 'install', '--python', python, '--upgrade'];
-      if (target) args.push(target);
-      else args.push('--all');
+      // 升级全部时先查询可升级依赖，把包名一次性交给 uv，避免 `--all` 不可用。
+      const names = target
+        ? [target]
+        : ((await this.checkOutdated(python))?.map((item) => item.name) ?? []);
+      if (names.length === 0) {
+        return { name: target ?? '*', upgraded: true, ok: true };
+      }
+      const args = ['pip', 'install', '--python', python, '--upgrade', ...names];
       await this.tryEachPipMirror(
         (mirror) =>
           this.runUv([...args, '--index-url', mirror.baseUrl], { timeoutMs: INSTALL_TIMEOUT_MS }),
@@ -249,14 +259,8 @@ export class VenvService {
   }
 
   /** 返回 venv 目录下的 Python 解释器绝对路径；不存在时为 `undefined`。 */
-  private async pythonOf(venvDir: string): Promise<string | undefined> {
-    const candidate = join(venvDir, isWindows() ? 'Scripts' : 'bin', pythonExeName());
-    try {
-      await access(candidate);
-      return candidate;
-    } catch {
-      return undefined;
-    }
+  private pythonOf(venvDir: string): Promise<string | undefined> {
+    return venvPythonOf(venvDir);
   }
 
   /** 读取已安装包列表（离线，不访问索引）。 */
@@ -302,11 +306,29 @@ export class VenvService {
     name: string,
     python: string,
   ): Promise<string[]> {
-    const result = await this.runUv(
+    // 优先使用 uv 内建索引查询；老版本 uv 可能没有 `pip index`，回退到 simple index 抓取。
+    const uvResult = await this.tryRunUv(
       ['pip', 'index', 'versions', name, '--python', python, '--index-url', mirror.baseUrl],
       { timeoutMs: INDEX_TIMEOUT_MS },
     );
-    return parseAvailableVersions(result.stdout);
+    if (uvResult) {
+      const parsed = parseAvailableVersions(uvResult.stdout);
+      if (parsed.length > 0) return parsed;
+    }
+    return fetchSimpleVersions(mirror.baseUrl, name);
+  }
+
+  /** 执行 uv 命令；uv 子命令缺失或执行失败时返回 `undefined`，交由调用方回退到 simple index。 */
+  private async tryRunUv(
+    args: readonly string[],
+    options: ExecOptions,
+  ): Promise<ExecResult | undefined> {
+    try {
+      return await this.runUv(args, options);
+    } catch {
+      // 老版本 uv 缺少 `pip index` 子命令，或对某镜像执行失败，都可回退到 PEP 503 抓取。
+      return undefined;
+    }
   }
 
   /** 按内置 pip 镜像顺序执行操作，首个成功即返回，全部失败时抛出可读错误。 */
@@ -406,7 +428,126 @@ function parseAvailableVersions(stdout: string): string[] {
     if (line.toLowerCase().includes('available versions')) continue;
     if (/^\d+\.\d+(?:\.\d+)?(?:[a-zA-Z0-9.+-]*)?$/.test(line)) versions.add(line);
   }
-  return [...versions].reverse();
+  return sortVersionsDesc([...versions]);
+}
+
+/**
+ * 通过 PEP 503 simple index 抓取包的全部可用版本。
+ *
+ * 访问 `<mirror>/<normalized-name>/`，从 HTML 或 JSON（PEP 691）的文件名中解析版本号。
+ *
+ * @param mirrorBase - pip 镜像的 simple index 根地址。
+ * @param name - 原始包名（内部会规范化为 PEP 503 格式）。
+ * @returns 从高到低排列的可用版本列表。
+ * @throws {MofoxError} 请求失败或无法解析版本时抛出。
+ */
+async function fetchSimpleVersions(mirrorBase: string, name: string): Promise<string[]> {
+  const normalized = normalizePep503Name(name);
+  const url = `${mirrorBase.replace(/\/+$/, '')}/${normalized}/`;
+  let response: Response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  } catch (error) {
+    throw new MofoxError('IO_ERROR', `无法连接镜像 ${mirrorBase}: ${describe(error)}`);
+  }
+  if (!response.ok) {
+    throw new MofoxError('IO_ERROR', `镜像 ${mirrorBase} 返回 ${response.status}`);
+  }
+  const text = await response.text();
+  const versions = extractVersionsFromIndex(text, normalized);
+  if (versions.length === 0) {
+    throw new MofoxError('IO_ERROR', `镜像 ${mirrorBase} 未返回可用版本`);
+  }
+  return sortVersionsDesc(versions);
+}
+
+/** 按 PEP 503 规范规范化包名：小写、`-`/`_`/`.` 统一为 `-` 并折叠连续分隔符。 */
+function normalizePep503Name(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[-_.]+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+/** 从 simple index 的 HTML/JSON 文件名中提取并去重版本号。 */
+function extractVersionsFromIndex(text: string, normalizedName: string): string[] {
+  const versions = new Set<string>();
+  // PEP 691 JSON：`{"files": [{"filename": "pkg-1.2.3-...whl"}]}`
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (isRecord(parsed) && Array.isArray(parsed.files)) {
+      for (const file of parsed.files) {
+        if (isRecord(file) && typeof file.filename === 'string') {
+          const version = versionFromFilename(file.filename, normalizedName);
+          if (version) versions.add(version);
+        }
+      }
+      return [...versions];
+    }
+  } catch {
+    // 不是 JSON 时按 HTML 解析。
+  }
+  // PEP 503 HTML：`<a href="...pkg-1.2.3-...whl">pkg-1.2.3-...whl</a>`
+  const linkRegex = /<a[^>]+href="([^"]+)"[^>]*>/g;
+  let match: RegExpExecArray | null;
+  while ((match = linkRegex.exec(text)) !== null) {
+    const href = match[1];
+    const filename = decodeURIComponent(href.split('/').pop() ?? '');
+    const version = versionFromFilename(filename, normalizedName);
+    if (version) versions.add(version);
+  }
+  return [...versions];
+}
+
+/**
+ * 从 simple index 的文件名中提取版本号。
+ *
+ * 文件名形如 `pkg-1.2.3-cp311-cp311-manylinux...whl#sha256=...` 或
+ * `pkg-1.2.3.tar.gz#sha256=...`；版本号位于包名前缀之后、构建标记
+ * （`-py`/`-cp`/`-abi`/扩展名）之前。发行版文件名中的连字符可能写作
+ * 下划线（如 `pydantic_core`），前缀匹配时一并容忍。
+ */
+function versionFromFilename(filename: string, normalizedName: string): string | null {
+  const lower = filename.split('#')[0].toLowerCase();
+  // 包名中 `-` 与 `_` 等价（PEP 503 规范化），文件名里的分隔符可能为下划线。
+  const namePattern = normalizedName.replace(/-/g, '[-_]');
+  const match = lower.match(new RegExp(`^${namePattern}-(.+)$`));
+  if (!match) return null;
+  // 包名之后的第一段即版本号（wheel 的构建标记以 `-` 分隔，sdist 以扩展名结尾）。
+  const first = match[1].split('-')[0];
+  const version = first.replace(/\.(tar\.gz|tar\.bz2|zip|whl|tgz|tar)$/, '');
+  if (!version || !/^\d/.test(version)) return null;
+  const cleaned = version
+    .split('+')[0]
+    .replace(/\.post\d+$/, '')
+    .replace(/\.dev\d+$/, '');
+  if (/^\d+\.\d+(?:\.\d+)?(?:[a-zA-Z0-9.+-]*)?$/.test(cleaned)) return cleaned;
+  return null;
+}
+
+/** 把版本字符串按从高到低排序（朴素比较：数字按段数值比较）。 */
+function sortVersionsDesc(versions: string[]): string[] {
+  return [...versions].sort((a, b) => compareVersionsDesc(a, b));
+}
+
+/** 比较两个语义化版本，返回 `a` 相对 `b` 的降序比较结果。 */
+function compareVersionsDesc(a: string, b: string): number {
+  const parse = (value: string): number[] =>
+    value.split(/[.+_-]/).map((part) => {
+      const num = Number.parseInt(part, 10);
+      return Number.isNaN(num) ? part.charCodeAt(0) : num;
+    });
+  const aParts = parse(a);
+  const bParts = parse(b);
+  const length = Math.max(aParts.length, bParts.length);
+  for (let i = 0; i < length; i += 1) {
+    const av = aParts[i] ?? 0;
+    const bv = bParts[i] ?? 0;
+    if (av > bv) return -1;
+    if (av < bv) return 1;
+  }
+  return 0;
 }
 
 /** 判断值是否为普通对象。 */
