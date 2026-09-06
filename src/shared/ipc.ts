@@ -31,6 +31,7 @@ import type { WallpaperAsset } from './domain/wallpaper';
 import type { InstallTargetCheck } from './domain/install';
 import type {
   VenvInfo,
+  VenvPackageInfo,
   VenvPackageResult,
   VenvPathInspection,
   VenvProgressEvent,
@@ -103,6 +104,7 @@ export const IPC_INVOKE_CHANNELS = {
   uninstallVenvPackage: 'venv:uninstall',
   updateVenvPackage: 'venv:update',
   queryVenvPackageVersions: 'venv:versions',
+  getVenvPackageInfo: 'venv:package-info',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -241,6 +243,8 @@ export interface MofoxApi {
   updateVenvPackage(instanceId: string, name?: string): Promise<VenvPackageResult>;
   /** 查询包在 pip 镜像上可用的版本列表。 */
   queryVenvPackageVersions(instanceId: string, name: string): Promise<string[]>;
+  /** 从 pip 镜像获取指定包的介绍、作者与 PyPI 跳转地址等信息。 */
+  getVenvPackageInfo(instanceId: string, name: string): Promise<VenvPackageInfo>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

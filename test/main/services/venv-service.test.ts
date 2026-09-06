@@ -327,6 +327,77 @@ describe('VenvService', () => {
     expect(progressMessages).toContain('已升级 napcat');
   });
 
+  it('fetches package info from a pip mirror JSON API', async () => {
+    const root = await createTemporaryDirectory();
+    const venvDir = await createVenv(root);
+    const payload = {
+      info: {
+        name: 'napcat',
+        version: '4.2.19',
+        summary: 'A bot framework',
+        description: '# NapCat\n\nA **fast** bot framework.',
+        author: 'MoFox Studio',
+        requires_python: '>=3.9',
+        home_page: 'https://example.com',
+        project_urls: { Documentation: 'https://example.com/docs' },
+      },
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://pypi.tuna.tsinghua.edu.cn/pypi/napcat/json') {
+        return { ok: true, status: 200, json: async () => payload } as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { service } = createService({
+        instances: [instanceFixture('ins-1', venvDir)],
+      });
+
+      const info = await service.getVenvPackageInfo('ins-1', 'napcat');
+      expect(info.name).toBe('napcat');
+      expect(info.version).toBe('4.2.19');
+      expect(info.summary).toBe('A bot framework');
+      expect(info.description).toContain('A **fast** bot framework');
+      expect(info.requiresPython).toBe('>=3.9');
+      expect(info.homePage).toBe('https://example.com');
+      expect(info.projectUrls).toEqual({ Documentation: 'https://example.com/docs' });
+      expect(info.pypiUrl).toBe('https://pypi.org/project/napcat/');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('tries the next pip mirror when the previous JSON API is unavailable', async () => {
+    const root = await createTemporaryDirectory();
+    const venvDir = await createVenv(root);
+    const payload = { info: { name: 'napcat', version: '4.2.19', summary: 'ok' } };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://pypi.tuna.tsinghua.edu.cn/pypi/napcat/json') {
+        return { ok: false, status: 500, json: async () => ({}) } as Response;
+      }
+      if (url === 'https://mirrors.aliyun.com/pypi/pypi/napcat/json') {
+        return { ok: true, status: 200, json: async () => payload } as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { service } = createService({
+        instances: [instanceFixture('ins-1', venvDir)],
+      });
+
+      const info = await service.getVenvPackageInfo('ins-1', 'napcat');
+      expect(info.summary).toBe('ok');
+      expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+        'https://pypi.tuna.tsinghua.edu.cn/pypi/napcat/json',
+        'https://mirrors.aliyun.com/pypi/pypi/napcat/json',
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('throws a readable error when the venv python is missing', async () => {
     const { service } = createService({
       instances: [instanceFixture('ins-1', '/bots/mofox/.venv')],

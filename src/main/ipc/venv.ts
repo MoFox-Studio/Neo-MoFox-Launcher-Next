@@ -2,7 +2,7 @@ import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import type { VenvPathInspection } from '../../shared/domain/venv';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
-/** 虚拟环境管理 IPC 边界：路径探测、包列表、安装、卸载、更新与版本查询。 */
+/** 虚拟环境管理 IPC 边界：路径探测、包列表、安装、卸载、更新、版本与包信息查询。 */
 export interface VenvActions {
   inspect(value: string): Promise<VenvPathInspection>;
   getVenvInfo(instanceId: string): Promise<import('../../shared/domain/venv').VenvInfo>;
@@ -20,6 +20,10 @@ export interface VenvActions {
     name?: string,
   ): Promise<import('../../shared/domain/venv').VenvPackageResult>;
   queryVersions(instanceId: string, name: string): Promise<string[]>;
+  getPackageInfo(
+    instanceId: string,
+    name: string,
+  ): Promise<import('../../shared/domain/venv').VenvPackageInfo>;
 }
 
 interface IpcMainRegistrar {
@@ -54,6 +58,9 @@ export function registerVenvIpc(ipcMain: IpcMainRegistrar, actions: VenvActions)
   );
   register(ipcMain, IPC_INVOKE_CHANNELS.queryVenvPackageVersions, (instanceId, name) =>
     actions.queryVersions(requireId(instanceId), requireString(name, 'Package name')),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.getVenvPackageInfo, (instanceId, name) =>
+    actions.getPackageInfo(requireId(instanceId), requireString(name, 'Package name')),
   );
 }
 

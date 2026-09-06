@@ -62,3 +62,25 @@ export interface VenvProgressEvent {
   message: string;
   error?: string;
 }
+
+/** 从 pip 镜像（PyPI JSON API）获取的单个包的信息。 */
+export interface VenvPackageInfo {
+  /** 规范化后的包名。 */
+  name: string;
+  /** 镜像上报告的最新版本。 */
+  version: string;
+  /** 一行简介。 */
+  summary: string;
+  /** 长描述（Markdown/reST 文本）。 */
+  description: string;
+  /** 作者名。 */
+  author: string;
+  /** 要求的 Python 版本约束，如 `>=3.9`。 */
+  requiresPython: string;
+  /** 主页地址（可能为空）。 */
+  homePage: string;
+  /** 项目相关链接（文档/源码仓库等）。 */
+  projectUrls: Record<string, string>;
+  /** 供浏览器跳转的 PyPI 项目页地址。 */
+  pypiUrl: string;
+}

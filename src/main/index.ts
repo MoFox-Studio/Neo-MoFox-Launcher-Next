@@ -320,6 +320,7 @@ if (!hasSingleInstanceLock) {
       uninstall: (instanceId, name) => venvs.uninstall(instanceId, name),
       update: (instanceId, name) => venvs.upgrade(instanceId, name),
       queryVersions: (instanceId, name) => venvs.queryVersions(instanceId, name),
+      getPackageInfo: (instanceId, name) => venvs.getVenvPackageInfo(instanceId, name),
     });
     // 旧启动器迁移：默认指向与当前 userData 同级的 Neo-MoFox-Launcher 目录。
     const legacyDataDir = resolveLegacyLauncherDataDir({

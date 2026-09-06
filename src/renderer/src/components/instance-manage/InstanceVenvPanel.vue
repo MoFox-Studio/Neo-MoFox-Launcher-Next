@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { marked } from 'marked';
 import type { Instance } from '@shared/domain/instance';
-import type { VenvInfo, VenvProgressEvent } from '@shared/domain/venv';
+import type { VenvInfo, VenvPackageInfo, VenvProgressEvent } from '@shared/domain/venv';
 import { mofoxApi } from '@/services/mofox-api';
 import BaseDialog from '@/components/BaseDialog.vue';
 import ErrorDialog from '@/components/ErrorDialog.vue';
+
+marked.setOptions({ gfm: true, breaks: true });
 
 // 虚拟环境面板：展示实例 venv 目录下的包列表与可升级依赖，
 // 支持安装、卸载与升级单个包，并提供「升级全部」与镜像轮询安装。
@@ -25,6 +28,13 @@ const refreshing = ref(false);
 const uninstalling = ref<string | null>(null);
 const upgrading = ref<string | null>(null);
 const upgradingAll = ref(false);
+
+// 包信息弹窗：从已安装包列表进入，展示简介/描述并提供 PyPI 跳转。
+const packageInfoOpen = ref(false);
+const packageInfo = ref<VenvPackageInfo | null>(null);
+const packageInfoLoading = ref(false);
+const packageInfoError = ref('');
+const packageInfoName = ref('');
 
 // 升级依赖进度弹窗：由主进程 venv-progress 事件驱动。
 const venvProgress = ref<VenvProgressEvent | null>(null);
@@ -226,6 +236,37 @@ function onNameInput(): void {
   }
 }
 
+/** 打开指定已安装包的详情弹窗并抓取介绍信息。 */
+async function showPackageInfo(name: string): Promise<void> {
+  packageInfoName.value = name;
+  packageInfo.value = null;
+  packageInfoError.value = '';
+  packageInfoOpen.value = true;
+  packageInfoLoading.value = true;
+  try {
+    packageInfo.value = await mofoxApi.getVenvPackageInfo(props.instance.id, name);
+  } catch (error) {
+    packageInfoError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    packageInfoLoading.value = false;
+  }
+}
+
+/** 将包的长描述以 Markdown 渲染为 HTML。 */
+const packageInfoHtml = computed(() =>
+  packageInfo.value?.description ? marked.parse(packageInfo.value.description) : '',
+);
+
+function closePackageInfo(): void {
+  packageInfoOpen.value = false;
+}
+
+/** 在系统浏览器打开 PyPI 项目页。 */
+function openPypi(): void {
+  const url = packageInfo.value?.pypiUrl;
+  if (url) void mofoxApi.openExternal(url);
+}
+
 let unsubscribeVenvProgress: (() => void) | null = null;
 
 // 主程序路径变化时跟随刷新（虚拟环境路径由父组件在编辑时自动跟随）。
@@ -376,6 +417,16 @@ onBeforeUnmount(() => {
               <button
                 class="btn btn--tonal btn--small state-layer"
                 type="button"
+                title="查看包信息"
+                :disabled="refreshing"
+                @click="showPackageInfo(pkg.name)"
+              >
+                <span class="msr btn__icon" aria-hidden="true">info</span>
+                信息
+              </button>
+              <button
+                class="btn btn--tonal btn--small state-layer"
+                type="button"
                 :disabled="!isUpgradable(pkg.name) || upgrading !== null || refreshing"
                 :title="
                   isUpgradable(pkg.name) ? `升级到 ${latestOf(pkg.name)}` : '当前已是最新版本'
@@ -499,6 +550,91 @@ onBeforeUnmount(() => {
           @click="closeInstallDialog"
         >
           关闭
+        </button>
+      </template>
+    </BaseDialog>
+
+    <!-- 包信息弹窗：简介/描述 + PyPI 跳转 -->
+    <BaseDialog
+      :open="packageInfoOpen"
+      :title="`${packageInfo?.name ?? packageInfoName} 信息`"
+      :width="520"
+      :dismissible="true"
+      @close="closePackageInfo"
+    >
+      <div v-if="packageInfoLoading" class="pkginfo-placeholder">
+        <span class="msr pkginfo-placeholder__icon spinning" aria-hidden="true"
+          >progress_activity</span
+        >
+        <span>正在获取包信息...</span>
+      </div>
+      <div v-else-if="packageInfoError" class="pkginfo-error">
+        <span class="msr" aria-hidden="true">error</span>
+        <span>{{ packageInfoError }}</span>
+      </div>
+      <div v-else-if="packageInfo" class="pkginfo">
+        <div class="pkginfo__row">
+          <span class="pkginfo__label">版本</span>
+          <span class="pkginfo__value pkginfo__value--mono">{{ packageInfo.version || '—' }}</span>
+        </div>
+        <div v-if="packageInfo.summary" class="pkginfo__row">
+          <span class="pkginfo__label">简介</span>
+          <span class="pkginfo__value">{{ packageInfo.summary }}</span>
+        </div>
+        <div v-if="packageInfo.author" class="pkginfo__row">
+          <span class="pkginfo__label">作者</span>
+          <span class="pkginfo__value">{{ packageInfo.author }}</span>
+        </div>
+        <div v-if="packageInfo.requiresPython" class="pkginfo__row">
+          <span class="pkginfo__label">Python 版本</span>
+          <span class="pkginfo__value pkginfo__value--mono">{{ packageInfo.requiresPython }}</span>
+        </div>
+        <div v-if="packageInfo.description" class="pkginfo__row">
+          <span class="pkginfo__label">介绍</span>
+          <!-- 长描述为不可信网络内容，仅渲染为展示文本，不暴露脚本能力。 -->
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <div class="pkginfo__desc" v-html="packageInfoHtml"></div>
+        </div>
+        <div
+          v-if="Object.keys(packageInfo.projectUrls).length > 0 || packageInfo.homePage"
+          class="pkginfo__row"
+        >
+          <span class="pkginfo__label">相关链接</span>
+          <div class="pkginfo__links">
+            <button
+              v-if="packageInfo.homePage"
+              class="btn btn--tonal btn--small state-layer"
+              type="button"
+              @click="mofoxApi.openExternal(packageInfo.homePage)"
+            >
+              <span class="msr btn__icon" aria-hidden="true">home</span>
+              主页
+            </button>
+            <button
+              v-for="(url, label) in packageInfo.projectUrls"
+              :key="label"
+              class="btn btn--tonal btn--small state-layer"
+              type="button"
+              @click="mofoxApi.openExternal(url)"
+            >
+              <span class="msr btn__icon" aria-hidden="true">link</span>
+              {{ label }}
+            </button>
+          </div>
+        </div>
+      </div>
+      <template #actions>
+        <button class="btn btn--text state-layer" type="button" @click="closePackageInfo">
+          关闭
+        </button>
+        <button
+          class="btn btn--filled state-layer"
+          type="button"
+          :disabled="!packageInfo"
+          @click="openPypi"
+        >
+          <span class="msr btn__icon" aria-hidden="true">open_in_new</span>
+          在 PyPI 查看
         </button>
       </template>
     </BaseDialog>
@@ -924,6 +1060,185 @@ onBeforeUnmount(() => {
   padding: 0 12px;
   background: transparent;
   color: var(--md-sys-color-primary);
+}
+
+/* 包信息弹窗 */
+.pkginfo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pkginfo-placeholder,
+.pkginfo-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.pkginfo-placeholder__icon {
+  font-size: 28px;
+  color: var(--md-sys-color-primary);
+}
+
+.pkginfo-error {
+  color: var(--md-sys-color-error);
+  text-align: center;
+  padding: 16px;
+}
+
+.pkginfo__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pkginfo__label {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-label-medium);
+}
+
+.pkginfo__value {
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.pkginfo__value--mono {
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 12px;
+}
+
+.pkginfo__desc {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-small);
+  word-break: break-word;
+}
+
+/* Markdown 渲染内容排版 */
+.pkginfo__desc > :first-child {
+  margin-top: 0;
+}
+
+.pkginfo__desc > :last-child {
+  margin-bottom: 0;
+}
+
+.pkginfo__desc h1,
+.pkginfo__desc h2,
+.pkginfo__desc h3,
+.pkginfo__desc h4,
+.pkginfo__desc h5,
+.pkginfo__desc h6 {
+  margin: 12px 0 6px;
+  font-family: inherit;
+  line-height: 1.3;
+}
+
+.pkginfo__desc h1 {
+  font-size: 16px;
+}
+
+.pkginfo__desc h2 {
+  font-size: 15px;
+}
+
+.pkginfo__desc h3,
+.pkginfo__desc h4,
+.pkginfo__desc h5,
+.pkginfo__desc h6 {
+  font-size: 14px;
+}
+
+.pkginfo__desc p {
+  margin: 6px 0;
+  line-height: 1.6;
+}
+
+.pkginfo__desc ul,
+.pkginfo__desc ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.pkginfo__desc li {
+  margin: 2px 0;
+  line-height: 1.5;
+}
+
+.pkginfo__desc code {
+  padding: 1px 5px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-highest) 70%, transparent);
+  color: var(--md-sys-color-primary);
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 12px;
+}
+
+.pkginfo__desc pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.pkginfo__desc pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.pkginfo__desc a {
+  color: var(--md-sys-color-primary);
+  text-decoration: underline;
+}
+
+.pkginfo__desc blockquote {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.pkginfo__desc img {
+  max-width: 100%;
+  border-radius: var(--md-sys-shape-corner-small);
+}
+
+.pkginfo__desc table {
+  width: 100%;
+  margin: 8px 0;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.pkginfo__desc th,
+.pkginfo__desc td {
+  padding: 4px 8px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  text-align: left;
+}
+
+.pkginfo__desc hr {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.pkginfo__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .spinning {

@@ -5,6 +5,7 @@ import type { MirrorSource } from '../../shared/domain/mirror';
 import type {
   VenvInfo,
   VenvPackage,
+  VenvPackageInfo,
   VenvPackageResult,
   VenvPathInspection,
   VenvProgressEvent,
@@ -153,6 +154,26 @@ export class VenvService {
     return this.tryEachPipMirror(
       (mirror) => fetchSimpleVersions(mirror.baseUrl, packageName),
       '查询可用版本失败',
+    );
+  }
+
+  /**
+   * 查询指定包的介绍、作者与 PyPI 跳转地址等信息。
+   *
+   * 通过各 pip 镜像的 PyPI JSON API（`<mirror>/pypi/<name>/json`）逐个轮询，
+   * 首个返回有效信息的镜像即采用。
+   *
+   * @param instanceId - 实例 ID。
+   * @param name - 包名。
+   * @returns 包含简介、长描述、作者与项目链接的包信息。
+   */
+  async getVenvPackageInfo(instanceId: string, name: string): Promise<VenvPackageInfo> {
+    const packageName = requirePackageName(name);
+    const instance = await this.find(instanceId);
+    await this.resolvePython(instance);
+    return this.tryEachPipMirror(
+      (mirror) => fetchPackageInfo(mirror.baseUrl, packageName),
+      `获取 ${packageName} 信息失败`,
     );
   }
 
@@ -460,6 +481,64 @@ function normalizePep503Name(name: string): string {
     .toLowerCase()
     .replace(/[-_.]+/g, '-')
     .replace(/-+/g, '-');
+}
+
+/**
+ * 从镜像的 PyPI JSON API 抓取包信息。
+ *
+ * 访问 `<mirror>/pypi/<normalized-name>/json`，从返回的 `info` 段解析简介与描述。
+ *
+ * @param mirrorBase - pip 镜像的 simple index 根地址。
+ * @param name - 原始包名（内部会规范化为 PEP 503 格式）。
+ * @returns 包信息摘要。
+ * @throws {MofoxError} 请求失败或返回结构无效时抛出。
+ */
+async function fetchPackageInfo(mirrorBase: string, name: string): Promise<VenvPackageInfo> {
+  const normalized = normalizePep503Name(name);
+  const jsonBase = mirrorBase.replace(/\/+$/, '').replace(/\/simple$/, '');
+  const url = `${jsonBase}/pypi/${normalized}/json`;
+  let response: Response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  } catch (error) {
+    throw new MofoxError('IO_ERROR', `无法连接镜像 ${mirrorBase}: ${describe(error)}`);
+  }
+  if (!response.ok) {
+    throw new MofoxError('IO_ERROR', `镜像 ${mirrorBase} 返回 ${response.status}`);
+  }
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new MofoxError('IO_ERROR', `镜像 ${mirrorBase} 未返回有效的 JSON`);
+  }
+  return parsePackageInfo(data, normalized);
+}
+
+/** 从 PyPI JSON API 的 `info` 段提取包信息字段。 */
+function parsePackageInfo(data: unknown, normalizedName: string): VenvPackageInfo {
+  if (!isRecord(data) || !isRecord(data.info)) {
+    throw new MofoxError('IO_ERROR', `镜像未返回 ${normalizedName} 的包信息`);
+  }
+  const info = data.info;
+  const projectUrls = isRecord(info.project_urls)
+    ? (Object.fromEntries(
+        Object.entries(info.project_urls).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      ) as Record<string, string>)
+    : {};
+  return {
+    name: typeof info.name === 'string' && info.name ? info.name : normalizedName,
+    version: typeof info.version === 'string' ? info.version : '',
+    summary: typeof info.summary === 'string' ? info.summary : '',
+    description: typeof info.description === 'string' ? info.description : '',
+    author: typeof info.author === 'string' ? info.author : '',
+    requiresPython: typeof info.requires_python === 'string' ? info.requires_python : '',
+    homePage: typeof info.home_page === 'string' ? info.home_page : '',
+    projectUrls,
+    pypiUrl: `https://pypi.org/project/${normalizedName}/`,
+  };
 }
 
 /** 从 simple index 的 HTML/JSON 文件名中提取并去重版本号。 */

@@ -25,6 +25,7 @@ import type { GithubRelease } from '@shared/domain/github';
 import type {
   VenvInfo,
   VenvPackage,
+  VenvPackageInfo,
   VenvPackageResult,
   VenvPathInspection,
   VenvUpgrade,
@@ -861,6 +862,30 @@ export const mockApi: MofoxApi = {
   async queryVenvPackageVersions(_instanceId, _name): Promise<string[]> {
     await delay(200);
     return mockPackageVersions;
+  },
+
+  async getVenvPackageInfo(_instanceId, name): Promise<VenvPackageInfo> {
+    await delay(200);
+    const normalized = name
+      .trim()
+      .toLowerCase()
+      .replace(/[-_.]+/g, '-');
+    return {
+      name: normalized,
+      version: mockPackageVersions[0] ?? '4.2.19',
+      summary: `${name} 是当前虚拟环境中已安装的依赖包（演示数据）。`,
+      description:
+        '这是一个用于演示的包信息。\n\n长描述：该包提供了完整的消息收发与事件处理能力，' +
+        '支持插件系统、上下文压缩与多端同步，并内置自动回复与记忆存储。',
+      author: 'Neo-MoFox Studio',
+      requiresPython: '>=3.9',
+      homePage: 'https://example.com',
+      projectUrls: {
+        Documentation: 'https://example.com/docs',
+        Repository: 'https://example.com/repo',
+      },
+      pypiUrl: `https://pypi.org/project/${normalized}/`,
+    };
   },
 
   on(event, listener) {
