@@ -154,6 +154,7 @@ export class VenvService {
     return this.tryEachPipMirror(
       (mirror) => fetchSimpleVersions(mirror.baseUrl, packageName),
       '查询可用版本失败',
+      '未找到该包的可用版本，请检查包名是否正确',
     );
   }
 
@@ -174,6 +175,7 @@ export class VenvService {
     return this.tryEachPipMirror(
       (mirror) => fetchPackageInfo(mirror.baseUrl, packageName),
       `获取 ${packageName} 信息失败`,
+      `未找到 ${packageName} 的包信息，请检查包名是否正确`,
     );
   }
 
@@ -360,18 +362,26 @@ export class VenvService {
   private async tryEachPipMirror<T>(
     run: (mirror: MirrorSource) => Promise<T>,
     failureMessage: string,
+    notFoundMessage = '未找到该包，请检查包名是否正确',
   ): Promise<T> {
     const sources = this.dependencies.mirrors.list().filter((mirror) => mirror.type === 'pip');
     if (sources.length === 0) throw new MofoxError('UNAVAILABLE', '未配置任何 pip 镜像源');
-    let lastError: unknown;
+    const errors: unknown[] = [];
     for (const mirror of sources) {
       try {
         return await run(mirror);
       } catch (error) {
-        lastError = error;
+        errors.push(error);
       }
     }
-    const detail = lastError instanceof Error ? lastError.message : String(lastError);
+    // 全部镜像都因包不存在（404）而失败时，直接提示未找到，而非暴露底层镜像错误。
+    if (errors.every((error) => error instanceof MofoxError && error.code === 'NOT_FOUND')) {
+      throw new MofoxError('NOT_FOUND', notFoundMessage);
+    }
+    const detail =
+      errors[errors.length - 1] instanceof Error
+        ? (errors[errors.length - 1] as Error).message
+        : String(errors[errors.length - 1]);
     throw new MofoxError('UNAVAILABLE', `${failureMessage}。最后一个错误：${detail}`);
   }
 
@@ -464,6 +474,9 @@ async function fetchSimpleVersions(mirrorBase: string, name: string): Promise<st
     throw new MofoxError('IO_ERROR', `无法连接镜像 ${mirrorBase}: ${describe(error)}`);
   }
   if (!response.ok) {
+    if (response.status === 404) {
+      throw new MofoxError('NOT_FOUND', `镜像 ${mirrorBase} 未找到包 ${normalized}`);
+    }
     throw new MofoxError('IO_ERROR', `镜像 ${mirrorBase} 返回 ${response.status}`);
   }
   const text = await response.text();
@@ -504,6 +517,9 @@ async function fetchPackageInfo(mirrorBase: string, name: string): Promise<VenvP
     throw new MofoxError('IO_ERROR', `无法连接镜像 ${mirrorBase}: ${describe(error)}`);
   }
   if (!response.ok) {
+    if (response.status === 404) {
+      throw new MofoxError('NOT_FOUND', `镜像 ${mirrorBase} 未找到包 ${normalized}`);
+    }
     throw new MofoxError('IO_ERROR', `镜像 ${mirrorBase} 返回 ${response.status}`);
   }
   let data: unknown;

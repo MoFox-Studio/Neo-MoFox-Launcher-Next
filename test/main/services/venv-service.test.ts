@@ -302,31 +302,6 @@ describe('VenvService', () => {
     }
   });
 
-  it('emits progress events while upgrading dependencies', async () => {
-    const root = await createTemporaryDirectory();
-    const venvDir = await createVenv(root);
-    const progressMessages: string[] = [];
-    const runner = vi.fn(async (command: string, args: readonly string[]) => {
-      expect(command).toBe('uv');
-      expect(args).toContain('--upgrade');
-      return okResult('');
-    });
-    const service = new VenvService(
-      {
-        list: async () => [instanceFixture('ins-1', venvDir)],
-        mirrors: { list: () => PIP_MIRRORS.map((m) => ({ ...m })) },
-      },
-      runner,
-      { progress: (event) => progressMessages.push(event.message) },
-    );
-
-    const result = await service.upgrade('ins-1', 'napcat');
-    expect(result.ok).toBe(true);
-    expect(result.upgraded).toBe(true);
-    expect(progressMessages).toContain('正在升级 napcat...');
-    expect(progressMessages).toContain('已升级 napcat');
-  });
-
   it('fetches package info from a pip mirror JSON API', async () => {
     const root = await createTemporaryDirectory();
     const venvDir = await createVenv(root);
@@ -393,6 +368,71 @@ describe('VenvService', () => {
         'https://pypi.tuna.tsinghua.edu.cn/pypi/napcat/json',
         'https://mirrors.aliyun.com/pypi/pypi/napcat/json',
       ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('emits progress events while upgrading dependencies', async () => {
+    const root = await createTemporaryDirectory();
+    const venvDir = await createVenv(root);
+    const progressMessages: string[] = [];
+    const runner = vi.fn(async (command: string, args: readonly string[]) => {
+      expect(command).toBe('uv');
+      expect(args).toContain('--upgrade');
+      return okResult('');
+    });
+    const service = new VenvService(
+      {
+        list: async () => [instanceFixture('ins-1', venvDir)],
+        mirrors: { list: () => PIP_MIRRORS.map((m) => ({ ...m })) },
+      },
+      runner,
+      { progress: (event) => progressMessages.push(event.message) },
+    );
+
+    const result = await service.upgrade('ins-1', 'napcat');
+    expect(result.ok).toBe(true);
+    expect(result.upgraded).toBe(true);
+    expect(progressMessages).toContain('正在升级 napcat...');
+    expect(progressMessages).toContain('已升级 napcat');
+  });
+
+  it('reports a friendly not-found message when every mirror returns 404', async () => {
+    const root = await createTemporaryDirectory();
+    const venvDir = await createVenv(root);
+    const fetchMock = vi.fn(async () => {
+      return { ok: false, status: 404, text: async () => '' } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { service } = createService({
+        instances: [instanceFixture('ins-1', venvDir)],
+      });
+
+      await expect(service.queryVersions('ins-1', 'nonexistent-pkg')).rejects.toThrow(
+        '未找到该包的可用版本，请检查包名是否正确',
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('reports a friendly not-found message when fetching info for an unknown package', async () => {
+    const root = await createTemporaryDirectory();
+    const venvDir = await createVenv(root);
+    const fetchMock = vi.fn(async () => {
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { service } = createService({
+        instances: [instanceFixture('ins-1', venvDir)],
+      });
+
+      await expect(service.getVenvPackageInfo('ins-1', 'nonexistent-pkg')).rejects.toThrow(
+        '未找到 nonexistent-pkg 的包信息，请检查包名是否正确',
+      );
     } finally {
       vi.unstubAllGlobals();
     }

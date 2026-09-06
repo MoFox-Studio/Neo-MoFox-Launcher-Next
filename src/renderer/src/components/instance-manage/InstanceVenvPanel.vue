@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { marked } from 'marked';
 import type { Instance } from '@shared/domain/instance';
 import type { VenvInfo, VenvPackageInfo, VenvProgressEvent } from '@shared/domain/venv';
+import { MofoxError } from '@shared/domain/error';
 import { mofoxApi } from '@/services/mofox-api';
 import BaseDialog from '@/components/BaseDialog.vue';
 import ErrorDialog from '@/components/ErrorDialog.vue';
@@ -155,7 +156,7 @@ async function searchVersions(): Promise<void> {
     installSearched.value = true;
     if (installVersions.value.length === 0) installError.value = '未找到该包的可用版本';
   } catch (error) {
-    installError.value = `查询版本失败: ${error instanceof Error ? error.message : String(error)}`;
+    installError.value = describeVenvError(error, '查询版本失败');
   } finally {
     installQuerying.value = false;
   }
@@ -236,6 +237,12 @@ function onNameInput(): void {
   }
 }
 
+/** 展示 venv 操作错误：未找到包时直接给出提示，其余错误附带操作前缀。 */
+function describeVenvError(error: unknown, prefix: string): string {
+  if (error instanceof MofoxError && error.code === 'NOT_FOUND') return error.message;
+  return `${prefix}: ${error instanceof Error ? error.message : String(error)}`;
+}
+
 /** 打开指定已安装包的详情弹窗并抓取介绍信息。 */
 async function showPackageInfo(name: string): Promise<void> {
   packageInfoName.value = name;
@@ -246,7 +253,7 @@ async function showPackageInfo(name: string): Promise<void> {
   try {
     packageInfo.value = await mofoxApi.getVenvPackageInfo(props.instance.id, name);
   } catch (error) {
-    packageInfoError.value = error instanceof Error ? error.message : String(error);
+    packageInfoError.value = describeVenvError(error, '获取包信息失败');
   } finally {
     packageInfoLoading.value = false;
   }
