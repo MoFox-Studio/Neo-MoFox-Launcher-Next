@@ -7,6 +7,7 @@ import type {
   VenvPackage,
   VenvPackageResult,
   VenvPathInspection,
+  VenvProgressEvent,
 } from '../../shared/domain/venv';
 import { MofoxError } from '../../shared/domain/error';
 import { execCommand } from '../utils/platform-helper';
@@ -28,7 +29,6 @@ export type VenvCommandRunner = (
 
 const LIST_TIMEOUT_MS = 60_000;
 const INSTALL_TIMEOUT_MS = 600_000;
-const INDEX_TIMEOUT_MS = 90_000;
 
 /**
  * 虚拟环境管理服务：基于 uv 对实例的 venv 目录执行包列表、安装、卸载与升级。
@@ -40,15 +40,24 @@ export class VenvService {
   constructor(
     private readonly dependencies: VenvDependencies,
     private readonly run: VenvCommandRunner = execCommand,
+    private readonly events: { progress(event: VenvProgressEvent): void } = {
+      progress: () => undefined,
+    },
   ) {}
 
   /**
    * 探测虚拟环境路径的绝对性、存在性、目录类型、有效性（`pyvenv.cfg`）与 Python 解释器。
    *
+   * 路径为空或目录内缺少 Python 解释器时直接抛错，不再返回可放行的降级结果。
+   *
    * @param value - 用户填写的 venv 目录路径。
-   * @returns 非阻断的路径探测结果，供输入时即时校验。
+   * @returns 路径探测结果，供输入时即时校验。
+   * @throws {MofoxError} 路径为空抛 `INVALID_ARGUMENT`；未找到 Python 解释器抛 `UNAVAILABLE`。
    */
   async inspect(path: string): Promise<VenvPathInspection> {
+    if (!path.trim()) {
+      throw new MofoxError('INVALID_ARGUMENT', '虚拟环境路径不能为空');
+    }
     const absolute = isAbsolute(path);
     if (!absolute) {
       return {
@@ -85,6 +94,9 @@ export class VenvService {
       fileExists(join(resolved, 'pyvenv.cfg')),
       this.pythonOf(resolved).then(Boolean),
     ]);
+    if (!pythonExists) {
+      throw new MofoxError('UNAVAILABLE', '虚拟环境尚未创建：未找到 Python 解释器');
+    }
     return { absolute: true, exists: true, isDirectory: true, valid, pythonExists };
   }
 
@@ -128,8 +140,7 @@ export class VenvService {
    * 查询指定包在 pip 镜像上可用的全部版本，用于安装前选择版本。
    *
    * 通过 PEP 503 simple index（`<mirror>/<normalized-name>/`）逐个镜像轮询，
-   * 从返回的下载链接中解析版本号。不同 uv 版本可能没有 `uv pip index`，
-   * 直接请求索引既保证可用性也满足镜像轮询的要求。
+   * 从返回的下载链接中解析版本号，首个成功的镜像结果即采用。
    *
    * @param instanceId - 实例 ID。
    * @param name - 包名。
@@ -138,9 +149,9 @@ export class VenvService {
   async queryVersions(instanceId: string, name: string): Promise<string[]> {
     const packageName = requirePackageName(name);
     const instance = await this.find(instanceId);
-    const python = await this.resolvePython(instance);
+    await this.resolvePython(instance);
     return this.tryEachPipMirror(
-      (mirror) => this.queryVersionsFrom(mirror, packageName, python),
+      (mirror) => fetchSimpleVersions(mirror.baseUrl, packageName),
       '查询可用版本失败',
     );
   }
@@ -204,6 +215,8 @@ export class VenvService {
   /**
    * 升级单个包到最新版；`name` 省略时升级全部可升级依赖。
    *
+   * 升级期间通过 `venv-progress` 事件推送进度，供渲染端弹出进度弹窗。
+   *
    * @param instanceId - 实例 ID。
    * @param name - 可选的目标包名。
    * @returns 升级结果摘要。
@@ -213,22 +226,32 @@ export class VenvService {
     const python = await this.resolvePython(instance);
     const target = name?.trim();
     if (target) requirePackageName(target);
+    const phase: VenvProgressEvent['phase'] = target ? 'upgrade' : 'upgrade-all';
     try {
       // 升级全部时先查询可升级依赖，把包名一次性交给 uv，避免 `--all` 不可用。
       const names = target
         ? [target]
         : ((await this.checkOutdated(python))?.map((item) => item.name) ?? []);
       if (names.length === 0) {
+        this.emitProgress(instanceId, phase, 1, target ? `已升级 ${target}` : '没有需要升级的依赖');
         return { name: target ?? '*', upgraded: true, ok: true };
       }
+      this.emitProgress(
+        instanceId,
+        phase,
+        0.3,
+        target ? `正在升级 ${target}...` : `正在升级 ${names.length} 个依赖...`,
+      );
       const args = ['pip', 'install', '--python', python, '--upgrade', ...names];
       await this.tryEachPipMirror(
         (mirror) =>
           this.runUv([...args, '--index-url', mirror.baseUrl], { timeoutMs: INSTALL_TIMEOUT_MS }),
         `升级 ${target ?? '全部依赖'} 失败`,
       );
+      this.emitProgress(instanceId, phase, 1, target ? `已升级 ${target}` : '全部依赖升级完成');
       return { name: target ?? '*', upgraded: true, ok: true };
     } catch (error) {
+      this.emitProgress(instanceId, phase, 0, `升级失败: ${describe(error)}`);
       return { name: target ?? '*', upgraded: false, ok: false, message: describe(error) };
     }
   }
@@ -301,34 +324,15 @@ export class VenvService {
     }
   }
 
-  private async queryVersionsFrom(
-    mirror: MirrorSource,
-    name: string,
-    python: string,
-  ): Promise<string[]> {
-    // 优先使用 uv 内建索引查询；老版本 uv 可能没有 `pip index`，回退到 simple index 抓取。
-    const uvResult = await this.tryRunUv(
-      ['pip', 'index', 'versions', name, '--python', python, '--index-url', mirror.baseUrl],
-      { timeoutMs: INDEX_TIMEOUT_MS },
-    );
-    if (uvResult) {
-      const parsed = parseAvailableVersions(uvResult.stdout);
-      if (parsed.length > 0) return parsed;
-    }
-    return fetchSimpleVersions(mirror.baseUrl, name);
-  }
-
-  /** 执行 uv 命令；uv 子命令缺失或执行失败时返回 `undefined`，交由调用方回退到 simple index。 */
-  private async tryRunUv(
-    args: readonly string[],
-    options: ExecOptions,
-  ): Promise<ExecResult | undefined> {
-    try {
-      return await this.runUv(args, options);
-    } catch {
-      // 老版本 uv 缺少 `pip index` 子命令，或对某镜像执行失败，都可回退到 PEP 503 抓取。
-      return undefined;
-    }
+  /** 向渲染端推送虚拟环境操作进度事件。 */
+  private emitProgress(
+    instanceId: string,
+    phase: VenvProgressEvent['phase'],
+    percent: number,
+    message: string,
+    error?: string,
+  ): void {
+    this.events.progress({ instanceId, phase, percent, message, ...(error ? { error } : {}) });
   }
 
   /** 按内置 pip 镜像顺序执行操作，首个成功即返回，全部失败时抛出可读错误。 */
@@ -417,18 +421,6 @@ function parseOutdatedList(stdout: string): VenvUpgradeRaw[] {
   } catch {
     return [];
   }
-}
-
-/** 从 `uv pip index versions` 输出中提取可用版本列表。 */
-function parseAvailableVersions(stdout: string): string[] {
-  const versions = new Set<string>();
-  for (const rawLine of stdout.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || !/^\d/.test(line)) continue;
-    if (line.toLowerCase().includes('available versions')) continue;
-    if (/^\d+\.\d+(?:\.\d+)?(?:[a-zA-Z0-9.+-]*)?$/.test(line)) versions.add(line);
-  }
-  return sortVersionsDesc([...versions]);
 }
 
 /**

@@ -11,7 +11,6 @@ import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';
 import { ProcessHelper } from '../utils/process-helper';
 import { venvPythonOf } from '../utils/platform-helper';
-import { defaultVenvDir } from '../utils/instance-migrations';
 import type { UpdateInstancePatch } from '../../shared/domain/instance';
 
 /**
@@ -315,7 +314,8 @@ export class InstanceRuntimeService {
   /**
    * 解析实例的启动命令集合。
    *
-   * MoFox 本体进程：当 `mofoxInstallDir/main.py` 存在时启动（venv python 优先，uv 回退）。
+   * MoFox 本体进程：当 `mofoxInstallDir/main.py` 存在时使用 venv 目录下的解释器启动；
+   * 路径为空或解释器缺失时直接抛出可读错误，不再回退。
    * 平台进程：遍历 `platforms` 字典，逐个用平台安装目录调用对应平台的 `getStartCommand`。
    * v4 起平台路径和版本均来自 `platforms` 描述对象，不再回退到兄弟目录。
    *
@@ -349,7 +349,8 @@ export class InstanceRuntimeService {
   /**
    * 解析单个进程源的启动命令。
    *
-   * MoFox 本体进程：当 `mofoxInstallDir/main.py` 存在时返回命令（venv python 优先，uv 回退）。
+   * MoFox 本体进程：当 `mofoxInstallDir/main.py` 存在时返回命令（使用 venv 目录下的解释器；
+   * 未配置 venv 路径或解释器缺失时抛错）。
    * 平台进程：遍历平台对象用安装目录调用对应平台的 `getStartCommand`；平台入口缺失时抛错。
    *
    * @param instance - 待解析的实例。
@@ -364,8 +365,17 @@ export class InstanceRuntimeService {
     if (source === 'mofox') {
       const mofoxDir = instance.mofoxInstallDir;
       if (!mofoxDir || !(await exists(join(mofoxDir, 'main.py')))) return undefined;
-      // 优先使用实例配置的 venv 目录下的解释器，找不到时回退到 uv run。
-      const venvPython = await venvPythonOf(instance.venvDir || defaultVenvDir(mofoxDir));
+      const venvDir = instance.venvDir?.trim();
+      if (!venvDir) {
+        throw new MofoxError('INVALID_ARGUMENT', '实例未配置虚拟环境目录');
+      }
+      const venvPython = await venvPythonOf(venvDir);
+      if (!venvPython) {
+        throw new MofoxError(
+          'UNAVAILABLE',
+          '虚拟环境尚未创建：未找到 Python 解释器。请先启动主程序或运行 uv sync 同步依赖。',
+        );
+      }
       const env = {
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
@@ -373,9 +383,7 @@ export class InstanceRuntimeService {
         PYTHONUNBUFFERED: '1',
         PYTHONIOENCODING: 'utf-8',
       };
-      return venvPython
-        ? { command: venvPython, args: ['main.py'], cwd: mofoxDir, env }
-        : { command: 'uv', args: ['run', 'python', 'main.py'], cwd: mofoxDir, env };
+      return { command: venvPython, args: ['main.py'], cwd: mofoxDir, env };
     }
 
     // 平台路径的唯一来源是平铺的 platform 对象；未安装平台时仅启动 MoFox。

@@ -100,20 +100,32 @@ describe('VenvService', () => {
     });
   });
 
-  it('reports missing python and invalid venv markers', async () => {
+  it('reports non-blocking inspection for missing or non-absolute paths', async () => {
     const root = await createTemporaryDirectory();
-    const emptyDir = join(root, 'empty');
-    await mkdir(emptyDir, { recursive: true });
     const { service } = createService();
 
     const missing = await service.inspect(join(root, 'nope'));
     expect(missing.exists).toBe(false);
     expect(missing.valid).toBe(false);
 
-    const invalid = await service.inspect(emptyDir);
-    expect(invalid.exists).toBe(true);
-    expect(invalid.valid).toBe(false);
-    expect(invalid.pythonExists).toBe(false);
+    const relative = await service.inspect('relative/path');
+    expect(relative.absolute).toBe(false);
+  });
+
+  it('throws when inspecting an empty venv path', async () => {
+    const { service } = createService();
+
+    await expect(service.inspect('')).rejects.toThrow('虚拟环境路径不能为空');
+    await expect(service.inspect('   ')).rejects.toThrow('虚拟环境路径不能为空');
+  });
+
+  it('throws when the venv directory lacks a python executable', async () => {
+    const root = await createTemporaryDirectory();
+    const emptyDir = join(root, 'empty');
+    await mkdir(emptyDir, { recursive: true });
+    const { service } = createService();
+
+    await expect(service.inspect(emptyDir)).rejects.toThrow('未找到 Python 解释器');
   });
 
   it('lists packages from uv pip output', async () => {
@@ -232,20 +244,7 @@ describe('VenvService', () => {
     expect(runner).toHaveBeenCalled();
   });
 
-  it('queries available versions from a pip mirror', async () => {
-    const root = await createTemporaryDirectory();
-    const venvDir = await createVenv(root);
-    const { service } = createService({
-      runner: async () =>
-        okResult('Resolved 3 versions\nAvailable versions:\n  4.2.17\n  4.2.18\n  4.2.19\n'),
-      instances: [instanceFixture('ins-1', venvDir)],
-    });
-
-    const versions = await service.queryVersions('ins-1', 'napcat');
-    expect(versions).toEqual(['4.2.19', '4.2.18', '4.2.17']);
-  });
-
-  it('falls back to the PEP 503 simple index when uv lacks the index subcommand', async () => {
+  it('queries available versions from a pip mirror simple index', async () => {
     const root = await createTemporaryDirectory();
     const venvDir = await createVenv(root);
     const html =
@@ -259,21 +258,73 @@ describe('VenvService', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     try {
-      const { service } = createService({
-        // 第一次 uv 调用（`pip index` 子命令缺失）返回非零退出码，触发 simple index 回退。
-        runner: async (command, args) => {
-          expect(command).toBe('uv');
-          if (args.includes('index')) return okResult('', 2);
-          return okResult('');
-        },
+      const { service, runner } = createService({
         instances: [instanceFixture('ins-1', venvDir)],
       });
 
       const versions = await service.queryVersions('ins-1', 'napcat');
       expect(versions).toEqual(['4.2.19', '4.2.17']);
+      // 版本查询不再调用 uv，直接请求镜像 simple index。
+      expect(runner).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('tries the next pip mirror when the previous simple index fails', async () => {
+    const root = await createTemporaryDirectory();
+    const venvDir = await createVenv(root);
+    const html =
+      '<a href="/simple/napcat/napcat-4.2.19-py3-none-any.whl">napcat-4.2.19-py3-none-any.whl</a>';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://pypi.tuna.tsinghua.edu.cn/simple/napcat/') {
+        return { ok: false, status: 500, text: async () => '' } as Response;
+      }
+      if (url === 'https://mirrors.aliyun.com/pypi/simple/napcat/') {
+        return { ok: true, status: 200, text: async () => html } as Response;
+      }
+      return { ok: false, status: 404, text: async () => '' } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { service } = createService({
+        instances: [instanceFixture('ins-1', venvDir)],
+      });
+
+      const versions = await service.queryVersions('ins-1', 'napcat');
+      expect(versions).toEqual(['4.2.19']);
+      expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+        'https://pypi.tuna.tsinghua.edu.cn/simple/napcat/',
+        'https://mirrors.aliyun.com/pypi/simple/napcat/',
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('emits progress events while upgrading dependencies', async () => {
+    const root = await createTemporaryDirectory();
+    const venvDir = await createVenv(root);
+    const progressMessages: string[] = [];
+    const runner = vi.fn(async (command: string, args: readonly string[]) => {
+      expect(command).toBe('uv');
+      expect(args).toContain('--upgrade');
+      return okResult('');
+    });
+    const service = new VenvService(
+      {
+        list: async () => [instanceFixture('ins-1', venvDir)],
+        mirrors: { list: () => PIP_MIRRORS.map((m) => ({ ...m })) },
+      },
+      runner,
+      { progress: (event) => progressMessages.push(event.message) },
+    );
+
+    const result = await service.upgrade('ins-1', 'napcat');
+    expect(result.ok).toBe(true);
+    expect(result.upgraded).toBe(true);
+    expect(progressMessages).toContain('正在升级 napcat...');
+    expect(progressMessages).toContain('已升级 napcat');
   });
 
   it('throws a readable error when the venv python is missing', async () => {

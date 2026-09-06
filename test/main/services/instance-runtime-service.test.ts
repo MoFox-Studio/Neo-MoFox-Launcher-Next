@@ -464,6 +464,7 @@ function createInstance(installPath = 'D:\\Bot'): Instance {
     id: 'one',
     name: 'One',
     mofoxInstallDir: installPath,
+    venvDir: join(installPath, '.venv'),
     platform: { id: 'test', installDir: installPath, version: '1' },
     status: 'stopped',
     createdAt: 1,
@@ -478,6 +479,8 @@ async function createMofoxDir(): Promise<string> {
   await mkdir(join(root, 'neo-mofox'), { recursive: true });
   const mofoxDir = join(root, 'neo-mofox');
   await writeFile(join(mofoxDir, 'main.py'), 'print("hi")');
+  await mkdir(join(mofoxDir, '.venv', 'bin'), { recursive: true });
+  await writeFile(join(mofoxDir, '.venv', 'bin', 'python3'), '#!/bin/sh\n');
   return mofoxDir;
 }
 

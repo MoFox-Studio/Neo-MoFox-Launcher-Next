@@ -839,9 +839,23 @@ export const mockApi: MofoxApi = {
     return { name, removed: true, ok: true };
   },
 
-  async updateVenvPackage(_instanceId, name?): Promise<VenvPackageResult> {
+  async updateVenvPackage(instanceId, name?): Promise<VenvPackageResult> {
+    const target = name ?? '*';
+    const phase = name ? 'upgrade' : 'upgrade-all';
+    emit('venv-progress', {
+      instanceId,
+      phase,
+      percent: 0.3,
+      message: target === '*' ? '正在升级全部可升级依赖...' : `正在升级 ${target}...`,
+    });
     await delay(400);
-    return { name: name ?? '*', upgraded: true, ok: true };
+    emit('venv-progress', {
+      instanceId,
+      phase,
+      percent: 1,
+      message: target === '*' ? '全部依赖升级完成' : `已升级 ${target}`,
+    });
+    return { name: target, upgraded: true, ok: true };
   },
 
   async queryVenvPackageVersions(_instanceId, _name): Promise<string[]> {

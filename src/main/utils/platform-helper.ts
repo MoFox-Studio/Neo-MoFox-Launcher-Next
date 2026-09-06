@@ -103,7 +103,7 @@ export function pythonExeName(): string {
  * 返回当前平台在 venv 中可能出现的 Python 可执行文件名（按优先级排列）。
  *
  * venv 的符号链接可能因目录迁移而失效（如安装时从临时目录搬入），
- * 因此会依次尝试多个候选名，优先选择仍可访问的解释器。
+ * 因此依次尝试多个候选名，优先选择仍可访问的解释器。
  *
  * @returns 候选解释器文件名数组。
  */
@@ -124,7 +124,7 @@ export async function findVenvPython(projectDirectory: string): Promise<string |
 /**
  * 在指定虚拟环境目录下查找 Python 可执行文件。
  *
- * 同时兼容 POSIX（`bin/`）与 Windows（`Scripts/`）布局，并依次尝试候选名，
+ * 兼容 POSIX（`bin/`）与 Windows（`Scripts/`）布局，依次尝试候选名，
  * 返回第一个仍可访问的解释器（跳过因目录迁移而失效的符号链接）。
  *
  * @param venvDir - 虚拟环境根目录。

@@ -118,9 +118,8 @@ async function validateVenvDir(): Promise<boolean> {
     const check = await mofoxApi.inspectVenvPath(value);
     if (!check.absolute) venvDirError.value = '请输入绝对路径';
     else if (check.exists && !check.isDirectory) venvDirError.value = '必须是目录';
-    // 目录尚不存在是允许的（uv 同步依赖时会自动创建）；仅提示不阻断。
-  } catch {
-    venvDirError.value = '目录校验失败，请稍后重试';
+  } catch (error) {
+    venvDirError.value = error instanceof Error ? error.message : '目录校验失败，请稍后重试';
   } finally {
     checkingVenvDir.value = false;
   }

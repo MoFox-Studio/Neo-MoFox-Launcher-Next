@@ -310,7 +310,9 @@ if (!hasSingleInstanceLock) {
       },
     });
     registerManualImportIpc(ipcMain, new ManualImportService(instances, platforms));
-    const venvs = new VenvService({ list: () => instances.list(), mirrors });
+    const venvs = new VenvService({ list: () => instances.list(), mirrors }, undefined, {
+      progress: (event) => send(IPC_EVENT_CHANNELS['venv-progress'], event),
+    });
     registerVenvIpc(ipcMain, {
       inspect: (value) => venvs.inspect(value),
       getVenvInfo: (instanceId) => venvs.getVenvInfo(instanceId),

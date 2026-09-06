@@ -29,7 +29,12 @@ import type {
 } from './domain/file-picker';
 import type { WallpaperAsset } from './domain/wallpaper';
 import type { InstallTargetCheck } from './domain/install';
-import type { VenvInfo, VenvPackageResult, VenvPathInspection } from './domain/venv';
+import type {
+  VenvInfo,
+  VenvPackageResult,
+  VenvPathInspection,
+  VenvProgressEvent,
+} from './domain/venv';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
@@ -109,6 +114,7 @@ export const IPC_EVENT_CHANNELS = {
   'download-progress': 'event:download-progress',
   'oobe-progress': 'event:oobe-progress',
   'update-progress': 'event:update-progress',
+  'venv-progress': 'event:venv-progress',
 } as const satisfies Record<keyof MofoxEventMap, string>;
 
 /** 从主进程推送至渲染进程的事件载荷映射。 */
@@ -121,6 +127,7 @@ export interface MofoxEventMap {
   'download-progress': DownloadProgress;
   'oobe-progress': OobeProgress;
   'update-progress': UpdateProgressEvent;
+  'venv-progress': VenvProgressEvent;
 }
 
 export interface MofoxApi {

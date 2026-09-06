@@ -51,3 +51,14 @@ export interface VenvPackageResult {
   /** 失败时的可读错误信息。 */
   message?: string;
 }
+
+/** 虚拟环境操作（升级依赖）向界面推送的进度事件。 */
+export interface VenvProgressEvent {
+  instanceId: string;
+  /** 操作阶段标识。 */
+  phase: 'install' | 'uninstall' | 'upgrade' | 'upgrade-all';
+  /** 当前阶段内的 0..1 进度；无法测量时为 -1。 */
+  percent: number;
+  message: string;
+  error?: string;
+}
