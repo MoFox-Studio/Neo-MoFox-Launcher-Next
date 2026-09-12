@@ -40,6 +40,7 @@ describe('instances store', () => {
         createdAt: 1,
         lastStartedAt: null,
         autoStart: false,
+        extra: { isLike: false },
       },
     ]);
   });

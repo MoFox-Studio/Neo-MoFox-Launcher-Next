@@ -71,6 +71,15 @@ function requirePatch(value: unknown): UpdateInstancePatch {
   if (patch.autoStart !== undefined && typeof patch.autoStart !== 'boolean') {
     throw new MofoxError('INVALID_ARGUMENT', 'autoStart must be a boolean');
   }
+  if (patch.extra !== undefined) {
+    if (typeof patch.extra !== 'object' || patch.extra === null || Array.isArray(patch.extra)) {
+      throw new MofoxError('INVALID_ARGUMENT', 'extra must be an object');
+    }
+    const extra = patch.extra as Record<string, unknown>;
+    if (extra.isLike !== undefined && typeof extra.isLike !== 'boolean') {
+      throw new MofoxError('INVALID_ARGUMENT', 'extra.isLike must be a boolean');
+    }
+  }
   if (patch.platform !== undefined) {
     if (patch.platform === null) return patch as UpdateInstancePatch;
     if (typeof patch.platform !== 'object' || Array.isArray(patch.platform)) {

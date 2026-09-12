@@ -20,6 +20,7 @@ const emit = defineEmits<{
 const instancesStore = useInstancesStore();
 
 const editOpen = ref(false);
+const instanceName = ref('');
 const mofoxDir = ref('');
 const venvDir = ref('');
 const platformId = ref('');
@@ -29,6 +30,7 @@ const saving = ref(false);
 const validating = ref(false);
 const pendingRemove = ref(false);
 
+const instanceNameError = ref('');
 const mofoxDirError = ref('');
 const venvDirError = ref('');
 const platformDirError = ref('');
@@ -36,6 +38,7 @@ const checkingMofoxDir = ref(false);
 const checkingVenvDir = ref(false);
 const checkingPlatformDir = ref(false);
 
+const showInstanceNameError = computed(() => instanceNameError.value !== '');
 const showMofoxDirError = computed(() => mofoxDirError.value !== '');
 const showVenvDirError = computed(() => venvDirError.value !== '');
 const showPlatformDirError = computed(() => platformDirError.value !== '');
@@ -76,6 +79,7 @@ const platformLabel = computed(() => {
 });
 
 function syncForm(): void {
+  instanceName.value = props.instance.name;
   mofoxDir.value = props.instance.mofoxInstallDir;
   venvDir.value = props.instance.venvDir || defaultVenvDirFor(props.instance.mofoxInstallDir);
   platformId.value = props.instance.platform?.id ?? '';
@@ -85,6 +89,7 @@ function syncForm(): void {
 
 function openEditDialog(): void {
   syncForm();
+  instanceNameError.value = '';
   mofoxDirError.value = '';
   venvDirError.value = '';
   platformDirError.value = '';
@@ -104,6 +109,10 @@ function onPlatformChange(event: Event): void {
 
 function onMofoxDirFocus(): void {
   mofoxDirError.value = '';
+}
+
+function onInstanceNameFocus(): void {
+  instanceNameError.value = '';
 }
 
 function onVenvDirFocus(): void {
@@ -224,6 +233,16 @@ async function toggleAutoStart(): Promise<void> {
   }
 }
 
+async function toggleFavorite(): Promise<void> {
+  const next = !(props.instance.extra?.isLike === true);
+  try {
+    await instancesStore.update(props.instance.id, { extra: { isLike: next } });
+    emit('toast', next ? '已加入收藏' : '已取消收藏');
+  } catch (error) {
+    emit('toast', `保存失败: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 function requestRemove(): void {
   pendingRemove.value = true;
 }
@@ -242,10 +261,15 @@ async function save(): Promise<void> {
   if (saving.value || validating.value) return;
   validating.value = true;
   try {
+    // 名称校验与目录校验并行完成；任一失败都不提交。
+    const name = instanceName.value.trim();
+    if (!name) instanceNameError.value = '实例名称不能为空';
+    else if (name.length > 32) instanceNameError.value = '实例名称不能超过 32 个字符';
+    else instanceNameError.value = '';
     const mofoxValid = await validateMofoxDir();
     const venvValid = await validateVenvDir();
     const platformValid = await validatePlatformDir();
-    if (!mofoxValid || !venvValid || !platformValid) return;
+    if (instanceNameError.value || !mofoxValid || !venvValid || !platformValid) return;
   } finally {
     validating.value = false;
   }
@@ -262,6 +286,7 @@ async function save(): Promise<void> {
         }
       : null;
     await instancesStore.update(props.instance.id, {
+      name: instanceName.value.trim(),
       mofoxInstallDir: mofoxDir.value,
       venvDir: venvDir.value,
       platform,
@@ -297,11 +322,30 @@ watch(
           <span class="msr settings-item__icon" aria-hidden="true">tune</span>
           <div class="settings-item__body">
             <span class="settings-item__label">修改实例信息</span>
-            <span class="settings-item__desc">修改平台种类与安装路径</span>
+            <span class="settings-item__desc">修改实例名称、平台种类与安装路径</span>
           </div>
           <button class="btn btn--tonal state-layer" type="button" @click="openEditDialog">
             修改
           </button>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <div class="settings-item">
+          <span class="msr settings-item__icon" aria-hidden="true">favorite</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">收藏实例</span>
+            <span class="settings-item__desc">收藏的实例会展示在主界面并特别标注</span>
+          </div>
+          <div
+            class="md-switch"
+            role="switch"
+            :aria-checked="instance.extra?.isLike === true"
+            :class="{ 'md-switch--checked': instance.extra?.isLike === true }"
+            @click="toggleFavorite"
+          >
+            <div class="md-switch__thumb"></div>
+          </div>
         </div>
 
         <div class="settings-divider"></div>
@@ -354,7 +398,7 @@ watch(
     </div>
   </section>
 
-  <!-- 修改实例信息弹窗：只允许修改平台种类与安装路径 -->
+  <!-- 修改实例信息弹窗：可修改实例名称、平台种类与安装路径 -->
   <BaseDialog
     :open="editOpen"
     title="修改实例信息"
@@ -363,6 +407,26 @@ watch(
     @close="closeEditDialog"
   >
     <form class="edit-form" @submit.prevent="save">
+      <div class="form-group">
+        <label class="field" :class="{ 'field--error': showInstanceNameError }">
+          <input
+            v-model="instanceName"
+            class="field__input"
+            type="text"
+            maxlength="32"
+            placeholder=" "
+            @focus="onInstanceNameFocus"
+          />
+          <span class="field__label">实例名称</span>
+        </label>
+        <Transition name="field-error" mode="out-in">
+          <p v-if="showInstanceNameError" key="error" class="field__support field__support--error">
+            {{ instanceNameError }}
+          </p>
+          <p v-else key="hint" class="field__support">实例的显示名称，最多 32 个字符。</p>
+        </Transition>
+      </div>
+
       <div class="form-group">
         <md-outlined-select
           :key="platformSelectKey"

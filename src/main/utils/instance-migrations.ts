@@ -2,6 +2,7 @@ import { MofoxError } from '../../shared/domain/error';
 import {
   INSTANCES_VERSION,
   type Instance,
+  type InstanceExtra,
   type InstanceRepositoryFile,
   type InstalledPlatform,
 } from '../../shared/domain/instance';
@@ -27,6 +28,7 @@ export const DEFAULT_INSTANCE: Required<Omit<Instance, 'id'>> = {
   createdAt: 0,
   lastStartedAt: null,
   autoStart: false,
+  extra: { isLike: false },
 };
 
 /** 版本迁移分支的入参/出参：携带版本号的实例记录集合（迁移期间记录仍是未经规范化的原始形状）。 */
@@ -49,6 +51,7 @@ const MIGRATIONS: Readonly<Record<number, (file: VersionedFile) => VersionedFile
   5: migrateV5ToV6,
   6: migrateV6ToV7,
   7: migrateV7ToV8,
+  8: migrateV8ToV9,
 };
 
 /**
@@ -138,6 +141,7 @@ export function normalizeInstance(value: unknown): Instance {
     createdAt,
     lastStartedAt: typeof value.lastStartedAt === 'number' ? value.lastStartedAt : null,
     autoStart: value.autoStart === true,
+    extra: normalizeExtra(extra),
   };
 }
 
@@ -298,6 +302,21 @@ function migrateV7ToV8(file: VersionedFile): VersionedFile {
     return value;
   });
   return { version: 8, instances };
+}
+
+/**
+ * v8 → v9：新增 `extra` 字典并收敛其中的收藏标记为 `extra.isLike`。
+ * 旧启动器以 `extra.isLike` 记录收藏状态，也兼容 `islike`/`is_like` 别名。迁移阶段只补
+ * 收藏标记、保留其余 extra 字段，供后续 {@link normalizeInstance} 继续读取 `displayName`
+ * 解析名称；未知字段由规范化阶段统一剔除。
+ */
+function migrateV8ToV9(file: VersionedFile): VersionedFile {
+  const instances = file.instances.map((record) => {
+    const value = asRecord(record);
+    value.extra = { ...(isRecord(value.extra) ? value.extra : {}), ...normalizeExtra(value.extra) };
+    return value;
+  });
+  return { version: 9, instances };
 }
 
 // ─── Legacy instance path migration ───────────────────────────────────────
@@ -462,6 +481,19 @@ function joinPath(parent: string, child: string): string {
   if (!child) return parent;
   const sep = parent.includes('\\') && !parent.includes('/') ? '\\' : '/';
   return parent.endsWith(sep) ? `${parent}${child}` : `${parent}${sep}${child}`;
+}
+
+/**
+ * 从任意输入中提取实例附加信息字典；收藏标记兼容旧启动器的 `isLike` 及 `islike`/`is_like`
+ * 别名，非布尔值一律落为 `false`。
+ *
+ * @param value - 未经类型约束的 extra 字典。
+ * @returns 字段完整的 {@link InstanceExtra}。
+ */
+function normalizeExtra(value: unknown): InstanceExtra {
+  if (!isRecord(value)) return { isLike: false };
+  const liked = value.isLike === true || value.islike === true || value.is_like === true;
+  return { isLike: liked };
 }
 
 // ─── 规范化辅助 ───────────────────────────────────────────────────────────

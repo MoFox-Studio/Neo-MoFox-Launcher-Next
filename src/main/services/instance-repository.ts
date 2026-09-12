@@ -112,6 +112,7 @@ export class InstanceRepository {
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.lastStartedAt !== undefined ? { lastStartedAt: patch.lastStartedAt } : {}),
         ...(patch.autoStart !== undefined ? { autoStart: patch.autoStart } : {}),
+        ...(patch.extra !== undefined ? { extra: { ...current.extra, ...patch.extra } } : {}),
         // 虚拟环境路径由前端在切换主程序路径时自动跟随，后端仅做默认值兜底。
         venvDir: inferVenvDir(venvDir, mofoxInstallDir),
       });
@@ -242,9 +243,9 @@ function isCanonicalInstance(value: unknown, instance: Instance | undefined): bo
   return Boolean(instance && isRecord(value) && JSON.stringify(value) === JSON.stringify(instance));
 }
 
-/** 复制平台对象，避免调用方修改返回值后污染仓库缓存。 */
+/** 复制平台与附加信息对象，避免调用方修改返回值后污染仓库缓存。 */
 function cloneInstance(instance: Instance): Instance {
-  return { ...instance, platform: { ...instance.platform } };
+  return { ...instance, platform: { ...instance.platform }, extra: { ...instance.extra } };
 }
 
 /**

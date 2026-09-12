@@ -18,7 +18,9 @@ async function createTempDirectory(): Promise<string> {
 }
 
 afterEach(async () => {
-  await Promise.all(tempDirectories.splice(0).map((directory) => rm(directory, { recursive: true })));
+  await Promise.all(
+    tempDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
+  );
 });
 
 function makeInstance(overrides: Partial<Instance>): Instance {
@@ -26,11 +28,13 @@ function makeInstance(overrides: Partial<Instance>): Instance {
     id: 'ins-x',
     name: 'X',
     mofoxInstallDir: 'D:\\Bots\\x',
+    venvDir: 'D:\\Bots\\x/.venv',
     platform: { id: 'napcat', installDir: 'D:\\Bots\\napcat', version: '1.0.0' },
     status: 'stopped',
     createdAt: 1,
     lastStartedAt: null,
     autoStart: false,
+    extra: { isLike: false },
     ...overrides,
   };
 }
@@ -148,9 +152,7 @@ describe('LegacyMigrationService', () => {
 
     const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
     const preview = await service.preview();
-    const conflicts = Object.fromEntries(
-      preview.previews.map((p) => [p.instance.id, p.conflict]),
-    );
+    const conflicts = Object.fromEntries(preview.previews.map((p) => [p.instance.id, p.conflict]));
     expect(conflicts['dup-id']).toBe('duplicate-id');
     expect(conflicts['fresh']).toBe('duplicate-path');
     expect(conflicts['clean']).toBeNull();
@@ -188,7 +190,13 @@ describe('LegacyMigrationService', () => {
     await writeLegacyInstances(legacyDir, {
       version: 4,
       instances: [
-        { id: 'new-1', qqNickname: 'A', neomofoxDir: '/a', platform: 'napcat', platformVersion: '4.0' },
+        {
+          id: 'new-1',
+          qqNickname: 'A',
+          neomofoxDir: '/a',
+          platform: 'napcat',
+          platformVersion: '4.0',
+        },
         { id: 'new-2', name: 'B', neomofoxDir: '/b', platform: 'snowluma', platformVersion: '1.0' },
       ],
     });
@@ -200,6 +208,31 @@ describe('LegacyMigrationService', () => {
     expect(result).toEqual({ imported: 2, skipped: 0, total: 2 });
     const list = await repository.list();
     expect(list.map((i) => i.id).sort()).toEqual(['new-1', 'new-2']);
+  });
+
+  it('importInstances migrates the legacy extra.isLike favorite state', async () => {
+    const legacyDir = await createTempDirectory();
+    await writeLegacyInstances(legacyDir, {
+      version: 4,
+      instances: [
+        {
+          id: 'liked',
+          qqNickname: '收藏号',
+          neomofoxDir: '/a',
+          platform: 'napcat',
+          extra: { displayName: '收藏号', isLike: true },
+        },
+        { id: 'plain', qqNickname: '普通号', neomofoxDir: '/b', platform: 'snowluma' },
+      ],
+    });
+    const repoDir = await createTempDirectory();
+    const repository = new InstanceRepository(repoDir);
+    const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
+
+    await service.importInstances();
+    const list = await repository.list();
+    expect(list.find((i) => i.id === 'liked')?.extra).toEqual({ isLike: true });
+    expect(list.find((i) => i.id === 'plain')?.extra).toEqual({ isLike: false });
   });
 
   it('importInstances skips conflicting records and reports the count', async () => {

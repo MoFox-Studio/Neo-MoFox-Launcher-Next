@@ -271,6 +271,7 @@ describe('InstanceRepository', () => {
         createdAt: 2,
         lastStartedAt: null,
         autoStart: false,
+        extra: { isLike: false },
       },
       // 全新实例
       {
@@ -283,6 +284,7 @@ describe('InstanceRepository', () => {
         createdAt: 3,
         lastStartedAt: null,
         autoStart: true,
+        extra: { isLike: true },
       },
     ];
 
@@ -479,5 +481,53 @@ describe('InstanceRepository', () => {
       installDir: '/bots/5/napcat',
       version: '4.2.19',
     });
+  });
+
+  it('upgrades a v8 file by carrying the legacy extra.isLike into the extra dict', async () => {
+    const directory = await createTempDirectory();
+    const instancesPath = join(directory, 'instances.json');
+    await writeFile(
+      instancesPath,
+      JSON.stringify({
+        version: 8,
+        instances: [
+          { id: 'liked', name: '收藏', mofoxInstallDir: '/bots/1', extra: { isLike: true } },
+          { id: 'plain', name: '普通', mofoxInstallDir: '/bots/2', extra: { isLike: false } },
+        ],
+      }),
+    );
+    const repository = new InstanceRepository(directory, vi.fn());
+
+    const loaded = await repository.list();
+    expect(loaded.find((i) => i.id === 'liked')?.extra).toEqual({ isLike: true });
+    expect(loaded.find((i) => i.id === 'plain')?.extra).toEqual({ isLike: false });
+    const persisted = JSON.parse(await readFile(instancesPath, 'utf8'));
+    expect(persisted.version).toBe(INSTANCES_VERSION);
+    expect(persisted.instances[0].extra).toEqual({ isLike: true });
+  });
+
+  it('normalizeInstance preserves extra.isLike and tolerates islike aliases', () => {
+    expect(normalizeInstance({ id: 'a', extra: { isLike: true } }).extra).toEqual({
+      isLike: true,
+    });
+    expect(normalizeInstance({ id: 'b', extra: { islike: true } }).extra).toEqual({
+      isLike: true,
+    });
+    expect(normalizeInstance({ id: 'c', extra: { isLike: 'yes' } }).extra).toEqual({
+      isLike: false,
+    });
+    expect(normalizeInstance({ id: 'd' }).extra).toEqual({ isLike: false });
+  });
+
+  it('updates the extra dict by merging only the patched fields', async () => {
+    const directory = await createTempDirectory();
+    const repository = new InstanceRepository(directory);
+    const created = await repository.create({ id: 'ins-1', name: 'Test' });
+
+    await repository.update('ins-1', { extra: { isLike: true } });
+    expect(await repository.list()).toEqual([{ ...created, extra: { isLike: true } }]);
+
+    await repository.update('ins-1', { extra: { isLike: false } });
+    expect(await repository.list()).toEqual([{ ...created, extra: { isLike: false } }]);
   });
 });

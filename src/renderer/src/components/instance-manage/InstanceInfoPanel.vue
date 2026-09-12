@@ -77,6 +77,10 @@ function formatDate(value: number | null): string {
           <dt>启动时自动运行</dt>
           <dd>{{ instance.autoStart ? '是' : '否' }}</dd>
         </div>
+        <div class="info-grid__item">
+          <dt>已收藏</dt>
+          <dd>{{ instance.extra?.isLike === true ? '是' : '否' }}</dd>
+        </div>
       </dl>
     </div>
   </section>

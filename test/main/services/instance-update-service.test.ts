@@ -32,11 +32,13 @@ function makeInstance(root: string): Instance {
     id: 'ins-1',
     name: 'Test',
     mofoxInstallDir: join(root, 'mofox'),
+    venvDir: join(root, 'mofox', '.venv'),
     platform: { id: 'snowluma', installDir: join(root, 'platform'), version: 'v1.0.0' },
     status: 'stopped',
     createdAt: 1,
     lastStartedAt: null,
     autoStart: false,
+    extra: { isLike: false },
   };
 }
 

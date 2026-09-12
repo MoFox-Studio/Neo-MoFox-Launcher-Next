@@ -203,11 +203,13 @@ function createInstance(): Instance {
     id: 'one',
     name: 'One',
     mofoxInstallDir: 'D:\\Bot',
+    venvDir: 'D:\\Bot/.venv',
     platform: { id: 'test', installDir: 'D:\\Bot', version: '1' },
     status: 'stopped',
     createdAt: 1,
     lastStartedAt: null,
     autoStart: false,
+    extra: { isLike: false },
   };
 }
 

@@ -2,7 +2,7 @@
  * 实例仓库文件格式版本；每次字段或语义变更必须递增版本号，
  * 并在 `src/main/utils/instance-migrations.ts` 中提供从旧版本到新版本的一步迁移分支。
  */
-export const INSTANCES_VERSION = 8;
+export const INSTANCES_VERSION = 9;
 
 /** 实例仓库磁盘布局：版本号 + 规范化实例数组。 */
 export interface InstanceRepositoryFile {
@@ -26,6 +26,12 @@ export interface InstalledPlatform {
   version: string | null;
 }
 
+/** 实例附加信息字典；沿用旧启动器的 `extra` 结构，字段缺省时统一为 `false`。 */
+export interface InstanceExtra {
+  /** 是否已收藏；收藏实例会在实例卡片特别展示并出现在主界面。 */
+  isLike: boolean;
+}
+
 /** 持久化的机器人实例及其运行状态摘要。 */
 export interface Instance {
   id: string;
@@ -41,6 +47,8 @@ export interface Instance {
   /** 最后一次成功启动的时间戳（毫秒）；从未启动过时为 `null`。 */
   lastStartedAt: number | null;
   autoStart: boolean;
+  /** 附加信息字典；手动添加的实例默认 `isLike: false`。 */
+  extra: InstanceExtra;
 }
 
 /** 新增实例的入参；仅暴露业务可配置字段，ID、状态、时间戳等由仓库在内部以默认值构建。 */
@@ -66,6 +74,8 @@ export interface UpdateInstancePatch {
   status?: InstanceStatus;
   lastStartedAt?: number | null;
   autoStart?: boolean;
+  /** 附加信息字典；未提供时保持原值。 */
+  extra?: InstanceExtra;
 }
 
 /** 一个实例最多运行两个进程：MoFox 本体与平台适配器。 */

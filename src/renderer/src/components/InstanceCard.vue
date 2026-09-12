@@ -24,6 +24,9 @@ const isBusy = computed(
   () => props.instance.status === 'starting' || props.instance.status === 'stopping',
 );
 
+// 收藏标记沿用旧启动器的 extra.isLike，收藏实例在卡片左上角以星标特别展示。
+const isLike = computed(() => props.instance.extra?.isLike === true);
+
 // 平台信息平铺在 instance.platform 中；卡片展示平台 ID 与实际平台版本。
 const platform = computed(() => props.instance.platform);
 const platformId = computed(() => platform.value?.id ?? '');
@@ -42,7 +45,16 @@ function onPrimaryAction(): void {
   <article class="instance-card">
     <!-- 实例名称与当前运行状态 -->
     <header class="instance-card__head">
-      <h3 class="instance-card__name">{{ instance.name }}</h3>
+      <h3 class="instance-card__name">
+        <span
+          v-if="isLike"
+          class="msr instance-card__like msr--fill"
+          title="已收藏"
+          aria-label="已收藏"
+          >favorite</span
+        >
+        {{ instance.name }}
+      </h3>
       <StatusBadge :status="instance.status" />
     </header>
 
@@ -169,6 +181,13 @@ function onPrimaryAction(): void {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.instance-card__like {
+  color: var(--md-sys-color-tertiary);
+  font-size: 18px;
+  margin-right: 4px;
+  vertical-align: -3px;
 }
 
 /* 平台、版本和安装路径 */

@@ -12,11 +12,13 @@ function createActions() {
       id: 'one',
       name: 'One',
       mofoxInstallDir: 'D:\\Bot',
+      venvDir: 'D:\\Bot/.venv',
       platform: { id: 'test', installDir: 'D:\\Bot', version: '1' },
       status: 'stopped',
       createdAt: 1,
       lastStartedAt: null,
       autoStart: false,
+      extra: { isLike: false },
     })),
   };
 }
@@ -84,6 +86,27 @@ describe('registerInstanceManageIpc', () => {
     await expect(
       handlers.get(IPC_INVOKE_CHANNELS.updateInstance)?.({}, 'one', { platform: { id: 7 } }),
     ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.updateInstance)?.({}, 'one', { extra: { isLike: 'yes' } }),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.updateInstance)?.({}, 'one', { extra: 42 }),
+    ).rejects.toThrow('MOFOX_ERROR:');
     expect(actions.update).not.toHaveBeenCalled();
+  });
+
+  it('forwards a valid extra favorite patch to the service', async () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const ipcMain = {
+      handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
+        handlers.set(channel, handler),
+    };
+    const actions = createActions();
+    registerInstanceManageIpc(ipcMain, actions);
+
+    await handlers.get(IPC_INVOKE_CHANNELS.updateInstance)?.({}, 'one', {
+      extra: { isLike: true },
+    });
+    expect(actions.update).toHaveBeenCalledWith('one', { extra: { isLike: true } });
   });
 });

@@ -60,6 +60,7 @@ const instances: Instance[] = [
     createdAt: Date.now() - 86_400_000 * 42,
     lastStartedAt: Date.now() - 3_600_000 * 5,
     autoStart: true,
+    extra: { isLike: true },
   },
   {
     id: 'ins-dev',
@@ -71,6 +72,7 @@ const instances: Instance[] = [
     createdAt: Date.now() - 86_400_000 * 9,
     lastStartedAt: null,
     autoStart: false,
+    extra: { isLike: false },
   },
   {
     id: 'ins-guard',
@@ -82,6 +84,7 @@ const instances: Instance[] = [
     createdAt: Date.now() - 86_400_000 * 120,
     lastStartedAt: Date.now() - 86_400_000 * 2,
     autoStart: false,
+    extra: { isLike: false },
   },
 ];
 
@@ -355,6 +358,7 @@ export const mockApi: MofoxApi = {
             };
     }
     if (patch.autoStart !== undefined) ins.autoStart = patch.autoStart;
+    if (patch.extra !== undefined) ins.extra = { ...ins.extra, ...patch.extra };
     return { ...ins };
   },
   async getInstanceLogBuffer(id, source) {
@@ -443,6 +447,7 @@ export const mockApi: MofoxApi = {
         createdAt: Date.now(),
         lastStartedAt: null,
         autoStart: false,
+        extra: { isLike: false },
       });
     })();
     return taskId;
@@ -493,6 +498,7 @@ export const mockApi: MofoxApi = {
       createdAt: Date.now(),
       lastStartedAt: null,
       autoStart: false,
+      extra: { isLike: false },
     });
     return { instanceId };
   },

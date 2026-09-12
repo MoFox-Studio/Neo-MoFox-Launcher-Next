@@ -470,6 +470,7 @@ function createInstance(installPath = 'D:\\Bot'): Instance {
     createdAt: 1,
     lastStartedAt: null,
     autoStart: false,
+    extra: { isLike: false },
   };
 }
 

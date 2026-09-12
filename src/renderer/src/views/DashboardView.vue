@@ -21,11 +21,20 @@ const greeting = computed(() => {
 // 概览页标题随问候语显示在窗口栏。
 useWindowTitle({ title: '概览', subtitle: greeting });
 
-const totalCount = computed(() => instancesStore.instances.length);
-const runningCount = computed(() => instancesStore.running.length);
-const platformCount = computed(
-  () => new Set(instancesStore.instances.map((i) => i.platform?.id ?? '').filter(Boolean)).size,
+// 概览页只展示收藏实例；统计值始终从收藏列表派生。
+const favoriteInstances = computed(() =>
+  instancesStore.instances.filter((i) => i.extra?.isLike === true),
 );
+
+const totalCount = computed(() => favoriteInstances.value.length);
+const runningCount = computed(
+  () => favoriteInstances.value.filter((i) => i.status === 'running').length,
+);
+const platformCount = computed(
+  () => new Set(favoriteInstances.value.map((i) => i.platform?.id ?? '').filter(Boolean)).size,
+);
+
+const hasAnyInstances = computed(() => instancesStore.instances.length > 0);
 
 // 页面进入时发起列表同步，卡片状态后续由仓库事件更新。
 onMounted(() => {
@@ -89,18 +98,23 @@ function onManage(id: string): void {
         </div>
       </section>
 
-      <!-- 实例空态、卡片列表与新建入口 -->
+      <!-- 实例空态、收藏列表与新建入口 -->
       <section class="instances-section">
         <h2 class="instances-section__title">实例</h2>
 
-        <div v-if="totalCount === 0" class="empty-state">
+        <div v-if="!hasAnyInstances" class="empty-state">
           <span class="msr empty-state__icon" aria-hidden="true">rocket_launch</span>
           <p class="empty-state__text">还没有任何实例，请使用左上角加号添加实例</p>
         </div>
 
+        <div v-else-if="totalCount === 0" class="empty-state">
+          <span class="msr empty-state__icon" aria-hidden="true">favorite_border</span>
+          <p class="empty-state__text">还没有收藏任何实例，请在实例管理面板中收藏后显示在这里</p>
+        </div>
+
         <div v-else class="instances-grid">
           <InstanceCard
-            v-for="instance in instancesStore.instances"
+            v-for="instance in favoriteInstances"
             :key="instance.id"
             :instance="instance"
             @start="onStart"

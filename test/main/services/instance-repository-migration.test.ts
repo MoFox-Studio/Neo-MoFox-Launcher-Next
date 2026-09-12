@@ -181,6 +181,7 @@ describe('InstanceRepository legacy migration', () => {
           createdAt: 123,
           lastStartedAt: null,
           autoStart: false,
+          extra: { isLike: false },
         },
       ],
     };
