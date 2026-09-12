@@ -506,11 +506,8 @@ describe('InstanceRepository', () => {
     expect(persisted.instances[0].extra).toEqual({ isLike: true });
   });
 
-  it('normalizeInstance preserves extra.isLike and tolerates islike aliases', () => {
+  it('normalizeInstance preserves canonical extra.isLike and defaults non-boolean values', () => {
     expect(normalizeInstance({ id: 'a', extra: { isLike: true } }).extra).toEqual({
-      isLike: true,
-    });
-    expect(normalizeInstance({ id: 'b', extra: { islike: true } }).extra).toEqual({
       isLike: true,
     });
     expect(normalizeInstance({ id: 'c', extra: { isLike: 'yes' } }).extra).toEqual({

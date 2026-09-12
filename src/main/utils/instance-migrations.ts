@@ -305,10 +305,10 @@ function migrateV7ToV8(file: VersionedFile): VersionedFile {
 }
 
 /**
- * v8 → v9：新增 `extra` 字典并收敛其中的收藏标记为 `extra.isLike`。
- * 旧启动器以 `extra.isLike` 记录收藏状态，也兼容 `islike`/`is_like` 别名。迁移阶段只补
- * 收藏标记、保留其余 extra 字段，供后续 {@link normalizeInstance} 继续读取 `displayName`
- * 解析名称；未知字段由规范化阶段统一剔除。
+ * v8 → v9：新增 `extra` 字典并写入其中的收藏标记 `extra.isLike`。
+ * 新仓库的 v8 文件此前并无 `extra` 字段，这里只补规范化字段、保留其余 extra 字段，
+ * 供后续 {@link normalizeInstance} 继续读取 `displayName` 解析名称；未知字段由规范化
+ * 阶段统一剔除。旧启动器的 `isLike` 别名兼容不属于仓库迁移职责，由旧启动器迁移器处理。
  */
 function migrateV8ToV9(file: VersionedFile): VersionedFile {
   const instances = file.instances.map((record) => {
@@ -484,16 +484,15 @@ function joinPath(parent: string, child: string): string {
 }
 
 /**
- * 从任意输入中提取实例附加信息字典；收藏标记兼容旧启动器的 `isLike` 及 `islike`/`is_like`
- * 别名，非布尔值一律落为 `false`。
+ * 从任意输入中提取实例附加信息字典；只识别规范化的 `isLike` 布尔值，非布尔值一律落为
+ * `false`。旧启动器的 `islike`/`is_like` 等别名由旧启动器迁移器在进入此函数前收敛。
  *
  * @param value - 未经类型约束的 extra 字典。
  * @returns 字段完整的 {@link InstanceExtra}。
  */
 function normalizeExtra(value: unknown): InstanceExtra {
   if (!isRecord(value)) return { isLike: false };
-  const liked = value.isLike === true || value.islike === true || value.is_like === true;
-  return { isLike: liked };
+  return { isLike: value.isLike === true };
 }
 
 // ─── 规范化辅助 ───────────────────────────────────────────────────────────

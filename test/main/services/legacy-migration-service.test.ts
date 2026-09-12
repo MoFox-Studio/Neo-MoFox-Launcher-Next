@@ -235,6 +235,45 @@ describe('LegacyMigrationService', () => {
     expect(list.find((i) => i.id === 'plain')?.extra).toEqual({ isLike: false });
   });
 
+  it('importInstances canonicalizes legacy islike/is_like aliases into extra.isLike', async () => {
+    const legacyDir = await createTempDirectory();
+    await writeLegacyInstances(legacyDir, {
+      version: 4,
+      instances: [
+        {
+          id: 'alias-lower',
+          name: 'A',
+          neomofoxDir: '/a',
+          platform: 'napcat',
+          extra: { islike: true },
+        },
+        {
+          id: 'alias-snake',
+          name: 'B',
+          neomofoxDir: '/b',
+          platform: 'napcat',
+          extra: { is_like: true },
+        },
+        {
+          id: 'alias-string',
+          name: 'C',
+          neomofoxDir: '/c',
+          platform: 'napcat',
+          extra: { isLike: 'yes' },
+        },
+      ],
+    });
+    const repoDir = await createTempDirectory();
+    const repository = new InstanceRepository(repoDir);
+    const service = new LegacyMigrationService(legacyDir, repository, vi.fn());
+
+    await service.importInstances();
+    const list = await repository.list();
+    expect(list.find((i) => i.id === 'alias-lower')?.extra).toEqual({ isLike: true });
+    expect(list.find((i) => i.id === 'alias-snake')?.extra).toEqual({ isLike: true });
+    expect(list.find((i) => i.id === 'alias-string')?.extra).toEqual({ isLike: false });
+  });
+
   it('importInstances skips conflicting records and reports the count', async () => {
     const legacyDir = await createTempDirectory();
     await writeLegacyInstances(legacyDir, {

@@ -85,7 +85,7 @@ export class LegacyMigrationService {
     for (const record of records) {
       // 保留原始记录以反推 nameSource；规范化失败时仅跳过当前记录。
       try {
-        const instance = normalizeInstance(record);
+        const instance = normalizeInstance(normalizeLegacyExtra(record));
         previews.push({
           instance,
           conflict: detectConflict(instance, existingIds, existingPaths),
@@ -156,6 +156,28 @@ function resolveNameSource(record: unknown): LegacyInstancePreview['nameSource']
     return 'qqNickname';
   }
   return 'id';
+}
+
+/**
+ * 把旧启动器实例记录的收藏标记收敛为当前 schema 的 `extra.isLike`。
+ *
+ * 旧启动器以 `extra.isLike` 记录收藏状态，部分版本或手工改动可能写成 `islike`/`is_like`
+ * 别名；本函数统一在进入 {@link normalizeInstance} 前收敛，同时保留 `extra` 中其余字段
+ * （如 `displayName`），供名称解析继续使用。非布尔值一律落为 `false`。
+ *
+ * @param record - 未经类型约束的旧启动器实例记录。
+ * @returns 收藏标记已收敛的原始记录（未修改原对象）。
+ */
+function normalizeLegacyExtra(record: unknown): unknown {
+  if (!isRecord(record)) return record;
+  const extra = isRecord(record.extra) ? record.extra : {};
+  return {
+    ...record,
+    extra: {
+      ...extra,
+      isLike: extra.isLike === true || extra.islike === true || extra.is_like === true,
+    },
+  };
 }
 
 /**
