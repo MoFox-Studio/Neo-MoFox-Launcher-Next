@@ -92,6 +92,78 @@ const NETWORK_ERROR_EXPLANATIONS: Array<{
 ];
 
 /**
+ * 常见 Git 命令失败输出到人类可读原因的描述；按声明顺序匹配，命中即返回。
+ *
+ * Git 的传输层错误（clone/fetch/pull/ls-remote）常把底层原因一并写入 stderr，
+ * 例如证书校验、域名解析、连接失败与代理故障，因此这里同时覆盖网络类问题。
+ */
+const GIT_ERROR_EXPLANATIONS: Array<{ pattern: RegExp; explanation: string }> = [
+  {
+    pattern:
+      /SSL certificate problem|unable to get local issuer certificate|server certificate verification failed|self[- ]signed certificate|certificate verify failed/i,
+    explanation: 'Git 服务器证书校验失败，无法确认服务器身份，可能由中间人代理、未受信任的根证书或系统时间错误导致',
+  },
+  {
+    pattern: /Authentication failed|could not read (Username|Password)|access denied/i,
+    explanation: '认证失败，请检查访问令牌与账号权限（仓库可能已设为私有或令牌已过期）',
+  },
+  {
+    pattern: /repository .* not found/i,
+    explanation: '仓库不存在，可能已被删除、改名或设为私有',
+  },
+  {
+    pattern: /already exists and is not an empty directory/i,
+    explanation: '目标目录已存在且非空，请更换安装目录或先清理旧目录',
+  },
+  {
+    pattern: /could not resolve host|getaddrinfo|ENOTFOUND|Name or service not known/i,
+    explanation: '域名解析失败，请检查网络连接与 DNS 配置',
+  },
+  {
+    pattern: /connection refused/i,
+    explanation: '连接被拒绝，服务器未开放端口或防火墙拦截了请求',
+  },
+  {
+    pattern: /connection (timed out|reset)|timed ?out/i,
+    explanation: '连接或响应超时，网络缓慢或服务器负载过高',
+  },
+  {
+    pattern: /proxy/i,
+    explanation: '代理连接失败，请检查代理服务器地址与认证设置',
+  },
+  {
+    pattern: /not a git repository/i,
+    explanation: '目录不是有效的 Git 仓库',
+  },
+  {
+    pattern: /remote .* already exists/i,
+    explanation: '远程源已存在，请检查仓库配置',
+  },
+  {
+    pattern: /unable to access/i,
+    explanation: '无法访问远程仓库，请检查网络连接或更换镜像源',
+  },
+];
+
+/**
+ * 将 Git 命令的失败输出转换为人类可读的中文原因描述。
+ *
+ * 按声明顺序匹配 stderr 文本中的常见致命错误，给出可操作提示；无法识别时
+ * 原样返回输入，避免丢失调试信息。
+ *
+ * @param output - Git 命令的 stderr 输出，可为空。
+ * @returns 可读的中文原因描述或原始输出。
+ */
+export function describeGitError(output: string | undefined): string {
+  const text = (output ?? '').trim();
+  if (!text) return '未知的 Git 错误';
+  for (const rule of GIT_ERROR_EXPLANATIONS) {
+    if (rule.pattern.test(text)) return rule.explanation;
+  }
+  return text;
+}
+
+/**
  * 将请求失败原因转换为人类可读的中文描述，供错误提示使用。
  *
  * 支持两种输入：

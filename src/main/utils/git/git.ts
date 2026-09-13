@@ -3,6 +3,7 @@ import type { MofoxCommit, MofoxCurrentCommit } from '../../../shared/domain/upd
 import { MofoxError } from '../../../shared/domain/error';
 import { execCommand } from '../platform-helper';
 import { githubMirrorsOf, resolveGithubUrl } from './github-mirror';
+import { describeGitError, describeNetworkError } from '../network-error';
 
 // Neo-MoFox 本体仓库；分支与提交回退均作用于该仓库的本地克隆。
 const MOFOX_REPOSITORY = 'MoFox-Studio/Neo-MoFox';
@@ -53,16 +54,17 @@ export async function cloneRepository(options: CloneRepositoryOptions): Promise<
         },
       );
       if (result.exitCode === 0) return;
-      lastError = new Error(result.stderr?.trim() || `git clone 失败 (exit ${result.exitCode})`);
+      lastError = new MofoxError('IO_ERROR', describeGitError(result.stderr?.trim() || `git clone 失败 (exit ${result.exitCode})`));
       onProgress?.(`镜像 ${mirror.name} 克隆失败，尝试下一个镜像`);
     } catch (error) {
       if (signal?.aborted) throw error;
       lastError = error;
     }
   }
-  throw lastError instanceof Error
-    ? lastError
-    : new MofoxError('IO_ERROR', `所有镜像均无法克隆 ${repository}`);
+  throw new MofoxError(
+    'IO_ERROR',
+    `所有镜像均无法克隆 ${repository}。${lastError instanceof Error ? lastError.message : '未知的 Git 错误'}`,
+  );
 }
 
 /**
@@ -288,7 +290,8 @@ async function fetchApiBranches(
         headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
         ...(signal ? { signal } : {}),
       });
-      if (!response.ok) throw new MofoxError('IO_ERROR', `HTTP ${response.status}`);
+      if (!response.ok)
+        throw new MofoxError('IO_ERROR', `HTTP ${response.status}（${describeNetworkError(response.status)}）`);
       const data = (await response.json()) as Array<{ name?: string }>;
       const branches = data.map((entry) => entry.name ?? '').filter(Boolean);
       if (branches.length > 0) return branches;
@@ -345,7 +348,7 @@ async function runGit(
   if (progressMessage) onProgress?.(progressMessage);
   const result = await execCommand('git', args, { cwd: directory, timeoutMs });
   if (result.exitCode !== 0) {
-    throw new MofoxError('IO_ERROR', result.stderr?.trim() || `git ${args[0]} 失败`);
+    throw new MofoxError('IO_ERROR', describeGitError(result.stderr?.trim() || `git ${args[0]} 失败`));
   }
 }
 

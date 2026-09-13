@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExecResult } from '../../../src/main/utils/process-helper';
+import type { MirrorSource } from '../../../src/shared/domain/mirror';
 
 const execCommand = vi.fn();
 
@@ -10,6 +11,7 @@ vi.mock('../../../src/main/utils/platform-helper', () => ({
 import {
   checkUpdateStatus,
   checkoutCommit,
+  cloneRepository,
   getCommitList,
   getCurrentBranch,
   getCurrentCommit,
@@ -17,6 +19,11 @@ import {
   switchBranch,
   updateToLatest,
 } from '../../../src/main/utils/git/git';
+
+const MIRRORS: readonly MirrorSource[] = [
+  { id: 'gh-direct', type: 'github', name: 'GitHub', baseUrl: 'https://github.com' },
+  { id: 'gh-proxy', type: 'github', name: 'GitHub Proxy', baseUrl: 'https://ghproxy.net' },
+];
 
 function result(stdout = '', exitCode = 0): ExecResult {
   return { stdout, stderr: '', exitCode, timedOut: false };
@@ -179,5 +186,30 @@ describe('git mutation helpers', () => {
       ['status', '--porcelain'],
       ['pull', 'origin', 'main'],
     ]);
+  });
+
+  it('cloneRepository translates a certificate failure into a readable message', async () => {
+    execCommand.mockResolvedValue({
+      stdout: '',
+      stderr:
+        "fatal: unable to access 'https://github.com/MoFox-Studio/Neo-MoFox.git/': SSL certificate problem: unable to get local issuer certificate",
+      exitCode: 128,
+      timedOut: false,
+    });
+    await expect(
+      cloneRepository({
+        mirrors: MIRRORS,
+        repository: 'MoFox-Studio/Neo-MoFox',
+        branch: 'main',
+        destination: '/tmp/repo',
+      }),
+    ).rejects.toMatchObject({
+      code: 'IO_ERROR',
+      message: expect.stringContaining('证书'),
+    });
+    const gitCalls = execCommand.mock.calls
+      .filter((call) => call[0] === GIT)
+      .map((call) => call[1]);
+    expect(gitCalls).toHaveLength(2);
   });
 });
