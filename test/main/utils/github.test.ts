@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import type { MirrorSource } from '../../../src/shared/domain/mirror';
 import { fetchReleases, installGithubRelease } from '../../../src/main/utils/git/github';
-import { describeHttpStatus } from '../../../src/main/utils/http-status';
+import { describeNetworkError } from '../../../src/main/utils/network-error';
 import type { InstallContext } from '../../../src/shared/domain/bot-platform';
 
 vi.mock('extract-zip', () => ({
@@ -39,16 +39,52 @@ function installContext(version = 'latest'): InstallContext {
   };
 }
 
-describe('describeHttpStatus', () => {
-  it('explains common status codes', () => {
-    expect(describeHttpStatus(403)).toContain('访问被拒绝');
-    expect(describeHttpStatus(404)).toContain('资源不存在');
-    expect(describeHttpStatus(429)).toContain('限流');
-    expect(describeHttpStatus(503)).toContain('服务暂时不可用');
+describe('describeNetworkError', () => {
+  it('explains common HTTP status codes', () => {
+    expect(describeNetworkError(403)).toContain('访问被拒绝');
+    expect(describeNetworkError(404)).toContain('资源不存在');
+    expect(describeNetworkError(429)).toContain('限流');
+    expect(describeNetworkError(503)).toContain('服务暂时不可用');
   });
 
-  it('falls back for unknown status codes', () => {
-    expect(describeHttpStatus(599)).toBe('未知的 HTTP 状态码');
+  it('explains TLS certificate verification failures by error code and message', () => {
+    const byCode = Object.assign(new Error('unable to verify the first certificate'), {
+      code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+    });
+    expect(describeNetworkError(byCode)).toContain('证书');
+    expect(describeNetworkError(new Error('self-signed certificate'))).toContain('证书');
+    expect(describeNetworkError(new Error('certificate has expired'))).toContain('过期');
+  });
+
+  it('unwraps the underlying cause for fetch network failures', () => {
+    const wrapped = new TypeError('fetch failed', {
+      cause: Object.assign(new Error('unable to verify the first certificate'), {
+        code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+      }),
+    });
+    expect(describeNetworkError(wrapped)).toContain('证书');
+  });
+
+  it('explains DNS and connection failures', () => {
+    const dns = Object.assign(new Error('getaddrinfo ENOTFOUND github.com'), { code: 'ENOTFOUND' });
+    expect(describeNetworkError(dns)).toContain('域名解析');
+    const refused = Object.assign(new Error('connect ECONNREFUSED 1.2.3.4:443'), {
+      code: 'ECONNREFUSED',
+    });
+    expect(describeNetworkError(refused)).toContain('连接被拒绝');
+    const timeout = Object.assign(new Error('ETIMEDOUT'), { code: 'ETIMEDOUT' });
+    expect(describeNetworkError(timeout)).toContain('超时');
+  });
+
+  it('explains aborted requests', () => {
+    expect(describeNetworkError(new DOMException('This operation was aborted', 'AbortError'))).toContain(
+      '取消',
+    );
+  });
+
+  it('falls back for unknown inputs', () => {
+    expect(describeNetworkError(599)).toBe('未知的 HTTP 状态码 599');
+    expect(describeNetworkError(new Error('something unexpected'))).toBe('未知的网络错误（something unexpected）');
   });
 });
 

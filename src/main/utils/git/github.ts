@@ -10,7 +10,7 @@ import { MofoxError } from '../../../shared/domain/error';
 import { downloadRange } from '../range-downloader';
 import { runOneShot } from '../process-helper';
 import { resolveGithubUrl, tryEachGithubMirror } from './github-mirror';
-import { describeHttpStatus } from '../http-status';
+import { describeNetworkError } from '../network-error';
 
 // GitHub Release 下载与查询的镜像轮询实现，供平台安装/更新与版本列表复用。
 
@@ -130,14 +130,18 @@ export async function fetchReleases(
         mirror,
         `https://api.github.com/repos/${repository}/releases?per_page=${limit}`,
       );
-      const response = await fetch(url, {
-        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
-        ...(signal ? { signal } : {}),
-      });
+      const response = await githubFetch(
+        'GitHub releases 请求失败',
+        url,
+        {
+          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
+          ...(signal ? { signal } : {}),
+        },
+      );
       if (!response.ok)
         throw new MofoxError(
           'IO_ERROR',
-          `GitHub releases 请求失败: HTTP ${response.status}（${describeHttpStatus(response.status)}）`,
+          `GitHub releases 请求失败: HTTP ${response.status}（${describeNetworkError(response.status)}）`,
         );
       return (await response.json()) as Release[];
     },
@@ -171,14 +175,18 @@ async function fetchRelease(
         mirror,
         `https://api.github.com/repos/${repository}/${endpoint}`,
       );
-      const response = await fetch(url, {
-        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
-        ...(signal ? { signal } : {}),
-      });
+      const response = await githubFetch(
+        'GitHub release 请求失败',
+        url,
+        {
+          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
+          ...(signal ? { signal } : {}),
+        },
+      );
       if (!response.ok)
         throw new MofoxError(
           'IO_ERROR',
-          `GitHub release 请求失败: HTTP ${response.status}（${describeHttpStatus(response.status)}）`,
+          `GitHub release 请求失败: HTTP ${response.status}（${describeNetworkError(response.status)}）`,
         );
       return (await response.json()) as Release;
     },
@@ -213,6 +221,25 @@ async function downloadAsset(
 }
 
 /**
+ * 发起 GitHub 相关请求并将网络层错误（证书、DNS、连接等）转换为可读描述。
+ *
+ * 取消信号触发时原样上抛，避免把用户主动取消误报为网络故障。
+ *
+ * @param label - 失败时附带的操作描述前缀。
+ * @param input - 请求地址。
+ * @param init - 请求选项。
+ * @returns fetch 响应；仅在网络层失败时抛出 `IO_ERROR`。
+ */
+async function githubFetch(label: string, input: string | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (init?.signal?.aborted) throw error;
+    throw new MofoxError('IO_ERROR', `${label}: ${describeNetworkError(error)}`);
+  }
+}
+
+/**
  * 拉取指定仓库中指定分支下的单个文件内容。
  *
  * 供许可协议等只读文本的展示使用；按 `raw.githubusercontent.com` 原始地址镜像轮询。
@@ -234,14 +261,18 @@ export async function fetchRepositoryFile(options: {
     async (mirror) => {
       const original = `https://raw.githubusercontent.com/${repository}/${branch}/${path}`;
       const url = resolveGithubUrl(mirror, original);
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'Neo-MoFox-Launcher' },
-        ...(signal ? { signal } : {}),
-      });
+      const response = await githubFetch(
+        `拉取 ${path} 失败`,
+        url,
+        {
+          headers: { 'User-Agent': 'Neo-MoFox-Launcher' },
+          ...(signal ? { signal } : {}),
+        },
+      );
       if (!response.ok)
         throw new MofoxError(
           'IO_ERROR',
-          `拉取 ${path} 失败: HTTP ${response.status}（${describeHttpStatus(response.status)}）`,
+          `拉取 ${path} 失败: HTTP ${response.status}（${describeNetworkError(response.status)}）`,
         );
       return { source: mirror.name, content: await response.text() };
     },

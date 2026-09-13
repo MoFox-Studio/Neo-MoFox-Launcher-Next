@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { DownloadProgress, RangeDownloadOptions } from '../../shared/domain/download';
 import { MofoxError } from '../../shared/domain/error';
-import { describeHttpStatus } from './http-status';
+import { describeNetworkError } from './network-error';
 
 // 负责将 HTTP(S) 资源写入本地文件；在服务端支持时按字节范围并发下载。
 type ProgressListener = (progress: DownloadProgress) => void;
@@ -81,7 +81,7 @@ async function downloadSingle(
     const status = response.statusCode ?? 500;
     throw new MofoxError(
       'IO_ERROR',
-      `Download failed with HTTP ${status}（${describeHttpStatus(status)}）`,
+      `Download failed with HTTP ${status}（${describeNetworkError(status)}）`,
     );
   }
   let received = 0;
@@ -188,7 +188,14 @@ function request(
       }
       resolve(response);
     });
-    outgoing.once('error', reject);
+    outgoing.once('error', (error) => {
+      // 取消信号触发的错误原样上抛，避免把用户主动取消误报为网络故障。
+      if (signal?.aborted) {
+        reject(error);
+        return;
+      }
+      reject(new MofoxError('IO_ERROR', `网络请求失败: ${describeNetworkError(error)}`));
+    });
     outgoing.end();
   });
 }
