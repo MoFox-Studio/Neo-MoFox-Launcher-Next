@@ -5,6 +5,7 @@ import type { LogEntry } from './domain/logger';
 import type { DownloadProgress } from './domain/download';
 import type {
   Instance,
+  InstanceIntegrityIssue,
   InstanceProcessSource,
   InstanceStats,
   InstanceStatus,
@@ -65,6 +66,7 @@ export const IPC_INVOKE_CHANNELS = {
   resizeInstancePty: 'instances:pty-resize',
   getInstanceStats: 'instances:stats',
   exportInstanceLogs: 'instances:export-logs',
+  checkInstancesIntegrity: 'instances:integrity-check',
   startInstall: 'install:start',
   retryInstall: 'install:retry',
   cancelInstall: 'install:cancel',
@@ -166,6 +168,8 @@ export interface MofoxApi {
   getInstanceStats(instanceId: string): Promise<InstanceStats>;
   /** 导出完成后返回生成文件的绝对路径。 */
   exportInstanceLogs(instanceId: string, source: InstanceProcessSource): Promise<string>;
+  /** 校验全部实例的磁盘文件是否齐全，返回存在缺失项的实例列表。 */
+  checkInstancesIntegrity(): Promise<InstanceIntegrityIssue[]>;
 
   /** 安装任务控制。 */
   startInstall(request: InstallRequest): Promise<string>;

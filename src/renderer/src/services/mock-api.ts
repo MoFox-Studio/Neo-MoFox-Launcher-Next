@@ -392,6 +392,9 @@ export const mockApi: MofoxApi = {
     if (!logBuffers.get(`${id}:${source}`)?.trim()) throw new Error('当前没有可导出的日志');
     return `D:\\MoFox\\exports\\${id}_${source}_${Date.now()}.log`;
   },
+  async checkInstancesIntegrity() {
+    return [];
+  },
 
   async startInstall(request) {
     // 后台异步逐步派发进度；调用方立即获得任务 ID 以保持非阻塞。

@@ -91,3 +91,14 @@ export interface ProcessStats {
 
 /** 两类进程均有固定统计项，即使其中一类未启动也不得省略。 */
 export type InstanceStats = Record<InstanceProcessSource, ProcessStats>;
+
+/** 启动完整性检查的单个缺失项；`mofox` 为主程序目录，`platform` 为平台适配器。 */
+export type InstanceIntegrityProblem = 'mofox' | 'platform';
+
+/** 单个实例的启动完整性检查结果；仅当存在缺失项时才返回该记录。 */
+export interface InstanceIntegrityIssue {
+  instanceId: string;
+  name: string;
+  /** 缺失项集合；`mofox` = 主程序目录缺失或缺少 main.py，`platform` = 已配置平台但启动入口不可解析。 */
+  problems: InstanceIntegrityProblem[];
+}

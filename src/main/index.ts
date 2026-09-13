@@ -12,6 +12,7 @@ import { registerOobeIpc } from './ipc/oobe';
 import { registerShellIpc } from './ipc/shell';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerInstanceManageIpc } from './ipc/instance-manage';
+import { registerIntegrityIpc } from './ipc/integrity';
 import { registerUpdateIpc } from './ipc/update';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
@@ -22,6 +23,7 @@ import { InstallTaskService } from './services/install-task-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
 import { InstanceManageService } from './services/instance-manage-service';
+import { InstanceIntegrityService } from './services/instance-integrity-service';
 import { InstanceUpdateService } from './services/instance-update-service';
 import {
   inspectImportPath,
@@ -277,6 +279,9 @@ if (!hasSingleInstanceLock) {
       remove: (instanceId) => manage.remove(instanceId),
       openFolder: (instanceId) => manage.openFolder(instanceId),
       update: (instanceId, patch) => manage.update(instanceId, patch),
+    });
+    registerIntegrityIpc(ipcMain, {
+      check: () => new InstanceIntegrityService(instances, platforms).check(),
     });
     const updates = new InstanceUpdateService(
       instances,

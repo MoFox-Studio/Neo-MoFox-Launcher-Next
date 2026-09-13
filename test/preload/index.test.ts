@@ -39,6 +39,7 @@ describe('createMofoxApi', () => {
     await api.resizeInstancePty('instance-1', 'platform', 120, 30);
     await api.getInstanceStats('instance-1');
     await api.exportInstanceLogs('instance-1', 'mofox');
+    await api.checkInstancesIntegrity();
     await api.startInstall({
       instanceName: 'Test',
       platformId: 'napcat',

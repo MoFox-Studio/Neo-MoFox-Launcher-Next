@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import AppTitleBar from '@/components/AppTitleBar.vue';
 import AddInstanceDialog from '@/components/AddInstanceDialog.vue';
+import IntegrityCheckDialog from '@/components/IntegrityCheckDialog.vue';
 import NavRail from '@/components/NavRail.vue';
 import WallpaperLayer from '@/components/WallpaperLayer.vue';
+import { mofoxApi } from '@/services/mofox-api';
+import { useIntegrityStore } from '@/stores/integrity';
 import { useSettingsStore } from '@/stores/settings';
 
 const route = useRoute();
 const settingsStore = useSettingsStore();
+const integrityStore = useIntegrityStore();
 const { settings } = storeToRefs(settingsStore);
 // 根据路由元数据切换首次引导的沉浸式布局。
 const bare = computed(() => route.meta.bare === true);
@@ -21,6 +25,17 @@ const hasWallpaper = computed(
 );
 // 遮罩拉满时玻璃侧栏与顶栏也转实，确保壁纸完全不可见。
 const wallpaperAtMax = computed(() => hasWallpaper.value && settings.value.wallpaperOpacity >= 1);
+
+// 启动器启动时校验全部实例文件是否齐全，发现缺失项时弹窗询问删除或保留。
+onMounted(async () => {
+  if (!settings.value.oobeCompleted) return;
+  try {
+    const issues = await mofoxApi.checkInstancesIntegrity();
+    integrityStore.openWith(issues);
+  } catch {
+    /* 校验失败不阻断启动，由用户手动在实例管理页处理 */
+  }
+});
 </script>
 
 <template>
@@ -47,6 +62,7 @@ const wallpaperAtMax = computed(() => hasWallpaper.value && settings.value.wallp
       </div>
     </div>
     <AddInstanceDialog v-if="!bare" />
+    <IntegrityCheckDialog />
   </div>
 </template>
 
