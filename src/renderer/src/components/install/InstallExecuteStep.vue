@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useInstallStore } from '@/stores/install';
+import WavyLinearProgress from '@/components/WavyLinearProgress.vue';
 import type { InstallStepId } from '@shared/domain/install';
 
 const props = defineProps<{ instanceName: string }>();
@@ -163,13 +164,11 @@ async function retry(): Promise<void> {
           </div>
           <span class="progress-overview__value">{{ overallPercent }}%</span>
         </div>
-        <div class="progress-track" role="progressbar" :aria-valuenow="overallPercent">
-          <div
-            class="progress-track__bar"
-            :class="{ 'progress-track__bar--indeterminate': isIndeterminate }"
-            :style="isIndeterminate ? undefined : { width: `${overallPercent}%` }"
-          ></div>
-        </div>
+        <WavyLinearProgress
+          :progress="overallPercent / 100"
+          :indeterminate="isIndeterminate"
+          label="总体安装进度"
+        />
         <p class="progress-overview__message">{{ latestMessage }}</p>
       </div>
 
@@ -287,34 +286,6 @@ async function retry(): Promise<void> {
   opacity: 0.88;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.progress-track {
-  height: 8px;
-  overflow: hidden;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: color-mix(in srgb, var(--md-sys-color-on-primary-container) 16%, transparent);
-}
-
-.progress-track__bar {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--md-sys-color-primary);
-  transition: width var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
-}
-
-.progress-track__bar--indeterminate {
-  width: 38%;
-  animation: progress-scan 1.3s linear infinite;
-}
-
-@keyframes progress-scan {
-  from {
-    transform: translateX(-110%);
-  }
-  to {
-    transform: translateX(275%);
-  }
 }
 
 .pipeline {
@@ -452,16 +423,39 @@ async function retry(): Promise<void> {
 }
 
 .log-sheet__content {
+  --install-log-background: #101416;
+  --install-log-foreground: #d8e3e7;
+  --install-log-muted: #9aa6ab;
+  --install-log-scrollbar: #596469;
+
   max-height: 190px;
   padding: 14px 16px;
   overflow-y: auto;
+  border: 1px solid rgba(216, 227, 231, 0.08);
   border-radius: 16px;
-  background: var(--md-sys-color-inverse-surface);
-  color: var(--md-sys-color-inverse-on-surface);
+  background: var(--install-log-background);
+  color: var(--install-log-foreground);
+  color-scheme: dark;
   font-family: var(--md-ref-typeface-mono);
   font-size: 12px;
   line-height: 1.55;
+  scrollbar-color: var(--install-log-scrollbar) var(--install-log-background);
+  scrollbar-width: thin;
   user-select: text;
+}
+
+.log-sheet__content::-webkit-scrollbar-track {
+  background: var(--install-log-background);
+}
+
+.log-sheet__content::-webkit-scrollbar-thumb {
+  border: 2px solid var(--install-log-background);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--install-log-scrollbar);
+}
+
+.log-sheet__content::-webkit-scrollbar-thumb:hover {
+  background: #748085;
 }
 
 .log-line {
@@ -471,7 +465,12 @@ async function retry(): Promise<void> {
 }
 
 .log-line--empty {
-  opacity: 0.65;
+  color: var(--install-log-muted);
+}
+
+.log-line::selection {
+  background: #3b5070;
+  color: #f0f6fc;
 }
 
 .result-state {
@@ -623,7 +622,6 @@ async function retry(): Promise<void> {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .progress-track__bar,
   .log-sheet,
   .log-disclosure__arrow {
     animation: none;
