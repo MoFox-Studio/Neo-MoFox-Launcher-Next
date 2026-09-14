@@ -693,12 +693,10 @@ onBeforeUnmount(() => {
 .update-toolbar,
 .update-card {
   padding: 20px 24px;
-  border: 1px solid var(--app-glass-border);
-  border-radius: 20px;
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  border: 0;
+  border-radius: 22px;
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: none;
 }
 
 .update-toolbar {

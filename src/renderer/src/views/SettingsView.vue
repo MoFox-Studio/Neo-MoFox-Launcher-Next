@@ -138,8 +138,9 @@ onMounted(() => {
 
 <template>
   <div class="settings-view">
-    <aside class="settings-sidebar">
-      <nav class="settings-sidebar__nav" aria-label="设置分类">
+    <header class="settings-tabs">
+      <div class="settings-tabs__inner">
+        <nav class="settings-sidebar__nav" aria-label="设置分类">
         <button
           v-for="category in settingCategories"
           :key="category.id"
@@ -161,12 +162,13 @@ onMounted(() => {
             <span class="settings-sidebar__description">{{ category.description }}</span>
           </span>
         </button>
-      </nav>
-      <div class="settings-sidebar__status">
-        <span class="msr settings-sidebar__status-icon" aria-hidden="true">cloud_done</span>
-        <span>更改将自动保存</span>
+        </nav>
+        <div class="settings-sidebar__status">
+          <span class="msr settings-sidebar__status-icon" aria-hidden="true">cloud_done</span>
+          <span>自动保存</span>
+        </div>
       </div>
-    </aside>
+    </header>
 
     <main class="settings-view__content">
       <!-- 外观、通用、网络、日志与版本信息分组 -->
@@ -881,6 +883,180 @@ onMounted(() => {
 
   .settings-item__body {
     min-width: calc(100% - 48px);
+  }
+}
+
+/* InstallerX-style content navigation: one app navigation plus a compact connected selector. */
+.settings-view {
+  --settings-sidebar-width: 0px;
+
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.settings-view::before {
+  display: none;
+}
+
+.settings-tabs {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  padding: 18px 32px 10px calc(32px + var(--app-nav-overlay-start-inset));
+}
+
+.settings-tabs__inner {
+  width: min(100%, 920px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto;
+  padding: 8px;
+  border-radius: 22px;
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.settings-sidebar__nav {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  gap: 3px;
+}
+
+.settings-sidebar__item {
+  min-width: 0;
+  min-height: 46px;
+  flex: 1;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container);
+  text-align: center;
+}
+
+.settings-sidebar__item:first-child {
+  border-radius: 16px 6px 6px 16px;
+}
+
+.settings-sidebar__item:last-child {
+  border-radius: 6px 16px 16px 6px;
+}
+
+.settings-sidebar__item--active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.settings-sidebar__icon {
+  font-size: 20px;
+}
+
+.settings-sidebar__text {
+  display: block;
+}
+
+.settings-sidebar__description {
+  display: none;
+}
+
+.settings-sidebar__status {
+  flex: none;
+  margin: 0;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.settings-view__content {
+  width: 100%;
+  min-height: 0;
+  display: block;
+  flex: 1;
+  padding: 8px 32px calc(40px + var(--app-nav-overlay-bottom-inset))
+    calc(32px + var(--app-nav-overlay-start-inset));
+}
+
+.settings-group {
+  max-width: 920px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.settings-group__title {
+  padding: 4px 4px 12px;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-title-large);
+}
+
+.settings-group__card {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-item {
+  min-height: var(--app-density-row-min-height);
+  padding: var(--app-density-row-padding-block) 18px;
+  border-radius: 7px;
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.settings-group__card > .settings-item:first-child {
+  border-radius: 20px 20px 7px 7px;
+}
+
+.settings-group__card > .settings-item:last-child {
+  border-radius: 7px 7px 20px 20px;
+}
+
+.settings-group__card > .settings-item:first-child:last-child {
+  border-radius: 20px;
+}
+
+.settings-divider {
+  display: none;
+}
+
+.migration-note,
+.migration-preview {
+  margin-top: 3px;
+  border-radius: 16px;
+  background: var(--md-sys-color-surface-container-low);
+}
+
+@media (max-width: 760px) {
+  .settings-tabs {
+    padding: 12px 14px 8px calc(14px + var(--app-nav-overlay-start-inset));
+  }
+
+  .settings-tabs__inner {
+    align-items: stretch;
+    padding: 6px;
+  }
+
+  .settings-sidebar__nav {
+    overflow-x: auto;
+  }
+
+  .settings-sidebar__item {
+    width: auto;
+    min-width: 102px;
+    flex: 0 0 auto;
+  }
+
+  .settings-sidebar__status {
+    display: none;
+  }
+
+  .settings-view__content {
+    padding: 8px 18px calc(28px + var(--app-nav-overlay-bottom-inset))
+      calc(18px + var(--app-nav-overlay-start-inset));
   }
 }
 </style>

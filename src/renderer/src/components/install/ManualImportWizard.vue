@@ -5,11 +5,16 @@ import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
 import ErrorDialog from '@/components/ErrorDialog.vue';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
+import InstallerTaskShell, { type TaskPhase } from './InstallerTaskShell.vue';
+import '@/components/install/install-wizard.css';
 
 type Step = 1 | 2 | 3;
-type Direction = 'forward' | 'backward';
 
-const STEPS = ['欢迎', 'Neo-MoFox 信息', '平台信息'];
+const PHASES: TaskPhase[] = [
+  { id: 'welcome', label: '说明', icon: 'waving_hand' },
+  { id: 'mofox', label: '主程序', icon: 'smart_toy' },
+  { id: 'platform', label: '平台', icon: 'hub' },
+];
 
 const emit = defineEmits<{
   close: [];
@@ -20,7 +25,6 @@ const settingsStore = useSettingsStore();
 const instancesStore = useInstancesStore();
 
 const currentStep = ref<Step>(1);
-const direction = ref<Direction>('forward');
 const instanceName = ref('');
 const mofoxInstallDir = ref('');
 const venvDir = ref('');
@@ -33,11 +37,8 @@ const platformDir = ref('');
 const busy = ref(false);
 const completed = ref(false);
 
-// 最终导入失败时通过错误弹窗展示；输入时的校验错误直接内联在对应字段下。
 const importError = ref<Error | null>(null);
 const showErrorDialog = ref(false);
-
-// 只有按下"继续/开始导入"才校验；错误由校验函数写入，输入过程不做即时判断。
 const nameError = ref('');
 const mofoxDirError = ref('');
 const venvDirError = ref('');
@@ -51,13 +52,25 @@ const showNameError = computed(() => nameError.value !== '');
 const showMofoxDirError = computed(() => mofoxDirError.value !== '');
 const showVenvDirError = computed(() => venvDirError.value !== '');
 const showPlatformDirError = computed(() => platformDirError.value !== '');
+const activePhase = computed(() => PHASES[currentStep.value - 1]?.id ?? 'welcome');
+const shellTitle = computed(() => {
+  if (completed.value) return `${instanceName.value || 'Neo-MoFox'} 已导入`;
+  if (currentStep.value === 1) return '导入已有实例';
+  return instanceName.value.trim() || '登记 Neo-MoFox';
+});
+const shellSubtitle = computed(() => {
+  if (completed.value) return '目录与实例信息已登记，可以直接前往实例页。';
+  if (currentStep.value === 1) return '只登记现有文件，不下载、不移动，也不改写主程序目录。';
+  if (currentStep.value === 2) return '确认主程序与 Python 虚拟环境所在位置。';
+  return '平台是可选项；稍后也可以在实例管理中补充。';
+});
+const shellIcon = computed(() => (completed.value ? 'check_circle' : 'folder_copy'));
+const phaseBadge = computed(() => (completed.value ? '已完成' : `${currentStep.value} / 3`));
 
-/** 按主程序目录推断默认的虚拟环境路径（uv 虚拟环境固定为 `.venv`）。 */
 function defaultVenvDirFor(mofoxDir: string): string {
   return mofoxDir ? `${mofoxDir.replace(/[\\/]+$/, '')}\\.venv` : '';
 }
 
-/** 切换主程序路径时，若虚拟环境仍跟随旧主程序目录的默认 .venv，则自动跟随。 */
 function followVenvDefaultIfNeeded(nextMofox: string): void {
   const current = venvDir.value.trim();
   if (!current || current === defaultVenvDirFor(mofoxInstallDir.value.trim())) {
@@ -65,14 +78,12 @@ function followVenvDefaultIfNeeded(nextMofox: string): void {
   }
 }
 
-// 主程序路径变化时自动切换虚拟环境路径。
 watch(mofoxInstallDir, (next, previous) => {
   const nextTrimmed = next.trim();
   const previousTrimmed = previous?.trim() ?? '';
   if (!nextTrimmed || nextTrimmed === previousTrimmed) return;
   const previousDefault = defaultVenvDirFor(previousTrimmed);
   const currentVenv = venvDir.value.trim();
-  // 仅当虚拟环境为空或仍指向旧主程序目录的默认 .venv 时才自动跟随。
   if (!currentVenv || currentVenv === previousDefault) {
     venvDir.value = defaultVenvDirFor(nextTrimmed);
   }
@@ -96,8 +107,9 @@ async function validateMofoxDir(): Promise<boolean> {
     if (!check.absolute) mofoxDirError.value = '请输入绝对路径';
     else if (!check.exists) mofoxDirError.value = '目录不存在';
     else if (!check.isDirectory) mofoxDirError.value = '必须是目录';
-    else if (!check.mainPyExists)
+    else if (!check.mainPyExists) {
       mofoxDirError.value = '不是有效的 Neo-MoFox 安装目录（缺少 main.py）';
+    }
   } catch {
     mofoxDirError.value = '目录校验失败，请稍后重试';
   } finally {
@@ -156,14 +168,13 @@ async function validatePlatformDir(): Promise<boolean> {
 const currentPlatform = computed(
   () => platforms.value.find((platform) => platform.id === platformId.value) ?? null,
 );
-// 校验只在按下下一步/导入时进行，因此按钮不再因字段状态被禁用（校验中除外）。
 const navDisabled = computed(() => validating.value || busy.value);
 
 function onPlatformChange(event: Event): void {
   platformId.value = (event.target as HTMLSelectElement).value;
+  platformDirError.value = '';
 }
 
-// 校验结果在输入框再次获得焦点时清除，避免用户在修改过程中仍看到旧错误。
 function onNameFocus(): void {
   nameError.value = '';
 }
@@ -190,18 +201,20 @@ async function next(): Promise<void> {
       valid = (await validateMofoxDir()) && valid;
       valid = (await validateVenvDir()) && valid;
     }
-    if (!valid) return;
-    direction.value = 'forward';
-    currentStep.value = (currentStep.value + 1) as Step;
+    if (valid) currentStep.value = (currentStep.value + 1) as Step;
   } finally {
     validating.value = false;
   }
 }
 
 function back(): void {
-  if (currentStep.value === 1) return;
-  direction.value = 'backward';
-  currentStep.value = (currentStep.value - 1) as Step;
+  if (currentStep.value > 1) currentStep.value = (currentStep.value - 1) as Step;
+}
+
+function selectPhase(id: string): void {
+  const index = PHASES.findIndex((phase) => phase.id === id);
+  if (index < 0 || index + 1 >= currentStep.value || busy.value || completed.value) return;
+  currentStep.value = (index + 1) as Step;
 }
 
 function pathName(path: string): string {
@@ -216,6 +229,7 @@ async function chooseMofoxDirectory(): Promise<void> {
   if (!selected) return;
   followVenvDefaultIfNeeded(selected);
   mofoxInstallDir.value = selected;
+  mofoxDirError.value = '';
   if (!instanceName.value.trim()) instanceName.value = pathName(selected);
 }
 
@@ -236,6 +250,7 @@ async function choosePlatformDirectory(): Promise<void> {
   });
   if (!selected) return;
   platformDir.value = selected;
+  platformDirError.value = '';
 }
 
 async function submit(): Promise<void> {
@@ -282,71 +297,71 @@ onMounted(async () => {
 
 <template>
   <div class="manual-import">
-    <aside class="manual-import__rail">
-      <ol class="stepper" aria-label="导入步骤">
-        <li
-          v-for="(label, index) in STEPS"
-          :key="label"
-          class="stepper__item"
-          :class="{
-            'stepper__item--done': index + 1 < currentStep,
-            'stepper__item--current': index + 1 === currentStep,
-          }"
-        >
-          <span class="stepper__marker" aria-hidden="true">
-            <span v-if="index + 1 < currentStep" class="msr msr--fill">check</span>
-            <span v-else>{{ index + 1 }}</span>
+    <InstallerTaskShell
+      :title="shellTitle"
+      :subtitle="shellSubtitle"
+      :icon="shellIcon"
+      :phases="PHASES"
+      :active-phase="activePhase"
+      :navigable="!completed"
+      @select-phase="selectPhase"
+    >
+      <template #badge>
+        <span class="import-badge" :class="{ 'import-badge--done': completed }">
+          {{ phaseBadge }}
+        </span>
+      </template>
+
+      <section v-if="completed" class="import-result">
+        <span class="import-result__mark" aria-hidden="true">
+          <span class="msr msr--fill">check_circle</span>
+        </span>
+        <p class="manual-screen__eyebrow">导入完成</p>
+        <h2>{{ instanceName }} 已登记</h2>
+        <p>启动器已保存主程序、虚拟环境{{ includePlatform ? '与平台' : '' }}目录。</p>
+        <div class="import-result__facts">
+          <span><span class="msr" aria-hidden="true">folder</span>{{ mofoxInstallDir }}</span>
+          <span v-if="includePlatform">
+            <span class="msr" aria-hidden="true">hub</span>{{ currentPlatform?.name ?? platformId }}
           </span>
-          <span class="stepper__title">{{ label }}</span>
-          <span v-if="index < STEPS.length - 1" class="stepper__line"></span>
-        </li>
-      </ol>
+        </div>
+      </section>
 
-      <!-- 取消/上一步按钮固定在侧栏左下角 -->
-      <div class="manual-import__rail-back">
-        <button
-          v-if="currentStep === 1"
-          type="button"
-          class="btn btn--tonal state-layer"
-          @click="emit('close')"
-        >
-          取消
-        </button>
-        <button
-          v-else
-          type="button"
-          class="btn btn--tonal state-layer"
-          :disabled="busy"
-          @click="back"
-        >
-          上一步
-        </button>
-      </div>
-    </aside>
+      <section v-else-if="currentStep === 1" class="manual-screen manual-welcome">
+        <p class="manual-screen__eyebrow">本机已有 Neo-MoFox</p>
+        <h2>把现有实例接入启动器</h2>
+        <p class="manual-screen__description">
+          导入只建立管理记录。Neo-MoFox 主程序、配置与虚拟环境都留在原处，不会被复制或改写。
+        </p>
 
-    <div class="manual-import__panel">
-      <Transition :name="`manual-import-slide-${direction}`" mode="out-in">
-        <section :key="currentStep" class="step">
-          <template v-if="currentStep === 1">
-            <div class="welcome-mark" aria-hidden="true">
-              <span class="msr msr--fill">folder_copy</span>
-            </div>
-            <p class="step__eyebrow">已有实例</p>
-            <h2 class="step__title">导入你的 Neo-MoFox</h2>
-            <p class="step__desc">
-              此流程只会把已有目录登记到启动器中，不会下载、移动或修改其中的文件。
-            </p>
-            <div class="info-card">
-              <span class="msr" aria-hidden="true">info</span>
-              <span>请准备 Neo-MoFox 主程序目录；平台目录可以在下一步选择，也可以暂时跳过。</span>
-            </div>
-          </template>
+        <div class="welcome-list">
+          <div class="welcome-list__item">
+            <span class="welcome-list__icon"><span class="msr">smart_toy</span></span>
+            <span><strong>主程序目录</strong><small>需要包含可识别的 main.py</small></span>
+          </div>
+          <div class="welcome-list__item">
+            <span class="welcome-list__icon"><span class="msr">code</span></span>
+            <span><strong>Python 环境</strong><small>默认识别主程序目录下的 .venv</small></span>
+          </div>
+          <div class="welcome-list__item">
+            <span class="welcome-list__icon"><span class="msr">hub</span></span>
+            <span><strong>机器人平台</strong><small>可选，之后也能在实例管理中补充</small></span>
+          </div>
+        </div>
 
-          <template v-else-if="currentStep === 2">
-            <p class="step__eyebrow">第 2 步</p>
-            <h2 class="step__title">Neo-MoFox 信息</h2>
-            <p class="step__desc">选择已安装的 Neo-MoFox 目录，并设置它在启动器中的名称。</p>
+        <div class="info-card">
+          <span class="msr" aria-hidden="true">info</span>
+          <span>如果目录来自移动硬盘，请先确认盘符不会频繁变化。</span>
+        </div>
+      </section>
 
+      <section v-else-if="currentStep === 2" class="manual-screen">
+        <p class="manual-screen__eyebrow">主程序</p>
+        <h2>确认 Neo-MoFox 信息</h2>
+        <p class="manual-screen__description">名称用于启动器内识别；两个路径会在继续时实际校验。</p>
+
+        <div class="manual-fields">
+          <div class="form-group">
             <label class="field" :class="{ 'field--error': showNameError }">
               <input
                 v-model="instanceName"
@@ -358,12 +373,10 @@ onMounted(async () => {
               />
               <span class="field__label">实例名称</span>
             </label>
-            <Transition name="field-error">
-              <p v-if="showNameError" class="field__support field__support--error">
-                {{ nameError }}
-              </p>
-            </Transition>
+            <p v-if="showNameError" class="field__support field__support--error">{{ nameError }}</p>
+          </div>
 
+          <div class="form-group">
             <div class="path-field">
               <label class="field field--grow" :class="{ 'field--error': showMofoxDirError }">
                 <input
@@ -375,25 +388,19 @@ onMounted(async () => {
                 />
                 <span class="field__label">Neo-MoFox 安装目录</span>
               </label>
-              <button
-                type="button"
-                class="btn btn--tonal state-layer"
-                @click="chooseMofoxDirectory"
-              >
-                <span class="msr" aria-hidden="true">folder_open</span>
-                浏览
+              <button type="button" class="btn btn--tonal state-layer" @click="chooseMofoxDirectory">
+                <span class="msr" aria-hidden="true">folder_open</span>浏览
               </button>
             </div>
-            <Transition name="field-error" mode="out-in">
-              <p v-if="showMofoxDirError" key="error" class="field__support field__support--error">
-                {{ mofoxDirError }}
-              </p>
-              <p v-else key="hint" class="field__support">
-                <template v-if="checkingMofoxDir">正在校验目录…</template>
-                <template v-else>目录内需要包含 Neo-MoFox 的 <code>main.py</code> 文件。</template>
-              </p>
-            </Transition>
+            <p v-if="showMofoxDirError" class="field__support field__support--error">
+              {{ mofoxDirError }}
+            </p>
+            <p v-else class="field__support">
+              {{ checkingMofoxDir ? '正在校验目录…' : '目录内需要包含 Neo-MoFox 的 main.py 文件。' }}
+            </p>
+          </div>
 
+          <div class="form-group">
             <div class="path-field">
               <label class="field field--grow" :class="{ 'field--error': showVenvDirError }">
                 <input
@@ -406,74 +413,65 @@ onMounted(async () => {
                 <span class="field__label">虚拟环境路径</span>
               </label>
               <button type="button" class="btn btn--tonal state-layer" @click="chooseVenvDirectory">
-                <span class="msr" aria-hidden="true">folder_open</span>
-                浏览
+                <span class="msr" aria-hidden="true">folder_open</span>浏览
               </button>
             </div>
-            <Transition name="field-error" mode="out-in">
-              <p v-if="showVenvDirError" key="error" class="field__support field__support--error">
-                {{ venvDirError }}
-              </p>
-              <p v-else key="hint" class="field__support">
-                <template v-if="checkingVenvDir">正在校验目录…</template>
-                <template v-else>
-                  默认使用主程序目录下的 <code>.venv</code>；目录尚不存在时会由 uv
-                  在首次同步时创建。
-                </template>
-              </p>
-            </Transition>
-          </template>
+            <p v-if="showVenvDirError" class="field__support field__support--error">
+              {{ venvDirError }}
+            </p>
+            <p v-else class="field__support">
+              {{ checkingVenvDir ? '正在校验目录…' : '默认使用主程序目录下的 .venv。' }}
+            </p>
+          </div>
+        </div>
+      </section>
 
-          <template v-else>
-            <p class="step__eyebrow">第 3 步</p>
-            <h2 class="step__title">平台信息</h2>
-            <p class="step__desc">如果这个实例已经配有机器人平台，可以一并登记其目录。</p>
+      <section v-else class="manual-screen">
+        <p class="manual-screen__eyebrow">可选平台</p>
+        <h2>是否一并登记机器人平台？</h2>
+        <p class="manual-screen__description">只导入主程序也可以正常完成，平台信息之后仍可修改。</p>
 
-            <label class="platform-toggle state-layer">
-              <input v-model="includePlatform" type="checkbox" class="platform-toggle__input" />
-              <span class="platform-toggle__box">
-                <span class="msr msr--fill" aria-hidden="true">check</span>
-              </span>
-              <span class="platform-toggle__text">
-                <span class="platform-toggle__title">导入已安装的平台</span>
-                <span class="platform-toggle__desc">不勾选时将只导入 Neo-MoFox 主程序</span>
-              </span>
-            </label>
+        <label class="platform-toggle state-layer">
+          <input v-model="includePlatform" type="checkbox" class="platform-toggle__input" />
+          <span class="platform-toggle__mark" aria-hidden="true">
+            <span class="msr msr--fill">{{ includePlatform ? 'check_circle' : 'hub' }}</span>
+          </span>
+          <span class="platform-toggle__text">
+            <strong>导入已安装的平台</strong>
+            <small>{{ includePlatform ? '选择平台类型和它的安装目录' : '关闭时仅登记 Neo-MoFox 主程序' }}</small>
+          </span>
+          <span class="platform-toggle__state">{{ includePlatform ? '已开启' : '跳过' }}</span>
+        </label>
 
-            <Transition name="platform-fields">
-              <div v-if="includePlatform" class="platform-fields">
-                <div v-if="platformsLoading" class="loading-row">
-                  <span class="spinner" aria-hidden="true"></span>
-                  正在加载可用平台…
-                </div>
-                <p v-else-if="platformError" class="error-message">{{ platformError }}</p>
-                <template v-else>
-                  <md-outlined-select
-                    class="platform-select"
-                    label="平台"
-                    :value="platformId"
-                    @change="onPlatformChange"
+        <div class="platform-fields" :class="{ 'platform-fields--open': includePlatform }">
+          <div class="platform-fields__clip">
+            <div class="platform-fields__content">
+              <div v-if="platformsLoading" class="loading-row">
+                <span class="spinner" aria-hidden="true"></span>正在加载可用平台…
+              </div>
+              <p v-else-if="platformError" class="error-message-card">{{ platformError }}</p>
+              <template v-else>
+                <md-outlined-select
+                  class="platform-select"
+                  label="平台"
+                  :value="platformId"
+                  @change="onPlatformChange"
+                >
+                  <!-- eslint-disable vue/no-deprecated-slot-attribute -->
+                  <md-select-option
+                    v-for="platform in platforms"
+                    :key="platform.id"
+                    :value="platform.id"
                   >
-                    <!-- Material Web Components 使用原生具名插槽，而不是 Vue 模板插槽。 -->
-                    <!-- eslint-disable vue/no-deprecated-slot-attribute -->
-                    <md-select-option
-                      v-for="platform in platforms"
-                      :key="platform.id"
-                      :value="platform.id"
-                    >
-                      <div slot="headline">{{ platform.name }}</div>
-                    </md-select-option>
-                    <!-- eslint-enable vue/no-deprecated-slot-attribute -->
-                  </md-outlined-select>
-                  <p v-if="currentPlatform" class="platform-hint">
-                    {{ currentPlatform.description }}
-                  </p>
+                    <div slot="headline">{{ platform.name }}</div>
+                  </md-select-option>
+                  <!-- eslint-enable vue/no-deprecated-slot-attribute -->
+                </md-outlined-select>
+                <p v-if="currentPlatform" class="platform-hint">{{ currentPlatform.description }}</p>
 
+                <div class="form-group">
                   <div class="path-field">
-                    <label
-                      class="field field--grow"
-                      :class="{ 'field--error': showPlatformDirError }"
-                    >
+                    <label class="field field--grow" :class="{ 'field--error': showPlatformDirError }">
                       <input
                         v-model="platformDir"
                         class="field__input"
@@ -481,46 +479,50 @@ onMounted(async () => {
                         placeholder=" "
                         @focus="onPlatformDirFocus"
                       />
-                      <span class="field__label"
-                        >{{ currentPlatform?.name ?? '平台' }}安装目录</span
-                      >
+                      <span class="field__label">{{ currentPlatform?.name ?? '平台' }}安装目录</span>
                     </label>
                     <button
                       type="button"
                       class="btn btn--tonal state-layer"
                       @click="choosePlatformDirectory"
                     >
-                      <span class="msr" aria-hidden="true">folder_open</span>
-                      浏览
+                      <span class="msr" aria-hidden="true">folder_open</span>浏览
                     </button>
                   </div>
-                  <Transition name="field-error" mode="out-in">
-                    <p
-                      v-if="showPlatformDirError"
-                      key="error"
-                      class="field__support field__support--error"
-                    >
-                      {{ platformDirError }}
-                    </p>
-                    <p v-else key="hint" class="field__support">
-                      <template v-if="checkingPlatformDir">正在校验目录…</template>
-                      <template v-else>平台目录需为已安装且可启动的平台目录。</template>
-                    </p>
-                  </Transition>
-                </template>
-              </div>
-            </Transition>
-
-            <div v-if="completed" class="success-message">
-              <span class="msr msr--fill" aria-hidden="true">check_circle</span>
-              实例已导入完成。
+                  <p v-if="showPlatformDirError" class="field__support field__support--error">
+                    {{ platformDirError }}
+                  </p>
+                  <p v-else class="field__support">
+                    {{ checkingPlatformDir ? '正在校验目录…' : '目录需要是可识别的平台安装目录。' }}
+                  </p>
+                </div>
+              </template>
             </div>
-          </template>
-        </section>
-      </Transition>
+          </div>
+        </div>
+      </section>
 
-      <div class="manual-import__nav">
-        <span class="manual-import__nav-spacer"></span>
+      <template #leading-actions>
+        <button
+          v-if="currentStep === 1 && !completed"
+          type="button"
+          class="btn btn--text state-layer"
+          @click="emit('close')"
+        >
+          取消
+        </button>
+        <button
+          v-else-if="!completed"
+          type="button"
+          class="btn btn--text state-layer"
+          :disabled="navDisabled"
+          @click="back"
+        >
+          <span class="msr" aria-hidden="true">arrow_back</span>返回
+        </button>
+      </template>
+
+      <template #actions>
         <button
           v-if="currentStep < 3"
           type="button"
@@ -528,7 +530,9 @@ onMounted(async () => {
           :disabled="navDisabled"
           @click="next"
         >
-          继续
+          <span v-if="validating" class="spinner spinner--small" aria-hidden="true"></span>
+          {{ validating ? '正在检查' : '继续' }}
+          <span v-if="!validating" class="msr" aria-hidden="true">arrow_forward</span>
         </button>
         <button
           v-else-if="completed"
@@ -536,7 +540,7 @@ onMounted(async () => {
           class="btn btn--filled state-layer"
           @click="emit('complete')"
         >
-          查看实例
+          查看实例<span class="msr" aria-hidden="true">arrow_forward</span>
         </button>
         <button
           v-else
@@ -545,13 +549,13 @@ onMounted(async () => {
           :disabled="navDisabled || (includePlatform && Boolean(platformError))"
           @click="submit"
         >
-          <span v-if="busy" class="spinner spinner--small" aria-hidden="true"></span>
-          {{ busy ? '正在导入' : '开始导入' }}
+          <span v-if="busy || validating" class="spinner spinner--small" aria-hidden="true"></span>
+          <span v-else class="msr" aria-hidden="true">drive_file_move</span>
+          {{ busy ? '正在导入' : validating ? '正在检查' : '开始导入' }}
         </button>
-      </div>
-    </div>
+      </template>
+    </InstallerTaskShell>
 
-    <!-- 最终导入失败时弹出错误对话框 -->
     <ErrorDialog
       :open="showErrorDialog"
       title="导入失败"
@@ -564,521 +568,304 @@ onMounted(async () => {
 
 <style scoped>
 .manual-import {
-  display: flex;
   height: 100%;
   min-height: 0;
 }
 
-.manual-import__rail {
-  width: calc(230px + var(--app-nav-overlay-start-inset));
-  flex: 0 0 calc(230px + var(--app-nav-overlay-start-inset));
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 40px 24px calc(28px + var(--app-nav-overlay-bottom-inset))
-    calc(24px + var(--app-nav-overlay-start-inset));
-  border-right: 1px solid var(--app-glass-border);
-  background: var(--app-subrail-surface);
-  backdrop-filter: var(--app-subrail-filter);
-  -webkit-backdrop-filter: var(--app-subrail-filter);
-}
-
-.stepper {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-/* 取消/上一步按钮固定在侧栏左下角 */
-.manual-import__rail-back {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin-top: auto;
-  padding-top: 24px;
-}
-
-.stepper__item {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding-bottom: 32px;
-}
-
-.stepper__item:last-child {
-  padding-bottom: 0;
-}
-
-.stepper__marker {
-  z-index: 1;
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border: 1px solid var(--md-sys-color-outline-variant);
+.import-badge {
+  padding: 5px 10px;
   border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container);
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-label-large);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font: var(--md-sys-typescale-label-medium);
 }
 
-.stepper__marker .msr {
-  font-size: 18px;
+.import-badge--done {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
 }
 
-.stepper__item--done .stepper__marker {
-  border-color: transparent;
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+.manual-screen {
+  width: min(100%, 680px);
+  margin: 0 auto;
 }
 
-.stepper__item--current .stepper__marker {
-  border: 2px solid var(--md-sys-color-primary);
-  color: var(--md-sys-color-primary);
+.manual-screen__eyebrow,
+.manual-screen h2,
+.manual-screen__description {
+  margin: 0;
 }
 
-.stepper__title {
-  padding-top: 6px;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-title-small);
-}
-
-.stepper__item--current .stepper__title {
-  color: var(--md-sys-color-on-surface);
-}
-
-.stepper__line {
-  position: absolute;
-  top: 32px;
-  bottom: 0;
-  left: 15px;
-  width: 2px;
-  background: var(--md-sys-color-outline-variant);
-}
-
-.stepper__item--done .stepper__line {
-  background: var(--md-sys-color-primary);
-}
-
-.manual-import__panel {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  padding: 40px 48px calc(40px + var(--app-nav-overlay-bottom-inset));
-  background: var(--app-current-content-surface);
-  backdrop-filter: var(--app-current-content-filter);
-  -webkit-backdrop-filter: var(--app-current-content-filter);
-  overflow: hidden;
-}
-
-.step {
-  width: min(100%, 560px);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.step__eyebrow {
-  margin: 0 0 8px;
+.manual-screen__eyebrow {
   color: var(--md-sys-color-primary);
   font: var(--md-sys-typescale-label-large);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
-.step__title {
-  margin: 0 0 8px;
+.manual-screen h2 {
+  margin-top: 4px;
   color: var(--md-sys-color-on-surface);
   font: var(--md-sys-typescale-headline-small);
 }
 
-.step__desc {
-  margin: 0 0 28px;
+.manual-screen__description {
+  margin-top: 8px;
   color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-large);
+  font: var(--md-sys-typescale-body-medium);
   line-height: 1.55;
 }
 
-.welcome-mark {
+.manual-welcome {
+  display: flex;
+  flex-direction: column;
+}
+
+.welcome-list {
   display: grid;
-  width: 72px;
-  height: 72px;
-  margin-bottom: 28px;
-  place-items: center;
-  border-radius: 24px;
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+  gap: 3px;
+  margin-top: 24px;
 }
 
-.welcome-mark .msr {
-  font-size: 38px;
-}
-
-.info-card,
-.success-message {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-high);
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-medium);
-  line-height: 1.5;
-}
-
-.info-card .msr {
-  flex: none;
-  color: var(--md-sys-color-primary);
-}
-
-.field {
-  margin-bottom: 20px;
-}
-
-/* 直接跟随说明文字时取消底部间距，让解释紧贴输入框；间距改由说明文字自身承担。 */
-.field:has(+ .field__support) {
-  margin-bottom: 0;
-}
-
-.field--grow {
-  margin-bottom: 0;
-}
-
-.path-field {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 0;
-}
-
-/* 浏览按钮与输入框同高对齐 */
-.path-field .btn {
-  height: 56px;
-}
-
-.field__support {
-  margin: 4px 0 20px;
-}
-
-/* 平台分栏内由 flex gap 承担间距，说明文字只需紧贴所在输入。 */
-.platform-fields .field__support {
-  margin: 4px 0 0;
-}
-
-.platform-toggle {
+.welcome-list__item {
+  min-height: 68px;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-large);
-  cursor: pointer;
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container);
 }
 
-.platform-toggle__input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+.welcome-list__item:first-child {
+  border-radius: 18px 18px 6px 6px;
 }
 
-.platform-toggle__box {
-  display: grid;
-  width: 20px;
-  height: 20px;
+.welcome-list__item:last-child {
+  border-radius: 6px 6px 18px 18px;
+}
+
+.welcome-list__icon {
   flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
   place-items: center;
-  border: 2px solid var(--md-sys-color-outline);
-  border-radius: 4px;
-  color: transparent;
+  border-radius: 13px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
 }
 
-.platform-toggle__box .msr {
-  font-size: 16px;
+.welcome-list__icon .msr {
+  font-size: 22px;
 }
 
-.platform-toggle__input:checked + .platform-toggle__box {
-  border-color: var(--md-sys-color-primary);
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-}
-
-.platform-toggle__text {
+.welcome-list__item > span:last-child {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.platform-toggle__title {
+.welcome-list strong {
   color: var(--md-sys-color-on-surface);
   font: var(--md-sys-typescale-title-small);
 }
 
-.platform-toggle__desc,
-.platform-hint {
-  margin: 0;
+.welcome-list small {
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
 }
 
-.platform-fields {
-  display: flex;
-  flex-direction: column;
+.manual-welcome .info-card {
+  margin-top: 14px;
+}
+
+.manual-fields {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.platform-toggle {
+  width: 100%;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 14px;
-  padding-top: 18px;
-}
-
-.platform-select {
-  display: block;
-  width: 100%;
-}
-
-.loading-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.error-message {
-  margin: 16px 0 0;
-  color: var(--md-sys-color-error);
-  font: var(--md-sys-typescale-body-medium);
-}
-
-.success-message {
-  margin-top: 18px;
-  background: var(--md-sys-color-tertiary-container);
-  color: var(--md-sys-color-on-tertiary-container);
-}
-
-.success-message .msr {
-  color: inherit;
-}
-
-.manual-import__nav {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding-top: 24px;
-}
-
-.manual-import__nav-spacer {
-  flex: 1;
-}
-
-.btn {
-  position: relative;
-  display: inline-flex;
-  height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 24px;
-  border: none;
-  border-radius: var(--md-sys-shape-corner-full);
-  font: var(--md-sys-typescale-label-large);
+  margin-top: 24px;
+  padding: 13px 16px;
+  border-radius: 18px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
-  overflow: hidden;
+  transition: background-color var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
 }
 
-.btn:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
+.platform-toggle:has(.platform-toggle__input:checked) {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.platform-toggle__input {
+  position: absolute;
+  opacity: 0;
   pointer-events: none;
 }
 
-.btn--filled {
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-}
-
-.btn--tonal {
+.platform-toggle__mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
 }
 
-.btn--text {
-  padding: 0 12px;
-  background: transparent;
-  color: var(--md-sys-color-primary);
+.platform-toggle:has(.platform-toggle__input:checked) .platform-toggle__mark {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
 }
 
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
-  border-top-color: var(--md-sys-color-primary);
-  border-radius: var(--md-sys-shape-corner-full);
-  animation: spinner-spin 0.8s linear infinite;
+.platform-toggle__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.spinner--small {
-  width: 14px;
-  height: 14px;
-  border-color: color-mix(in srgb, var(--md-sys-color-on-primary) 25%, transparent);
-  border-top-color: var(--md-sys-color-on-primary);
+.platform-toggle__text strong {
+  font: var(--md-sys-typescale-title-medium);
 }
 
-@keyframes spinner-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.platform-toggle__text small,
+.platform-toggle__state {
+  color: inherit;
+  font: var(--md-sys-typescale-body-small);
+  opacity: 0.76;
 }
 
-.manual-import-slide-forward-enter-active,
-.manual-import-slide-forward-leave-active,
-.manual-import-slide-backward-enter-active,
-.manual-import-slide-backward-leave-active,
-.platform-fields-enter-active,
-.platform-fields-leave-active {
+.platform-toggle__state {
+  font-weight: 600;
+}
+
+.platform-fields {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
   transition:
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
+    grid-template-rows var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
+    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-/* 字段错误提示：淡入 + 轻微水平抖动的动效，与红色圆角背景同步呈现。 */
-.field-error-enter-active,
-.field-error-leave-active {
-  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
+.platform-fields--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
 }
 
-.field-error-enter-from,
-.field-error-leave-to {
-  opacity: 0;
+.platform-fields__clip {
+  min-height: 0;
+  overflow: hidden;
 }
 
-.field-error-enter-active.field__support--error {
-  animation: field-error-shake var(--md-sys-motion-duration-medium2)
-    var(--md-sys-motion-easing-emphasized);
+.platform-fields__content {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--md-sys-color-surface-container);
 }
 
-@keyframes field-error-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  25% {
-    transform: translateX(-4px);
-  }
-  50% {
-    transform: translateX(4px);
-  }
-  75% {
-    transform: translateX(-2px);
-  }
+.error-message-card {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font: var(--md-sys-typescale-body-medium);
 }
 
-.manual-import-slide-forward-enter-from,
-.manual-import-slide-backward-leave-to {
-  opacity: 0;
-  transform: translateX(24px);
+.import-result {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
 }
 
-.manual-import-slide-forward-leave-to,
-.manual-import-slide-backward-enter-from {
-  opacity: 0;
-  transform: translateX(-24px);
+.import-result__mark {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+  border-radius: 25px;
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
 }
 
-.platform-fields-enter-from,
-.platform-fields-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
+.import-result__mark .msr {
+  font-size: 42px;
 }
 
-@media (max-width: 720px) {
-  .manual-import {
-    flex-direction: column;
-  }
+.import-result h2,
+.import-result > p {
+  margin: 0;
+}
 
-  .manual-import__rail {
-    width: 100%;
-    flex: 0 0 auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
-    border-right: none;
-    border-bottom: 1px solid var(--app-glass-border);
-  }
+.import-result h2 {
+  font: var(--md-sys-typescale-headline-small);
+}
 
-  .stepper {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    gap: 16px;
-    overflow-x: auto;
-  }
+.import-result > p:not(.manual-screen__eyebrow) {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
+}
 
-  .manual-import__rail-back {
-    flex: 0 0 auto;
-    margin-top: 0;
-    padding-top: 0;
-    padding-left: 12px;
-    border-left: 1px solid var(--app-glass-border);
-  }
+.import-result__facts {
+  width: min(100%, 560px);
+  display: grid;
+  gap: 3px;
+  margin-top: 12px;
+  text-align: left;
+}
 
-  .stepper__item {
-    flex: 0 0 auto;
-    align-items: center;
-    padding: 0;
-  }
+.import-result__facts > span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .stepper__title {
-    padding-top: 0;
-  }
-
-  .stepper__line {
-    display: none;
-  }
-
-  .manual-import__panel {
-    padding: 24px 20px;
-  }
-
-  .path-field {
-    flex-direction: column;
-  }
-
-  .path-field .btn {
-    align-self: flex-end;
-  }
+.import-result__facts .msr {
+  flex: none;
+  font-size: 20px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .manual-import-slide-forward-enter-active,
-  .manual-import-slide-forward-leave-active,
-  .manual-import-slide-backward-enter-active,
-  .manual-import-slide-backward-leave-active,
-  .platform-fields-enter-active,
-  .platform-fields-leave-active,
-  .field-error-enter-active,
-  .field-error-leave-active {
-    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  .platform-fields {
+    transition-duration: var(--md-sys-motion-duration-short2);
+  }
+}
+
+@media (max-width: 620px) {
+  .platform-toggle {
+    grid-template-columns: 46px minmax(0, 1fr);
   }
 
-  .manual-import-slide-forward-enter-from,
-  .manual-import-slide-forward-leave-to,
-  .manual-import-slide-backward-enter-from,
-  .manual-import-slide-backward-leave-to,
-  .platform-fields-enter-from,
-  .platform-fields-leave-to,
-  .field-error-enter-from,
-  .field-error-leave-to {
-    transform: none;
-  }
-
-  .field-error-enter-active.field__support--error {
-    animation: none;
-  }
-
-  .spinner {
-    animation: none;
+  .platform-toggle__state {
+    display: none;
   }
 }
 </style>

@@ -76,9 +76,9 @@ function onDeleted(): void {
 
 <template>
   <div class="manage-view">
-    <!-- 侧边栏分区导航；底部常驻日志入口 -->
-    <aside class="manage-sidebar">
-      <nav class="manage-sidebar__nav" aria-label="实例管理分区">
+    <header class="manage-tabs">
+      <div class="manage-tabs__inner">
+        <nav class="manage-sidebar__nav" aria-label="实例管理分区">
         <button
           v-for="item in NAV_ITEMS"
           :key="item.id"
@@ -100,18 +100,19 @@ function onDeleted(): void {
             <span class="manage-sidebar__description">{{ item.description }}</span>
           </span>
         </button>
-      </nav>
+        </nav>
 
-      <div class="manage-sidebar__footer">
-        <button class="manage-sidebar__action state-layer" type="button" @click="openLogs">
-          <span class="msr manage-sidebar__icon" aria-hidden="true">terminal</span>
-          <span class="manage-sidebar__text">
-            <span class="manage-sidebar__label">查看日志</span>
-            <span class="manage-sidebar__description">查看运行日志与终端输出</span>
-          </span>
+        <button
+          class="manage-sidebar__action state-layer"
+          type="button"
+          title="查看运行日志"
+          aria-label="查看运行日志"
+          @click="openLogs"
+        >
+          <span class="msr" aria-hidden="true">terminal</span>
         </button>
       </div>
-    </aside>
+    </header>
 
     <!-- 内容画布：按选中分区渲染对应独立面板 -->
     <main class="manage-content">
@@ -311,6 +312,132 @@ function onDeleted(): void {
   .toast-enter-from,
   .toast-leave-to {
     transform: translateX(-50%);
+  }
+}
+
+/* Management is one task canvas; subsection navigation lives inside the canvas header. */
+.manage-view {
+  --manage-sidebar-width: 0px;
+
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.manage-view::before {
+  display: none;
+}
+
+.manage-tabs {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  padding: 18px 32px 10px calc(32px + var(--app-nav-overlay-start-inset));
+}
+
+.manage-tabs__inner {
+  width: min(100%, 1120px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto;
+  padding: 8px;
+  border-radius: 22px;
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.manage-sidebar__nav {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  gap: 3px;
+}
+
+.manage-sidebar__item {
+  min-width: 0;
+  min-height: 46px;
+  flex: 1;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container);
+  text-align: center;
+}
+
+.manage-sidebar__item:first-child {
+  border-radius: 16px 6px 6px 16px;
+}
+
+.manage-sidebar__item:last-child {
+  border-radius: 6px 16px 16px 6px;
+}
+
+.manage-sidebar__item--active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.manage-sidebar__icon {
+  font-size: 20px;
+}
+
+.manage-sidebar__text {
+  display: block;
+}
+
+.manage-sidebar__description {
+  display: none;
+}
+
+.manage-sidebar__action {
+  width: 46px;
+  min-height: 46px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.manage-sidebar__action .msr {
+  font-size: 21px;
+}
+
+.manage-content {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  grid-column: auto;
+  padding: 8px 32px calc(40px + var(--app-nav-overlay-bottom-inset))
+    calc(32px + var(--app-nav-overlay-start-inset));
+}
+
+@media (max-width: 720px) {
+  .manage-tabs {
+    padding: 12px 14px 8px calc(14px + var(--app-nav-overlay-start-inset));
+  }
+
+  .manage-tabs__inner {
+    padding: 6px;
+  }
+
+  .manage-sidebar__nav {
+    overflow-x: auto;
+  }
+
+  .manage-sidebar__item {
+    width: auto;
+    min-width: 112px;
+    flex: 0 0 auto;
+  }
+
+  .manage-content {
+    padding: 8px 18px calc(28px + var(--app-nav-overlay-bottom-inset))
+      calc(18px + var(--app-nav-overlay-start-inset));
   }
 }
 </style>

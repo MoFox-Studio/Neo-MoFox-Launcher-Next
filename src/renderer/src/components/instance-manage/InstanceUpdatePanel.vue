@@ -10,9 +10,8 @@ import type {
 import { mofoxApi } from '@/services/mofox-api';
 import ErrorDialog from '@/components/ErrorDialog.vue';
 
-// 更新面板：参照旧启动器「版本管理」，顶部切换主程序 / 平台两个更新目标。
-// 主程序采用左右双栏：左侧为版本信息 + 分支切换，右侧为检查更新 + 提交历史。
-// 页面固定高度不整体滚动，只有提交历史 / 可用版本列表在内部滚动。
+// 更新面板：用一个连续任务画布承载目标切换、版本状态与更新操作。
+// 仅提交历史这类长列表保留局部滚动，页面本身由实例管理画布统一滚动。
 type UpdateTarget = 'mofox' | 'platform';
 
 const props = defineProps<{
@@ -252,7 +251,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- ─── 主程序更新：左侧版本信息 + 分支切换，右侧检查更新 + 提交历史 ─── -->
+    <!-- ─── 主程序更新：连续双列信息流，小窗口下自然折叠为单列 ─── -->
     <div v-if="target === 'mofox'" class="update-two-col">
       <div class="update-panel update-panel--left">
         <!-- 版本信息卡片：双栏展示当前版本信息与提交信息 -->
@@ -328,7 +327,7 @@ onBeforeUnmount(() => {
           <p class="update-hint">注意：切换分支将会暂存本地更改并拉取最新代码。</p>
         </div>
 
-        <!-- 仓库状态：填充左栏剩余高度 -->
+        <!-- 仓库状态 -->
         <div class="update-card update-fill-card">
           <h3 class="update-card__title">
             <span class="msr" aria-hidden="true">analytics</span>
@@ -418,7 +417,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <!-- 提交历史：独占剩余高度，内部滚动 -->
+        <!-- 提交历史：仅长列表本身保留局部滚动 -->
         <div class="update-card update-scroll-card">
           <h3 class="update-card__title">
             <span class="msr" aria-hidden="true">history</span>
@@ -486,7 +485,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- 可用版本列表：更新按钮在列表上方，列表内部滚动 -->
+        <!-- 可用版本列表：更新按钮在列表上方，长列表内部滚动 -->
         <div class="update-card update-scroll-card">
           <div class="update-card__head-row">
             <h3 class="update-card__title" style="margin: 0">
@@ -587,12 +586,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* 固定高度：整体不滚动，只有提交历史 / 版本列表在内部滚动。 */
+/* 页面跟随管理画布连续滚动，避免多列各自维护滚动位置。 */
 .update-view {
   width: 100%;
   max-width: 1120px;
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
   box-sizing: border-box;
   margin: 0 auto;
   display: flex;
@@ -601,18 +599,17 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* 顶部工具条：标题与更新目标切换共用同一玻璃背景，与设置页卡片一致。 */
+/* 顶部工具条：身份与目标切换始终共用一个稳定表面。 */
 .update-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 20px 20px;
-  border: 1px solid var(--app-glass-border);
-  border-radius: 20px;
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: none;
 }
 
 .update-head {
@@ -658,7 +655,7 @@ onBeforeUnmount(() => {
 .update-targets {
   display: inline-flex;
   gap: 4px;
-  align-self: flex-start;
+  flex: none;
   padding: 4px;
   border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-full);
@@ -688,12 +685,11 @@ onBeforeUnmount(() => {
   color: var(--md-sys-color-on-primary);
 }
 
-/* 主程序：左右双栏等宽等高，整体占满剩余高度 */
+/* 主程序：双栏只是信息分组，滚动仍由外层画布统一负责。 */
 .update-two-col {
-  flex: 1;
-  min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 16px;
 }
 
@@ -701,23 +697,18 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 0;
 }
 
-/* 左栏内容超出时仅在内部滚动，避免整页滚动。 */
 .update-panel--left {
-  overflow-y: auto;
+  overflow: visible;
 }
 
-/* 右栏禁止整栏滚动，由提交历史卡片内部滚动。 */
 .update-panel--right {
-  overflow: hidden;
+  overflow: visible;
 }
 
-/* 平台：整列占满剩余高度 */
+/* 平台页同样进入外层连续滚动。 */
 .update-platform {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -725,12 +716,10 @@ onBeforeUnmount(() => {
 
 .update-card {
   padding: 20px 24px;
-  border: 1px solid var(--app-glass-border);
+  border: 0;
   border-radius: 20px;
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: none;
 }
 
 /* 版本信息卡片：内部双栏（当前版本信息 | 提交信息） */
@@ -752,10 +741,8 @@ onBeforeUnmount(() => {
   border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
-/* 内部滚动的卡片：标题固定，列表区域伸缩并滚动。 */
+/* 长列表有明确上限；其余卡片不再制造第二、第三条滚动轨道。 */
 .update-scroll-card {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -778,8 +765,7 @@ onBeforeUnmount(() => {
 }
 
 .update-scroll {
-  flex: 1;
-  min-height: 0;
+  max-height: 420px;
   overflow-y: auto;
 }
 
@@ -868,10 +854,8 @@ onBeforeUnmount(() => {
   font: var(--md-sys-typescale-body-small);
 }
 
-/* 仓库状态卡片：填充左栏剩余高度，仓库行固定在底部。 */
+/* 仓库状态保持紧凑，仓库入口收在卡片末尾。 */
 .update-fill-card {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1207,6 +1191,38 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .spinning {
     animation: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .update-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .update-targets {
+    align-self: stretch;
+  }
+
+  .update-target {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .update-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .info-card-split {
+    grid-template-columns: 1fr;
+  }
+
+  .info-split-col + .info-split-col {
+    padding-top: 16px;
+    padding-left: 0;
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+    border-left: 0;
   }
 }
 </style>

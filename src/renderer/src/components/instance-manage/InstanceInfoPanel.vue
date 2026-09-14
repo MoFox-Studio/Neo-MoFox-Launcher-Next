@@ -93,12 +93,10 @@ function formatDate(value: number | null): string {
   box-sizing: border-box;
   margin: 0 auto;
   overflow: hidden;
-  border: 1px solid var(--app-glass-border);
-  border-radius: 20px;
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  border: 0;
+  border-radius: 24px;
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: none;
 }
 
 .manage-info__head {
@@ -132,7 +130,7 @@ function formatDate(value: number | null): string {
 .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
+  gap: 3px;
   margin: 0;
 }
 
@@ -140,6 +138,11 @@ function formatDate(value: number | null): string {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-height: 70px;
+  justify-content: center;
+  padding: 11px 14px;
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container);
 }
 
 .info-grid__item dt {

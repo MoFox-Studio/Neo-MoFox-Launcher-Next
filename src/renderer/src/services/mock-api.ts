@@ -50,6 +50,10 @@ function emit<K extends keyof MofoxEventMap>(event: K, payload: MofoxEventMap[K]
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // 演示数据保持在内存中，API 对外返回副本以模拟 IPC 序列化边界。
+// `demoReady=1` 仅供浏览器视觉验收直接进入主界面，不影响 Electron 正式运行。
+const demoStartsReady =
+  typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demoReady') === '1';
+
 const instances: Instance[] = [
   {
     id: 'ins-aurora',
@@ -112,7 +116,7 @@ let settings: LauncherSettings = {
   wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
   wallpaperDim: DEFAULT_WALLPAPER_DIM,
   wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
-  oobeCompleted: false,
+  oobeCompleted: demoStartsReady,
 };
 
 let maximized = false;

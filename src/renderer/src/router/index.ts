@@ -12,7 +12,6 @@ export const router = createRouter({
       path: '/instances/:id/manage',
       name: 'instance-manage',
       component: () => import('@/views/InstanceManageView.vue'),
-      meta: { splitGlass: true },
     },
     {
       path: '/instances/:id/logs',
@@ -23,7 +22,6 @@ export const router = createRouter({
       path: '/install/:mode?',
       name: 'install',
       component: () => import('@/views/InstallView.vue'),
-      meta: { splitGlass: true },
     },
     {
       path: '/oobe',
@@ -35,7 +33,6 @@ export const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
-      meta: { splitGlass: true },
     },
   ],
 });

@@ -28,36 +28,36 @@ const emit = defineEmits<{ (e: 'next'): void }>();
 }
 
 .oobe__hero {
-  width: 160px;
-  height: 160px;
-  border-radius: var(--md-sys-shape-corner-full);
+  width: 104px;
+  height: 104px;
+  border-radius: 34px;
   background: var(--md-sys-color-primary-container);
   display: grid;
   place-items: center;
-  margin-bottom: 32px;
+  margin-bottom: 18px;
 }
 
 .oobe__hero-icon {
-  font-size: 120px;
+  font-size: 66px;
   color: var(--md-sys-color-primary);
 }
 
 .oobe__title {
-  font: var(--md-sys-typescale-display-small);
-  margin: 0 0 16px;
+  font: var(--md-sys-typescale-headline-medium);
+  margin: 0 0 10px;
 }
 
 .oobe__intro {
   font: var(--md-sys-typescale-body-large);
   color: var(--md-sys-color-on-surface-variant);
   max-width: 440px;
-  margin: 0 0 16px;
+  margin: 0 0 12px;
 }
 
 .oobe__version {
   font: var(--md-sys-typescale-label-medium);
   color: var(--md-sys-color-on-surface-variant);
-  margin: 0 0 32px;
+  margin: 0 0 22px;
 }
 
 .btn {
@@ -87,7 +87,7 @@ const emit = defineEmits<{ (e: 'next'): void }>();
 }
 
 .btn--large {
-  height: 56px;
+  height: 48px;
   padding: 0 32px;
   font: var(--md-sys-typescale-title-medium);
 }

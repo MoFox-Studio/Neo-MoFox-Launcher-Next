@@ -434,6 +434,7 @@ function goBack(): void {
 
 <template>
   <div class="log-view">
+    <section class="log-view__command-surface">
     <!-- 实例运行状态、运行时长与进程控制；实例名由窗口栏展示 -->
     <header class="log-view__header">
       <button
@@ -645,6 +646,7 @@ function goBack(): void {
         <span class="msr" aria-hidden="true">close</span>
       </button>
     </div>
+    </section>
 
     <!-- 双终端容器保持挂载，以保留非活动来源的滚动缓冲 -->
     <div class="log-view__terminals">
@@ -677,6 +679,14 @@ function goBack(): void {
   padding-bottom: var(--app-nav-overlay-bottom-inset);
 }
 
+.log-view__command-surface {
+  flex: none;
+  margin: 18px 32px 10px;
+  padding: 8px;
+  border-radius: 24px;
+  background: var(--md-sys-color-surface-container-low);
+}
+
 /* 仅在壁纸背景存在时为日志页整面铺设遮罩驱动的半透明底衬，并保留 82% 下限，
    遮罩归零时标题、标签与搜索区仍保持可读；无壁纸时沿用外壳表面。 */
 :global(.shell--has-wallpaper .log-view) {
@@ -691,7 +701,7 @@ function goBack(): void {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px 32px 12px;
+  padding: 8px 12px 10px;
 }
 
 .log-view__meta {
@@ -741,7 +751,7 @@ function goBack(): void {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 32px 12px;
+  padding: 0 12px 10px;
 }
 
 .proc-group {
@@ -749,9 +759,9 @@ function goBack(): void {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-large);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 55%, transparent);
+  border: 0;
+  border-radius: 15px;
+  background: var(--md-sys-color-surface-container);
 }
 
 .proc-group__label {
@@ -778,7 +788,7 @@ function goBack(): void {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 32px 8px;
+  padding: 0 12px 4px;
 }
 
 .log-tab {
@@ -787,21 +797,28 @@ function goBack(): void {
   gap: 6px;
   height: 36px;
   padding: 0 16px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-full);
-  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-label-large);
   cursor: pointer;
   transition:
     background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.log-tab:first-child {
+  border-radius: 15px 6px 6px 15px;
+}
+
+.log-tab:nth-of-type(2) {
+  border-radius: 6px 15px 15px 6px;
 }
 
 .log-tab--active {
-  border-color: transparent;
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
 }
 
 .log-tab__icon {
@@ -828,7 +845,7 @@ function goBack(): void {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 32px 8px;
+  margin: 6px 12px 4px;
   height: 44px;
   padding: 0 12px;
   border-radius: var(--md-sys-shape-corner-full);
@@ -858,13 +875,16 @@ function goBack(): void {
   min-height: 0;
   position: relative;
   margin: 0 32px 24px;
+  padding: 5px;
+  border-radius: 24px;
+  background: var(--md-sys-color-surface-container-low);
 }
 
 .log-view__terminal {
   position: absolute;
-  inset: 0;
+  inset: 5px;
   padding: 12px;
-  border-radius: var(--md-sys-shape-corner-large);
+  border-radius: 20px;
   background: #101416;
   overflow: hidden;
 }
@@ -985,5 +1005,25 @@ function goBack(): void {
 .icon-btn--active {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
+}
+
+@media (max-width: 720px) {
+  .log-view__command-surface {
+    margin: 12px 14px 8px;
+  }
+
+  .log-view__header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .log-view__controls {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .log-view__terminals {
+    margin: 0 14px 14px;
+  }
 }
 </style>

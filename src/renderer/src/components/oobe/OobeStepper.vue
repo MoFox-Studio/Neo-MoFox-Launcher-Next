@@ -2,55 +2,105 @@
 interface Step {
   id: string;
   label: string;
-  /** 该步骤是否在当前流程中实际可见（例如未检测到旧版时跳过导入步骤）。 */
   visible: boolean;
 }
 
-interface Props {
+const props = defineProps<{
   steps: Step[];
   current: number;
-}
-
-const props = defineProps<Props>();
+}>();
 </script>
 
 <template>
-  <!-- 步骤进度点，仅显示 visible 的步骤 -->
-  <div class="oobe-stepper">
-    <span
-      v-for="(step, idx) in props.steps.filter((s) => s.visible)"
+  <ol class="oobe-stepper" aria-label="初始设置进度">
+    <li
+      v-for="(step, index) in props.steps.filter((item) => item.visible)"
       :key="step.id"
-      class="oobe-stepper__dot"
+      class="oobe-stepper__item"
       :class="{
-        'oobe-stepper__dot--active': idx + 1 === props.current,
-        'oobe-stepper__dot--done': idx + 1 < props.current,
+        'oobe-stepper__item--active': index + 1 === props.current,
+        'oobe-stepper__item--done': index + 1 < props.current,
       }"
-      :title="step.label"
-    ></span>
-  </div>
+      :aria-current="index + 1 === props.current ? 'step' : undefined"
+    >
+      <span class="oobe-stepper__marker" aria-hidden="true">
+        <span v-if="index + 1 < props.current" class="msr">check</span>
+        <span v-else>{{ index + 1 }}</span>
+      </span>
+      <span class="oobe-stepper__label">{{ step.label }}</span>
+    </li>
+  </ol>
 </template>
 
 <style scoped>
 .oobe-stepper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oobe-stepper__item {
+  min-width: 0;
+  min-height: 42px;
   display: flex;
-  gap: 8px;
-  margin-bottom: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-label-medium);
+  transition:
+    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.oobe-stepper__dot {
-  width: 8px;
-  height: 8px;
+.oobe-stepper__item:first-child {
+  border-radius: 15px 6px 6px 15px;
+}
+
+.oobe-stepper__item:last-child {
+  border-radius: 6px 15px 15px 6px;
+}
+
+.oobe-stepper__item--active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.oobe-stepper__item--done {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.oobe-stepper__marker {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
   border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-highest);
-  transition: background-color var(--md-sys-motion-duration-short4)
-    var(--md-sys-motion-easing-standard);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font: var(--md-sys-typescale-label-small);
 }
 
-.oobe-stepper__dot--active {
-  background: var(--md-sys-color-primary);
+.oobe-stepper__marker .msr {
+  font-size: 15px;
 }
 
-.oobe-stepper__dot--done {
-  background: var(--md-sys-color-tertiary);
+.oobe-stepper__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .oobe-stepper__label {
+    display: none;
+  }
 }
 </style>

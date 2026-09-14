@@ -594,12 +594,10 @@ watch(
   box-sizing: border-box;
   margin: 0 auto;
   overflow: hidden;
-  border: 1px solid var(--app-glass-border);
-  border-radius: 20px;
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  border: 0;
+  border-radius: 24px;
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: none;
 }
 
 .manage-group__head {
@@ -621,6 +619,7 @@ watch(
 .action-list {
   display: flex;
   flex-direction: column;
+  gap: 3px;
 }
 
 .settings-item {
@@ -628,7 +627,17 @@ watch(
   align-items: center;
   gap: 12px;
   min-width: 0;
-  padding: 12px 0;
+  padding: 12px 14px;
+  border-radius: 7px;
+  background: var(--md-sys-color-surface-container);
+}
+
+.action-list > .settings-item:first-child {
+  border-radius: 18px 18px 7px 7px;
+}
+
+.action-list > .settings-item:last-child {
+  border-radius: 7px 7px 18px 18px;
 }
 
 .settings-item__icon {
@@ -660,8 +669,7 @@ watch(
 }
 
 .settings-divider {
-  height: 1px;
-  background: var(--md-sys-color-outline-variant);
+  display: none;
 }
 
 .md-switch {

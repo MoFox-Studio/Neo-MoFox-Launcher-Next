@@ -6,35 +6,26 @@ import { useInstancesStore } from '@/stores/instances';
 import { useWindowTitle } from '@/composables/use-window-title';
 import InstanceCard from '@/components/InstanceCard.vue';
 
-// 实例管理页提供搜索、状态筛选与卡片操作分发。
 type FilterKey = 'all' | 'running' | 'stopped' | 'error';
 
-interface FilterOption {
-  key: FilterKey;
-  label: string;
-}
-
-const FILTERS: FilterOption[] = [
-  { key: 'all', label: '全部' },
-  { key: 'running', label: '运行中' },
-  { key: 'stopped', label: '已停止' },
-  { key: 'error', label: '异常' },
+const FILTERS: { key: FilterKey; label: string; icon: string }[] = [
+  { key: 'all', label: '全部', icon: 'apps' },
+  { key: 'running', label: '运行中', icon: 'play_circle' },
+  { key: 'stopped', label: '已停止', icon: 'stop_circle' },
+  { key: 'error', label: '异常', icon: 'error' },
 ];
 
 const router = useRouter();
 const route = useRoute();
 const instancesStore = useInstancesStore();
 
-// 实例页标题显示在窗口栏。
 useWindowTitle({ title: '实例', subtitle: '管理并启动你的机器人实例' });
 
-// 筛选条件和搜索关键字只属于当前视图的临时响应式状态。
 const keyword = ref('');
 const activeFilter = ref<FilterKey>('all');
 
-// 初始化列表，并兼容来自旧入口的日志查询参数跳转。
 onMounted(() => {
-  instancesStore.refresh();
+  void instancesStore.refresh();
   const logsQuery = route.query.logs;
   if (typeof logsQuery === 'string' && logsQuery) {
     void router.replace({ name: 'instance-logs', params: { id: logsQuery } });
@@ -48,32 +39,43 @@ function matchesFilter(status: InstanceStatus, filter: FilterKey): boolean {
   return status === 'error';
 }
 
-// 搜索关键字和状态筛选共同派生当前可见实例。
 const filteredInstances = computed(() => {
-  const kw = keyword.value.trim().toLowerCase();
+  const normalizedKeyword = keyword.value.trim().toLowerCase();
   return instancesStore.instances.filter((instance) => {
-    const matchName = kw === '' || instance.name.toLowerCase().includes(kw);
-    return matchName && matchesFilter(instance.status, activeFilter.value);
+    const matchesKeyword =
+      normalizedKeyword === '' || instance.name.toLowerCase().includes(normalizedKeyword);
+    return matchesKeyword && matchesFilter(instance.status, activeFilter.value);
   });
 });
 
 const hasInstances = computed(() => instancesStore.instances.length > 0);
 const hasResults = computed(() => filteredInstances.value.length > 0);
+const resultLabel = computed(() => {
+  if (!hasInstances.value) return '暂无实例';
+  if (filteredInstances.value.length === instancesStore.instances.length) {
+    return `共 ${instancesStore.instances.length} 个实例`;
+  }
+  return `显示 ${filteredInstances.value.length} / ${instancesStore.instances.length}`;
+});
+
+function filterCount(filter: FilterKey): number {
+  return instancesStore.instances.filter((instance) => matchesFilter(instance.status, filter)).length;
+}
 
 function onRefresh(): void {
-  instancesStore.refresh();
+  void instancesStore.refresh();
 }
 
 function onStart(id: string): void {
-  instancesStore.start(id);
+  void instancesStore.start(id);
 }
 
 function onStop(id: string): void {
-  instancesStore.stop(id);
+  void instancesStore.stop(id);
 }
 
 function onRestart(id: string): void {
-  instancesStore.restart(id);
+  void instancesStore.restart(id);
 }
 
 function openLogs(id: string): void {
@@ -87,60 +89,67 @@ function onManage(id: string): void {
 
 <template>
   <div class="instances-view">
-    <!-- 搜索与筛选工具栏共用带模糊背景的容器 -->
-    <section class="instances-view__panel">
-      <div class="instances-view__toolbar">
+    <div class="instances-view__layout">
+      <section class="instance-tools" aria-label="实例筛选">
         <label class="search-box">
-          <span class="msr search-box__icon" aria-hidden="true">search</span>
-          <input
-            v-model="keyword"
-            type="text"
-            class="search-box__input"
-            placeholder="搜索实例名称"
-          />
+          <span class="msr" aria-hidden="true">search</span>
+          <input v-model="keyword" type="search" placeholder="搜索实例名称" />
+          <button
+            v-if="keyword"
+            type="button"
+            class="search-box__clear state-layer"
+            title="清空搜索"
+            aria-label="清空搜索"
+            @click="keyword = ''"
+          >
+            <span class="msr" aria-hidden="true">close</span>
+          </button>
         </label>
 
-        <div class="instances-view__toolbar-row">
-          <div class="filter-row">
-            <button
-              v-for="filter in FILTERS"
-              :key="filter.key"
-              class="filter-chip state-layer"
-              type="button"
-              :class="{ 'filter-chip--selected': activeFilter === filter.key }"
-              @click="activeFilter = filter.key"
-            >
-              <span
-                v-if="activeFilter === filter.key"
-                class="msr filter-chip__icon"
-                aria-hidden="true"
-                >check</span
-              >
-              {{ filter.label }}
-            </button>
-          </div>
+        <div class="filter-segments" role="tablist" aria-label="运行状态">
           <button
-            class="icon-btn state-layer"
+            v-for="filter in FILTERS"
+            :key="filter.key"
             type="button"
-            title="刷新"
-            aria-label="刷新"
+            role="tab"
+            class="filter-segment state-layer"
+            :class="{ 'filter-segment--selected': activeFilter === filter.key }"
+            :aria-selected="activeFilter === filter.key"
+            @click="activeFilter = filter.key"
+          >
+            <span class="msr" aria-hidden="true">{{ filter.icon }}</span>
+            <span>{{ filter.label }}</span>
+            <small>{{ filterCount(filter.key) }}</small>
+          </button>
+        </div>
+
+        <div class="instance-tools__tail">
+          <span>{{ resultLabel }}</span>
+          <button
+            class="refresh-button state-layer"
+            type="button"
+            title="刷新实例"
+            aria-label="刷新实例"
             @click="onRefresh"
           >
             <span class="msr" aria-hidden="true">refresh</span>
           </button>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <div class="instances-view__body">
       <div v-if="!hasInstances" class="empty-state">
-        <span class="msr empty-state__icon" aria-hidden="true">deployed_code</span>
-        <p class="empty-state__text">还没有任何实例，请使用左上角加号添加实例</p>
+        <span class="empty-state__mark" aria-hidden="true"><span class="msr">deployed_code</span></span>
+        <h2>还没有实例</h2>
+        <p>使用主导航中的添加按钮，新鲜安装或导入一个已有实例。</p>
       </div>
 
       <div v-else-if="!hasResults" class="empty-state">
-        <span class="msr empty-state__icon" aria-hidden="true">search_off</span>
-        <p class="empty-state__text">没有找到匹配的实例，换个关键词或筛选条件试试</p>
+        <span class="empty-state__mark" aria-hidden="true"><span class="msr">search_off</span></span>
+        <h2>没有匹配结果</h2>
+        <p>换一个关键词或状态筛选试试。</p>
+        <button type="button" class="empty-state__action state-layer" @click="keyword = ''; activeFilter = 'all'">
+          清除筛选
+        </button>
       </div>
 
       <div v-else class="instances-grid">
@@ -160,160 +169,255 @@ function onManage(id: string): void {
 </template>
 
 <style scoped>
-/* 页面容器、筛选工具栏与实例网格 */
 .instances-view {
   height: 100%;
   overflow-y: auto;
-  position: relative;
 }
 
-/* 搜索与筛选共用的模糊容器：无圆角，整条覆盖顶部 */
-.instances-view__panel {
-  padding: 24px 32px 24px calc(32px + var(--app-nav-overlay-start-inset));
-  border-bottom: 1px solid var(--app-glass-border);
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
-}
-
-.instances-view__body {
+.instances-view__layout {
+  width: min(100%, 1240px);
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 0 32px calc(32px + var(--app-nav-overlay-bottom-inset))
+  margin: 0 auto;
+  padding: 28px 32px calc(36px + var(--app-nav-overlay-bottom-inset))
     calc(32px + var(--app-nav-overlay-start-inset));
 }
 
-.instances-view__toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.instances-view__toolbar-row {
-  display: flex;
+.instance-tools {
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 24px;
+  background: var(--md-sys-color-surface-container-low);
 }
 
-/* 搜索框在模糊容器内使用实色底，避免嵌套玻璃造成重复模糊 */
 .search-box {
+  min-width: 0;
+  height: 50px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 48px;
-  padding: 0 16px;
+  gap: 10px;
+  padding: 0 10px 0 15px;
   border-radius: var(--md-sys-shape-corner-full);
-  border: 1px solid var(--app-glass-border);
   background: var(--md-sys-color-surface-container-high);
-}
-
-.search-box__icon {
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.search-box__input {
+.search-box > .msr {
+  flex: none;
+  font-size: 22px;
+}
+
+.search-box input {
+  min-width: 0;
   flex: 1;
-  border: none;
-  outline: none;
+  border: 0;
+  outline: 0;
   background: transparent;
   color: var(--md-sys-color-on-surface);
   font: var(--md-sys-typescale-body-large);
 }
 
-.search-box__input::placeholder {
+.search-box input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.search-box input::placeholder {
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.search-box:focus-within {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
 }
 
-.filter-chip {
+.search-box__clear,
+.refresh-button {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.search-box__clear .msr,
+.refresh-button .msr {
+  font-size: 20px;
+}
+
+.filter-segments {
+  display: flex;
+  gap: 3px;
+}
+
+.filter-segment {
+  height: 46px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 16px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-small);
-  background: transparent;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-label-large);
   cursor: pointer;
   transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.filter-chip__icon {
+.filter-segment:first-child {
+  border-radius: 16px 6px 6px 16px;
+}
+
+.filter-segment:last-child {
+  border-radius: 6px 16px 16px 6px;
+}
+
+.filter-segment--selected {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.filter-segment .msr {
+  display: none;
   font-size: 18px;
 }
 
-.filter-chip--selected {
-  border-color: transparent;
+.filter-segment--selected .msr {
+  display: inline-block;
+}
+
+.filter-segment small {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: inherit;
+  font: var(--md-sys-typescale-label-small);
+}
+
+.instance-tools__tail {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+  white-space: nowrap;
+}
+
+.refresh-button {
+  width: 44px;
+  height: 44px;
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
 }
 
-/* 卡片瀑布区直接落在内容画布上，不再单独铺设壁纸专用平面。 */
 .instances-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-  padding: 20px;
-  border-radius: var(--md-sys-shape-corner-extra-large);
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 12px;
 }
 
-/* 空列表和无搜索结果提示 */
 .empty-state {
+  min-height: 360px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  padding: 64px 32px;
+  gap: 7px;
+  padding: 32px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-low);
   text-align: center;
 }
 
-.empty-state__icon {
-  font-size: 64px;
-  color: var(--md-sys-color-on-surface-variant);
+.empty-state__mark {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 9px;
+  border-radius: 23px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
 }
 
-.empty-state__text {
+.empty-state__mark .msr {
+  font-size: 36px;
+}
+
+.empty-state h2,
+.empty-state p {
   margin: 0;
-  font: var(--md-sys-typescale-body-large);
-  color: var(--md-sys-color-on-surface-variant);
 }
 
-.btn {
-  height: 40px;
-  padding: 0 24px;
-  border: none;
+.empty-state h2 {
+  font: var(--md-sys-typescale-title-large);
+}
+
+.empty-state p {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.empty-state__action {
+  min-height: 40px;
+  margin-top: 8px;
+  padding: 0 16px;
+  border: 0;
   border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
   font: var(--md-sys-typescale-label-large);
   cursor: pointer;
 }
 
-.btn--filled {
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+@media (max-width: 980px) {
+  .instance-tools {
+    grid-template-columns: 1fr auto;
+  }
+
+  .filter-segments {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .instance-tools__tail > span {
+    display: none;
+  }
 }
 
-.icon-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
+@media (max-width: 640px) {
+  .instances-view__layout {
+    padding: 18px 18px calc(28px + var(--app-nav-overlay-bottom-inset))
+      calc(18px + var(--app-nav-overlay-start-inset));
+  }
+
+  .instance-tools {
+    grid-template-columns: 1fr auto;
+  }
+
+  .filter-segments {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .filter-segment {
+    flex: 1 0 auto;
+  }
 }
 </style>

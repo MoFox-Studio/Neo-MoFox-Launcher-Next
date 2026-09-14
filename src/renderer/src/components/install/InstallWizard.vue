@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
+import BaseDialog from '@/components/BaseDialog.vue';
 import { useInstallDraftStore } from '@/stores/install-draft';
 import { useInstallStore } from '@/stores/install';
 import type { InstallRequest } from '@shared/domain/install';
+import InstallerTaskShell, { type TaskPhase } from './InstallerTaskShell.vue';
 import InstallLicenseStep from './InstallLicenseStep.vue';
 import InstallInstanceStep from './InstallInstanceStep.vue';
 import InstallApiKeyStep from './InstallApiKeyStep.vue';
@@ -11,20 +13,63 @@ import InstallWebuiStep from './InstallWebuiStep.vue';
 import InstallLocationStep from './InstallLocationStep.vue';
 import InstallSummaryStep from './InstallSummaryStep.vue';
 import InstallExecuteStep from './InstallExecuteStep.vue';
-import BaseDialog from '@/components/BaseDialog.vue';
 import '@/components/install/install-wizard.css';
 
-// 安装向导主组件：负责左侧步骤导航、各步骤组件的调用编排与前进/回退控制。
-const STEPS = [
-  { id: 'license', title: '许可协议' },
-  { id: 'instance', title: '实例信息' },
-  { id: 'apiKey', title: '模型配置' },
-  { id: 'network', title: '网络配置' },
-  { id: 'webui', title: '组件选择' },
-  { id: 'location', title: '安装位置' },
-  { id: 'summary', title: '确认摘要' },
-  { id: 'execute', title: '执行安装' },
-] as const;
+type PhaseId = 'license' | 'configure' | 'review' | 'execute';
+type ConfigSectionId = 'identity' | 'model' | 'network' | 'components' | 'location';
+
+interface ConfigSection {
+  id: ConfigSectionId;
+  title: string;
+  description: string;
+  icon: string;
+  component: Component;
+}
+
+const PHASES: TaskPhase[] = [
+  { id: 'license', label: '协议', icon: 'gavel' },
+  { id: 'configure', label: '配置', icon: 'tune' },
+  { id: 'review', label: '确认', icon: 'fact_check' },
+  { id: 'execute', label: '安装', icon: 'rocket_launch' },
+];
+
+const CONFIG_SECTIONS: ConfigSection[] = [
+  {
+    id: 'identity',
+    title: '实例身份',
+    description: '名称、昵称与 QQ 账号',
+    icon: 'badge',
+    component: InstallInstanceStep,
+  },
+  {
+    id: 'model',
+    title: '模型服务',
+    description: '大语言模型访问密钥',
+    icon: 'key',
+    component: InstallApiKeyStep,
+  },
+  {
+    id: 'network',
+    title: '平台与网络',
+    description: '适配器、更新通道与端口',
+    icon: 'hub',
+    component: InstallPlatformStep,
+  },
+  {
+    id: 'components',
+    title: '可选组件',
+    description: 'WebUI 与访问控制',
+    icon: 'widgets',
+    component: InstallWebuiStep,
+  },
+  {
+    id: 'location',
+    title: '安装位置',
+    description: '目标目录与可用空间',
+    icon: 'folder_open',
+    component: InstallLocationStep,
+  },
+];
 
 const draftStore = useInstallDraftStore();
 const installStore = useInstallStore();
@@ -34,16 +79,201 @@ const emit = defineEmits<{
   complete: [];
 }>();
 
-const currentStep = ref(1);
-const stepDirection = ref<'forward' | 'backward'>('forward');
+const currentPhase = ref<PhaseId>('license');
+const activeConfigSection = ref<ConfigSectionId>('identity');
 const licenseAgreed = ref(false);
 const contentRef = ref<HTMLElement | null>(null);
-// 取消确认弹窗；确认后才进入“正在取消”弹窗与真正的取消流程。
 const confirmingCancel = ref(false);
-// 取消安装期间展示“正在取消”弹窗，避免取消清理耗时较长时界面无反馈。
 const cancelling = ref(false);
 
-// 主导航离开被守卫拦截后，通过该标志请求弹出取消确认框。
+const phaseIndex = computed(() => PHASES.findIndex((phase) => phase.id === currentPhase.value));
+
+const shellTitle = computed(() => {
+  if (currentPhase.value === 'license') return '安装 Neo-MoFox';
+  if (currentPhase.value === 'configure') {
+    return draftStore.draft.instanceName.trim() || '配置新实例';
+  }
+  if (currentPhase.value === 'review') return draftStore.draft.instanceName || '确认安装';
+  if (installStore.isDone) return `${draftStore.draft.instanceName || 'Neo-MoFox'} 已安装`;
+  if (installStore.isFailed) return `${draftStore.draft.instanceName || 'Neo-MoFox'} 安装受阻`;
+  return `正在安装${draftStore.draft.instanceName ? ` ${draftStore.draft.instanceName}` : ''}`;
+});
+
+const shellSubtitle = computed(() => {
+  if (currentPhase.value === 'license') return '先确认许可与隐私条款，再开始配置实例。';
+  if (currentPhase.value === 'configure') return '按需展开配置区块，已填写内容会一直保留。';
+  if (currentPhase.value === 'review') return '最后检查一次关键配置，确认后即开始安装。';
+  if (installStore.isDone) return '文件、依赖与配置已经准备完毕。';
+  if (installStore.isFailed) return '已保留任务现场，可以查看详情并从失败步骤重试。';
+  return '可以随时展开日志查看细节，安装状态会持续更新。';
+});
+
+const shellIcon = computed(() => {
+  if (installStore.isDone && currentPhase.value === 'execute') return 'check_circle';
+  if (installStore.isFailed && currentPhase.value === 'execute') return 'error';
+  return currentPhase.value === 'execute' ? 'deployed_code_update' : 'deployed_code';
+});
+
+function sectionReady(id: ConfigSectionId): boolean {
+  const errors = draftStore.fieldErrors;
+  switch (id) {
+    case 'identity':
+      return (
+        errors.instanceName === '' &&
+        errors.botQQ === '' &&
+        errors.botNickname === '' &&
+        errors.ownerQQ === ''
+      );
+    case 'model':
+      return errors.apiKey === '';
+    case 'network':
+      return errors.wsPort === '';
+    case 'components':
+      return errors.webuiKey === '';
+    case 'location':
+      return errors.targetDir === '' && !draftStore.targetDirCheckError;
+  }
+}
+
+const configuredCount = computed(
+  () => CONFIG_SECTIONS.filter((section) => sectionReady(section.id)).length,
+);
+
+const phaseBadge = computed(() => {
+  if (currentPhase.value === 'configure') return `${configuredCount.value} / 5 已就绪`;
+  if (currentPhase.value === 'review') return '等待确认';
+  if (currentPhase.value === 'execute') {
+    if (installStore.isDone) return '已完成';
+    if (installStore.isFailed) return '需要处理';
+    return '安装中';
+  }
+  return '4 个阶段';
+});
+
+const phaseBadgeClass = computed(() => ({
+  'task-badge--success': currentPhase.value === 'execute' && installStore.isDone,
+  'task-badge--error': currentPhase.value === 'execute' && installStore.isFailed,
+}));
+
+function sectionSummary(id: ConfigSectionId): string {
+  const draft = draftStore.draft;
+  switch (id) {
+    case 'identity':
+      return draft.instanceName
+        ? `${draft.instanceName}${draft.botNickname ? ` · ${draft.botNickname}` : ''}`
+        : '需要填写实例名称与账号';
+    case 'model':
+      return draft.apiKey ? 'API Key 已填写' : '需要填写 API Key';
+    case 'network': {
+      const platform =
+        draft.platformId === 'snowluma'
+          ? 'SnowLuma'
+          : draft.platformId === 'napcat'
+            ? 'NapCat'
+            : draft.platformId || '仅核心';
+      return `${platform} · ${draft.mofoxBranch} · :${draft.wsPort || '—'}`;
+    }
+    case 'components':
+      return draft.installWebui ? '安装 WebUI' : '仅安装核心组件';
+    case 'location':
+      return draft.targetDir || '需要选择目标目录';
+  }
+}
+
+function firstInvalidSection(): ConfigSectionId {
+  return CONFIG_SECTIONS.find((section) => !sectionReady(section.id))?.id ?? 'location';
+}
+
+function touchConfiguration(): void {
+  for (const field of [
+    'instanceName',
+    'botQQ',
+    'botNickname',
+    'ownerQQ',
+    'apiKey',
+    'wsPort',
+    'webuiKey',
+    'targetDir',
+  ]) {
+    draftStore.touch(field);
+  }
+}
+
+function continueFromLicense(): void {
+  if (!licenseAgreed.value) return;
+  currentPhase.value = 'configure';
+}
+
+async function reviewConfiguration(): Promise<void> {
+  touchConfiguration();
+  if (!draftStore.allValid) {
+    activeConfigSection.value = firstInvalidSection();
+    return;
+  }
+  activeConfigSection.value = 'location';
+  if (!(await draftStore.validateTargetDirRemote())) return;
+  currentPhase.value = 'review';
+}
+
+function backOnePhase(): void {
+  if (currentPhase.value === 'configure') currentPhase.value = 'license';
+  else if (currentPhase.value === 'review') currentPhase.value = 'configure';
+}
+
+function selectPhase(id: string): void {
+  const nextIndex = PHASES.findIndex((phase) => phase.id === id);
+  if (nextIndex < 0 || nextIndex >= phaseIndex.value || currentPhase.value === 'execute') return;
+  currentPhase.value = id as PhaseId;
+}
+
+async function startInstall(): Promise<void> {
+  const request: InstallRequest = { ...draftStore.draft };
+  currentPhase.value = 'execute';
+  await installStore.begin(request);
+}
+
+function advanceConfiguration(): void {
+  if (!sectionReady(activeConfigSection.value)) return;
+  const index = CONFIG_SECTIONS.findIndex((section) => section.id === activeConfigSection.value);
+  const next = CONFIG_SECTIONS[index + 1];
+  if (next) activeConfigSection.value = next.id;
+  else void reviewConfiguration();
+}
+
+function runPrimaryAction(): void {
+  if (currentPhase.value === 'license') continueFromLicense();
+  else if (currentPhase.value === 'configure') advanceConfiguration();
+  else if (currentPhase.value === 'review') void startInstall();
+}
+
+function onKeydownEnter(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' || event.isComposing || currentPhase.value === 'execute') return;
+  const active = document.activeElement as HTMLElement | null;
+  if (!active || !contentRef.value) return;
+  const tag = active.tagName;
+  if (tag === 'BUTTON' || tag === 'A') return;
+
+  const isInputLike = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+  if (isInputLike) {
+    const input = active as HTMLInputElement;
+    if (input.type === 'checkbox' || input.type === 'hidden' || input.disabled) return;
+  }
+
+  const focusables = Array.from(
+    contentRef.value.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+      'input:not([type="checkbox"]):not([type="hidden"]), select',
+    ),
+  ).filter((element) => !element.disabled && element.offsetParent !== null);
+  const index = focusables.indexOf(active as HTMLInputElement | HTMLSelectElement);
+  if (index >= 0 && index < focusables.length - 1) {
+    event.preventDefault();
+    focusables[index + 1].focus();
+    return;
+  }
+  event.preventDefault();
+  runPrimaryAction();
+}
+
 watch(
   () => installStore.cancelRequested,
   (requested) => {
@@ -53,11 +283,8 @@ watch(
   },
 );
 
-// 恢复后台安装时直接回到执行页。
 onMounted(() => {
-  if (installStore.isInstalling) {
-    currentStep.value = STEPS.length;
-  }
+  if (installStore.activeTaskId || installStore.progress) currentPhase.value = 'execute';
   window.addEventListener('keydown', onKeydownEnter);
 });
 
@@ -65,115 +292,26 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydownEnter);
 });
 
-/**
- * 智能处理回车键：单个输入框直接进入下一步，多个输入框则切换到下一个，
- * 最后一个输入框时进入下一步；焦点不在任何输入控件上时也进入下一步。
- */
-function onKeydownEnter(event: KeyboardEvent): void {
-  if (event.key !== 'Enter' || event.isComposing) return;
-  const active = document.activeElement as HTMLElement | null;
-  if (!active || !contentRef.value) return;
-  const tag = active.tagName;
-
-  // 按钮/链接自己处理回车；执行步骤由按钮操作，不触发自动下一步。
-  if (tag === 'BUTTON' || tag === 'A') return;
-
-  const isInputLike = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
-  if (!isInputLike) {
-    event.preventDefault();
-    goNext();
-    return;
-  }
-
-  const input = active as HTMLInputElement | HTMLSelectElement;
-  if (input.type === 'checkbox' || input.type === 'hidden' || input.disabled) return;
-
-  const focusables = Array.from(
-    contentRef.value.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
-      'input:not([type="checkbox"]):not([type="hidden"]), select',
-    ),
-  ).filter((el) => !el.disabled && el.offsetParent !== null);
-
-  const index = focusables.indexOf(input);
-  // 单个输入框或位于最后一个时进入下一步；否则聚焦到下一个输入框。
-  if (focusables.length <= 1 || index === focusables.length - 1) {
-    event.preventDefault();
-    goNext();
-  } else if (index >= 0) {
-    event.preventDefault();
-    focusables[index + 1].focus();
-  }
-}
-
-const canGoNext = computed(() => {
-  switch (currentStep.value) {
-    case 1:
-      return licenseAgreed.value;
-    case 2:
-      return (
-        draftStore.fieldErrors.instanceName === '' &&
-        draftStore.fieldErrors.botQQ === '' &&
-        draftStore.fieldErrors.botNickname === '' &&
-        draftStore.fieldErrors.ownerQQ === ''
-      );
-    case 3:
-      return draftStore.fieldErrors.apiKey === '';
-    case 4:
-      return draftStore.fieldErrors.wsPort === '';
-    case 5:
-      return draftStore.fieldErrors.webuiKey === '';
-    case 6:
-      return draftStore.fieldErrors.targetDir === '' && !draftStore.validatingTargetDir;
-    case 7:
-      return draftStore.allValid;
-    default:
-      return false;
-  }
-});
-
-async function goNext(): Promise<void> {
-  if (!canGoNext.value) return;
-  // 安装位置步骤在前进前由主进程校验盘符空间与写入权限，失败则停留在当前步骤并展示错误。
-  if (currentStep.value === 6 && !(await draftStore.validateTargetDirRemote())) return;
-  if (currentStep.value === STEPS.length - 1) {
-    void startInstall();
-    return;
-  }
-  stepDirection.value = 'forward';
-  currentStep.value += 1;
-}
-
-function goPrev(): void {
-  if (currentStep.value <= 1 || currentStep.value >= STEPS.length) return;
-  stepDirection.value = 'backward';
-  currentStep.value -= 1;
-}
-
-function goToStep(step: number): void {
-  if (step >= currentStep.value || currentStep.value >= STEPS.length) return;
-  stepDirection.value = 'backward';
-  currentStep.value = step;
-}
-
-async function startInstall(): Promise<void> {
-  const request: InstallRequest = { ...draftStore.draft };
-  stepDirection.value = 'forward';
-  currentStep.value = STEPS.length;
-  await installStore.begin(request);
-}
-
-// 点击取消/返回主界面时先弹确认框，避免误触直接丢弃正在进行的安装。
 function cancelInstall(): void {
   confirmingCancel.value = true;
 }
 
-/** 确认取消：先展示“正在取消”弹窗，等待任务中止与临时目录清理后返回主界面。 */
+const cancelTitle = computed(() =>
+  installStore.activeTaskId ? '确认取消安装' : '放弃本次配置？',
+);
+
+const cancelMessage = computed(() =>
+  installStore.activeTaskId
+    ? '取消将中止当前安装并清理已下载的临时文件，此操作不可恢复。'
+    : '尚未开始安装，返回后本次填写的配置将被清空。',
+);
+
 async function confirmCancel(): Promise<void> {
   confirmingCancel.value = false;
-  // 有活动任务时取消会等待任务中止与临时目录清理，期间先展示弹窗提示。
   if (installStore.activeTaskId) cancelling.value = true;
   try {
     await installStore.cancel();
+    draftStore.reset();
   } finally {
     cancelling.value = false;
   }
@@ -187,118 +325,162 @@ function goToInstances(): void {
 
 <template>
   <div class="wizard">
-    <aside class="wizard__rail">
-      <ol class="stepper">
-        <li
-          v-for="(step, idx) in STEPS"
-          :key="step.id"
-          class="stepper__item"
-          :class="{
-            'stepper__item--done': idx + 1 < currentStep,
-            'stepper__item--current': idx + 1 === currentStep,
-          }"
-        >
-          <button
-            type="button"
-            class="stepper__marker state-layer"
-            :disabled="idx + 1 >= currentStep"
-            @click="goToStep(idx + 1)"
-          >
-            <span v-if="idx + 1 < currentStep" class="msr msr--fill" aria-hidden="true">check</span>
-            <span v-else>{{ idx + 1 }}</span>
-          </button>
-          <span class="stepper__title">{{ step.title }}</span>
-          <span v-if="idx < STEPS.length - 1" class="stepper__line"></span>
-        </li>
-      </ol>
+    <InstallerTaskShell
+      :title="shellTitle"
+      :subtitle="shellSubtitle"
+      :icon="shellIcon"
+      :phases="PHASES"
+      :active-phase="currentPhase"
+      :navigable="currentPhase !== 'execute'"
+      :show-footer="currentPhase !== 'execute'"
+      @select-phase="selectPhase"
+    >
+      <template #badge>
+        <span class="task-badge" :class="phaseBadgeClass">{{ phaseBadge }}</span>
+      </template>
 
-      <!-- 返回/取消按钮固定在侧栏左下角：第一步为取消，中间步骤为上一步，执行步骤返回主界面 -->
-      <div class="wizard__rail-back">
+      <div ref="contentRef" class="wizard__content">
+        <InstallLicenseStep v-if="currentPhase === 'license'" v-model:agreed="licenseAgreed" />
+
+        <section v-else-if="currentPhase === 'configure'" class="configuration-screen">
+          <div class="configuration-screen__intro">
+            <div>
+              <h2>完成实例配置</h2>
+              <p>一次只展开一组，减少干扰；右侧状态会提示还缺哪些信息。</p>
+            </div>
+            <span class="configuration-screen__progress">{{ configuredCount }} / 5</span>
+          </div>
+
+          <div class="config-sections">
+            <article
+              v-for="section in CONFIG_SECTIONS"
+              :key="section.id"
+              class="config-section"
+              :class="{
+                'config-section--open': activeConfigSection === section.id,
+                'config-section--ready': sectionReady(section.id),
+              }"
+            >
+              <button
+                type="button"
+                class="config-section__header state-layer"
+                :aria-expanded="activeConfigSection === section.id"
+                @click="activeConfigSection = section.id"
+              >
+                <span class="config-section__icon" aria-hidden="true">
+                  <span class="msr" :class="{ 'msr--fill': sectionReady(section.id) }">
+                    {{ sectionReady(section.id) ? 'check_circle' : section.icon }}
+                  </span>
+                </span>
+                <span class="config-section__copy">
+                  <span class="config-section__title">{{ section.title }}</span>
+                  <span class="config-section__summary" :title="sectionSummary(section.id)">
+                    {{ sectionSummary(section.id) }}
+                  </span>
+                </span>
+                <span class="config-section__state">
+                  {{ sectionReady(section.id) ? '已就绪' : section.description }}
+                </span>
+                <span class="msr config-section__chevron" aria-hidden="true">expand_more</span>
+              </button>
+              <div class="config-section__body-grid">
+                <div class="config-section__body-clip">
+                  <div class="config-section__body">
+                    <component :is="section.component" />
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section v-else-if="currentPhase === 'review'" class="review-screen">
+          <div class="review-screen__intro">
+            <span class="review-screen__icon" aria-hidden="true">
+              <span class="msr msr--fill">fact_check</span>
+            </span>
+            <div>
+              <h2>准备安装</h2>
+              <p>目标目录已通过空间和写入权限检查。</p>
+            </div>
+          </div>
+          <InstallSummaryStep />
+        </section>
+
+        <InstallExecuteStep
+          v-else
+          :instance-name="draftStore.draft.instanceName"
+          @cancel="cancelInstall"
+          @finish="goToInstances"
+        />
+      </div>
+
+      <template #leading-actions>
         <button
-          v-if="currentStep === 1"
+          v-if="currentPhase === 'license'"
           type="button"
-          class="btn btn--tonal state-layer"
+          class="btn btn--text state-layer"
           @click="cancelInstall"
         >
           取消
         </button>
         <button
-          v-else-if="currentStep < STEPS.length"
+          v-else
           type="button"
-          class="btn btn--tonal state-layer"
-          @click="goPrev"
+          class="btn btn--text state-layer"
+          @click="backOnePhase"
         >
           <span class="msr" aria-hidden="true">arrow_back</span>
-          上一步
+          返回
         </button>
-        <button
-          v-else-if="!installStore.isDone"
-          type="button"
-          class="btn btn--tonal state-layer"
-          @click="cancelInstall"
-        >
-          <span class="msr" aria-hidden="true">home</span>
-          返回主界面
-        </button>
-      </div>
-    </aside>
+      </template>
 
-    <div class="wizard__panel">
-      <transition :name="`wizard-slide-${stepDirection}`" mode="out-in">
-        <div :key="currentStep" ref="contentRef" class="wizard__content">
-          <InstallLicenseStep v-if="currentStep === 1" v-model:agreed="licenseAgreed" />
-          <InstallInstanceStep v-else-if="currentStep === 2" />
-          <InstallApiKeyStep v-else-if="currentStep === 3" />
-          <InstallPlatformStep v-else-if="currentStep === 4" />
-          <InstallWebuiStep v-else-if="currentStep === 5" />
-          <InstallLocationStep v-else-if="currentStep === 6" />
-          <InstallSummaryStep v-else-if="currentStep === 7" />
-          <InstallExecuteStep
-            v-else
-            :instance-name="draftStore.draft.instanceName"
-            @cancel="cancelInstall"
-            @finish="goToInstances"
-          />
-        </div>
-      </transition>
-
-      <!-- 前进/开始安装按钮固定在面板右下角 -->
-      <div v-if="currentStep < STEPS.length" class="wizard__nav">
-        <span class="wizard__nav-spacer"></span>
+      <template #actions>
         <button
-          v-if="currentStep < STEPS.length - 1"
+          v-if="currentPhase === 'license'"
           type="button"
           class="btn btn--filled state-layer"
-          :disabled="!canGoNext"
-          @click="goNext"
+          :disabled="!licenseAgreed"
+          @click="continueFromLicense"
         >
-          下一步
+          开始配置
+          <span class="msr" aria-hidden="true">arrow_forward</span>
         </button>
         <button
-          v-else-if="currentStep === STEPS.length - 1"
+          v-else-if="currentPhase === 'configure'"
           type="button"
-          class="btn btn--filled state-layer btn--large"
-          :disabled="!canGoNext"
-          @click="goNext"
+          class="btn btn--filled state-layer"
+          :disabled="draftStore.validatingTargetDir"
+          @click="reviewConfiguration"
+        >
+          <span v-if="draftStore.validatingTargetDir" class="spinner spinner--small"></span>
+          {{ draftStore.validatingTargetDir ? '正在检查目录' : '检查并继续' }}
+          <span v-if="!draftStore.validatingTargetDir" class="msr" aria-hidden="true">
+            arrow_forward
+          </span>
+        </button>
+        <button
+          v-else-if="currentPhase === 'review'"
+          type="button"
+          class="btn btn--filled state-layer"
+          @click="startInstall"
         >
           <span class="msr" aria-hidden="true">rocket_launch</span>
           开始安装
         </button>
-      </div>
-    </div>
+      </template>
+    </InstallerTaskShell>
 
     <BaseDialog
       :open="confirmingCancel"
-      title="确认取消安装"
-      :width="360"
-      confirm-text="确定取消"
-      cancel-text="继续安装"
+      :title="cancelTitle"
+      :width="380"
+      confirm-text="确定离开"
+      cancel-text="继续当前任务"
       @close="confirmingCancel = false"
       @confirm="confirmCancel"
     >
-      <p class="cancel-confirm__message">
-        取消将中止当前安装并清理已下载的临时文件，此操作不可恢复。确定要取消吗？
-      </p>
+      <p class="cancel-confirm__message">{{ cancelMessage }}</p>
     </BaseDialog>
 
     <BaseDialog
@@ -310,7 +492,7 @@ function goToInstances(): void {
     >
       <div class="cancelling-dialog">
         <span class="spinner" aria-hidden="true"></span>
-        <p class="cancelling-dialog__message">正在取消并清理临时文件，请稍候…</p>
+        <p class="cancelling-dialog__message">正在停止任务并清理临时文件，请稍候…</p>
       </div>
     </BaseDialog>
   </div>
@@ -318,151 +500,227 @@ function goToInstances(): void {
 
 <style scoped>
 .wizard {
-  display: flex;
   height: 100%;
   min-height: 0;
 }
 
-.wizard__rail {
-  width: calc(260px + var(--app-nav-overlay-start-inset));
-  flex: 0 0 calc(260px + var(--app-nav-overlay-start-inset));
+.wizard__content {
+  min-height: 100%;
+}
+
+.wizard__content :deep(.step-header) {
+  display: none;
+}
+
+.task-badge {
+  flex: none;
+  padding: 5px 10px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font: var(--md-sys-typescale-label-medium);
+}
+
+.task-badge--success {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+
+.task-badge--error {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+.configuration-screen,
+.review-screen {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  padding: 40px 24px calc(28px + var(--app-nav-overlay-bottom-inset))
-    calc(24px + var(--app-nav-overlay-start-inset));
-  border-right: 1px solid var(--app-glass-border);
-  background: var(--app-subrail-surface);
-  backdrop-filter: var(--app-subrail-filter);
-  -webkit-backdrop-filter: var(--app-subrail-filter);
+  gap: 18px;
 }
 
-.stepper {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-}
-
-/* 返回/取消按钮固定在侧栏左下角 */
-.wizard__rail-back {
+.configuration-screen__intro,
+.review-screen__intro {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 24px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 4px;
 }
 
-.stepper__item {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding-bottom: 32px;
+.configuration-screen__intro h2,
+.configuration-screen__intro p,
+.review-screen__intro h2,
+.review-screen__intro p {
+  margin: 0;
 }
 
-.stepper__item:last-child {
-  padding-bottom: 0;
+.configuration-screen__intro h2,
+.review-screen__intro h2 {
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-title-large);
 }
 
-.stepper__marker {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--md-sys-shape-corner-full);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  background: transparent;
+.configuration-screen__intro p,
+.review-screen__intro p {
+  margin-top: 3px;
   color: var(--md-sys-color-on-surface-variant);
-  display: grid;
-  place-items: center;
-  font: var(--md-sys-typescale-label-large);
-  cursor: default;
-  z-index: 1;
-  transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  font: var(--md-sys-typescale-body-small);
 }
 
-.stepper__marker .msr {
-  font-size: 18px;
-}
-
-.stepper__item--current .stepper__marker {
-  border: 2px solid var(--md-sys-color-primary);
+.configuration-screen__progress {
+  flex: none;
   color: var(--md-sys-color-primary);
+  font: var(--md-sys-typescale-title-medium);
 }
 
-.stepper__item--done .stepper__marker {
-  border-color: transparent;
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+.config-sections {
+  display: grid;
+  gap: 3px;
+}
+
+.config-section {
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--md-sys-color-surface-container);
+  transition: background-color var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
+}
+
+.config-section:first-child {
+  border-radius: 20px 20px 7px 7px;
+}
+
+.config-section:last-child {
+  border-radius: 7px 7px 20px 20px;
+}
+
+.config-section--open {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.config-section__header {
+  width: 100%;
+  min-height: 70px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(110px, auto) 24px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: left;
   cursor: pointer;
 }
 
-.stepper__title {
-  font: var(--md-sys-typescale-title-small);
-  color: var(--md-sys-color-on-surface-variant);
-  padding-top: 6px;
+.config-section__icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
 }
 
-.stepper__item--current .stepper__title {
-  color: var(--md-sys-color-on-surface);
+.config-section--ready .config-section__icon {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
 }
 
-.stepper__line {
-  position: absolute;
-  left: 15px;
-  top: 32px;
-  bottom: 0;
-  width: 2px;
-  background: var(--md-sys-color-outline-variant);
+.config-section__icon .msr {
+  font-size: 22px;
 }
 
-.stepper__item--done .stepper__line {
-  background: var(--md-sys-color-primary);
-}
-
-.wizard__panel {
-  flex: 1;
+.config-section__copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 40px 48px calc(40px + var(--app-nav-overlay-bottom-inset));
-  background: var(--app-current-content-surface);
-  backdrop-filter: var(--app-current-content-filter);
-  -webkit-backdrop-filter: var(--app-current-content-filter);
+  gap: 2px;
+}
+
+.config-section__title {
+  font: var(--md-sys-typescale-title-medium);
+}
+
+.config-section__summary,
+.config-section__state {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+}
+
+.config-section__summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.config-section__state {
+  text-align: right;
+}
+
+.config-section--ready .config-section__state {
+  color: var(--md-sys-color-tertiary);
+  font-weight: 600;
+}
+
+.config-section__chevron {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 22px;
+  transition: transform var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-standard);
+}
+
+.config-section--open .config-section__chevron {
+  transform: rotate(180deg);
+}
+
+.config-section__body-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--md-sys-motion-duration-medium2)
+      var(--md-sys-motion-easing-standard),
+    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.config-section--open .config-section__body-grid {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.config-section__body-clip {
+  min-height: 0;
   overflow: hidden;
 }
 
-/* 步骤内容水平居中，按钮固定在面板底部（右下角） */
-.wizard__content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  width: min(100%, 720px);
-  margin: 0 auto;
+.config-section__body {
+  padding: 6px 18px 22px 70px;
 }
 
-.wizard__nav {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  width: 100%;
-  padding-top: 24px;
+.review-screen__intro {
+  justify-content: flex-start;
+  padding: 2px 4px 4px;
 }
 
-.wizard__nav-spacer {
-  flex: 1;
+.review-screen__icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
 }
 
-/* “正在取消”弹窗内容：旋转指示器 + 说明文字 */
-.cancel-confirm__message {
+.cancel-confirm__message,
+.cancelling-dialog__message {
   margin: 0;
-  font: var(--md-sys-typescale-body-medium);
   color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
   line-height: 1.5;
 }
 
@@ -472,119 +730,28 @@ function goToInstances(): void {
   gap: 14px;
 }
 
-.cancelling-dialog__message {
-  margin: 0;
-  font: var(--md-sys-typescale-body-medium);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.spinner {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
-  border-top-color: var(--md-sys-color-primary);
-  animation: spinner-spin 0.8s linear infinite;
-}
-
-@keyframes spinner-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
+  .config-section__body-grid,
+  .config-section__chevron {
+    transition-duration: var(--md-sys-motion-duration-short2);
   }
 }
 
-.wizard-slide-forward-enter-active,
-.wizard-slide-forward-leave-active,
-.wizard-slide-backward-enter-active,
-.wizard-slide-backward-leave-active {
-  transition:
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
-}
-
-.wizard-slide-forward-enter-from,
-.wizard-slide-backward-leave-to {
-  opacity: 0;
-  transform: translateX(24px);
-}
-
-.wizard-slide-forward-leave-to,
-.wizard-slide-backward-enter-from {
-  opacity: 0;
-  transform: translateX(-24px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wizard-slide-forward-enter-active,
-  .wizard-slide-forward-leave-active,
-  .wizard-slide-backward-enter-active,
-  .wizard-slide-backward-leave-active {
-    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+@media (max-width: 700px) {
+  .config-section__header {
+    grid-template-columns: 42px minmax(0, 1fr) 24px;
   }
 
-  .wizard-slide-forward-enter-from,
-  .wizard-slide-forward-leave-to,
-  .wizard-slide-backward-enter-from,
-  .wizard-slide-backward-leave-to {
-    transform: none;
-  }
-}
-
-@media (max-width: 720px) {
-  .wizard {
-    flex-direction: column;
-  }
-
-  .wizard__rail {
-    width: 100%;
-    flex: 0 0 auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
-    border-right: none;
-    border-bottom: 1px solid var(--app-glass-border);
-  }
-
-  .stepper {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    overflow-x: auto;
-    gap: 16px;
-  }
-
-  .wizard__rail-back {
-    flex: 0 0 auto;
-    margin-top: 0;
-    padding-top: 0;
-    padding-left: 12px;
-    border-left: 1px solid var(--app-glass-border);
-  }
-
-  .stepper__item {
-    flex: 0 0 auto;
-    align-items: center;
-    padding: 0;
-  }
-
-  .stepper__title {
-    padding-top: 0;
-  }
-
-  .stepper__line {
+  .config-section__state {
     display: none;
   }
 
-  .wizard__panel {
-    padding: 24px 20px;
+  .config-section__body {
+    padding: 6px 14px 20px;
+  }
+
+  .configuration-screen__intro p {
+    display: none;
   }
 }
 </style>

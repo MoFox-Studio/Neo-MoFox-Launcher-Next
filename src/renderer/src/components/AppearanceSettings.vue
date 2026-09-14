@@ -758,12 +758,10 @@ function onLanguageChange(event: Event): void {
 
 .appearance-card {
   overflow: hidden;
-  border: 1px solid var(--app-glass-border);
+  border: 0;
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: none;
 }
 
 .appearance-card__heading {
@@ -1325,15 +1323,12 @@ function onLanguageChange(event: Event): void {
 .reveal-enter-active,
 .reveal-leave-active {
   overflow: hidden;
-  transition:
-    opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
-    transform var(--app-motion-duration-spatial) var(--app-motion-easing-spatial);
+  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
 .reveal-enter-from,
 .reveal-leave-to {
   opacity: 0;
-  transform: translateY(-6px) scale(0.985);
 }
 
 @media (max-width: 840px) {

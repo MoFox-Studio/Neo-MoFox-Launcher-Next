@@ -3,13 +3,8 @@ import { computed } from 'vue';
 import type { Instance } from '@shared/domain/instance';
 import StatusBadge from './StatusBadge.vue';
 
-interface Props {
-  instance: Instance;
-}
+const props = defineProps<{ instance: Instance }>();
 
-const props = defineProps<Props>();
-
-// 将卡片操作上抛给实例列表，由上层统一处理进程和文件系统行为。
 const emit = defineEmits<{
   start: [id: string];
   stop: [id: string];
@@ -18,22 +13,31 @@ const emit = defineEmits<{
   manage: [id: string];
 }>();
 
-// 运行状态决定主按钮语义；过渡状态用于锁定可能冲突的进程操作。
 const isRunning = computed(() => props.instance.status === 'running');
 const isBusy = computed(
   () => props.instance.status === 'starting' || props.instance.status === 'stopping',
 );
-
-// 收藏标记沿用旧启动器的 extra.isLike，收藏实例在卡片左上角以星标特别展示。
 const isLike = computed(() => props.instance.extra?.isLike === true);
-
-// 平台信息平铺在 instance.platform 中；卡片展示平台 ID 与实际平台版本。
 const platform = computed(() => props.instance.platform);
-const platformId = computed(() => platform.value?.id ?? '');
-const platformVersion = computed(() => platform.value?.version ?? '');
+const platformName = computed(() => {
+  const id = platform.value?.id;
+  if (!id) return '未安装平台';
+  if (id === 'snowluma') return 'SnowLuma';
+  if (id === 'napcat') return 'NapCat';
+  return id;
+});
+const platformVersion = computed(() => platform.value?.version?.replace(/^v/i, '') ?? '');
 const installPath = computed(() => props.instance.mofoxInstallDir);
+const primaryLabel = computed(() => {
+  if (props.instance.status === 'starting') return '正在启动';
+  if (props.instance.status === 'stopping') return '正在停止';
+  return isRunning.value ? '停止实例' : '启动实例';
+});
+const primaryIcon = computed(() => {
+  if (isBusy.value) return 'progress_activity';
+  return isRunning.value ? 'stop' : 'play_arrow';
+});
 
-// 启动和停止共用同一入口，保证状态切换期间不会重复派发操作。
 function onPrimaryAction(): void {
   if (isBusy.value) return;
   if (isRunning.value) emit('stop', props.instance.id);
@@ -42,295 +46,314 @@ function onPrimaryAction(): void {
 </script>
 
 <template>
-  <article class="instance-card">
-    <!-- 实例名称与当前运行状态 -->
+  <article
+    class="instance-card"
+    :class="{
+      'instance-card--running': isRunning,
+      'instance-card--busy': isBusy,
+      'instance-card--error': instance.status === 'error',
+    }"
+  >
     <header class="instance-card__head">
-      <h3 class="instance-card__name">
-        <span
-          v-if="isLike"
-          class="msr instance-card__like msr--fill"
-          title="已收藏"
-          aria-label="已收藏"
-          >favorite</span
-        >
-        {{ instance.name }}
-      </h3>
+      <span class="instance-card__mark" aria-hidden="true">
+        <span class="msr msr--fill">smart_toy</span>
+      </span>
+      <div class="instance-card__identity">
+        <div class="instance-card__name-row">
+          <h3>{{ instance.name }}</h3>
+          <span
+            v-if="isLike"
+            class="msr instance-card__favorite msr--fill"
+            title="已收藏"
+            aria-label="已收藏"
+          >favorite</span>
+        </div>
+        <span class="instance-card__platform">
+          {{ platformName }}<template v-if="platformVersion"> · v{{ platformVersion }}</template>
+        </span>
+      </div>
       <StatusBadge :status="instance.status" />
     </header>
 
-    <!-- 平台、平台版本及安装位置等实例元数据 -->
-    <div class="instance-card__meta">
-      <span v-if="platformId" class="instance-card__chip">{{ platformId }}</span>
-      <span v-else class="instance-card__chip instance-card__chip--empty">未安装平台</span>
-      <span
-        v-if="platformVersion"
-        class="instance-card__version"
-        :title="`v${platformVersion.replace(/^v/i, '')}`"
-      >
-        v{{ platformVersion.replace(/^v/i, '') }}
-      </span>
+    <div class="instance-card__details">
+      <span class="msr" aria-hidden="true">folder</span>
+      <span :title="installPath">{{ installPath || '尚未记录安装目录' }}</span>
     </div>
 
-    <p class="instance-card__path" :title="installPath">{{ installPath }}</p>
-
-    <!-- 启动或停止期间展示不定进度，实际结果由上层状态更新驱动；容器常驻以统一卡片高度 -->
     <div
+      v-if="isBusy"
       class="instance-card__progress"
-      :class="{ 'instance-card__progress--active': isBusy }"
       role="progressbar"
-      aria-label="处理中"
+      aria-label="实例状态切换中"
     >
-      <div v-if="isBusy" class="instance-card__progress-bar"></div>
+      <div class="instance-card__progress-bar"></div>
     </div>
 
-    <!-- 左侧为进程控制，右侧为实例辅助操作 -->
-    <div class="instance-card__actions">
+    <footer class="instance-card__actions">
       <button
-        v-if="isRunning"
-        class="btn btn--tonal state-layer"
         type="button"
+        class="instance-card__primary state-layer"
+        :class="{ 'instance-card__primary--stop': isRunning }"
         :disabled="isBusy"
         @click="onPrimaryAction"
       >
-        停止
-      </button>
-      <button
-        v-else
-        class="btn btn--filled state-layer"
-        type="button"
-        :disabled="isBusy"
-        @click="onPrimaryAction"
-      >
-        启动
+        <span class="msr" :class="{ 'instance-card__spin': isBusy }" aria-hidden="true">
+          {{ primaryIcon }}
+        </span>
+        {{ primaryLabel }}
       </button>
 
-      <button
-        v-if="isRunning"
-        class="icon-btn state-layer"
-        type="button"
-        title="重启"
-        aria-label="重启"
-        :disabled="isBusy"
-        @click="emit('restart', instance.id)"
-      >
-        <span class="msr" aria-hidden="true">restart_alt</span>
-      </button>
-
-      <span class="instance-card__spacer"></span>
-
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="查看日志"
-        aria-label="查看日志"
-        @click="emit('logs', instance.id)"
-      >
-        <span class="msr" aria-hidden="true">terminal</span>
-      </button>
-      <button
-        class="btn btn--tonal state-layer"
-        type="button"
-        title="管理实例"
-        @click="emit('manage', instance.id)"
-      >
-        <span class="msr instance-card__manage-icon" aria-hidden="true">tune</span>
-        管理
-      </button>
-    </div>
+      <div class="instance-card__secondary" aria-label="实例辅助操作">
+        <button
+          v-if="isRunning"
+          class="instance-card__icon-button state-layer"
+          type="button"
+          title="重启"
+          aria-label="重启实例"
+          :disabled="isBusy"
+          @click="emit('restart', instance.id)"
+        >
+          <span class="msr" aria-hidden="true">restart_alt</span>
+        </button>
+        <button
+          class="instance-card__icon-button state-layer"
+          type="button"
+          title="查看日志"
+          aria-label="查看日志"
+          @click="emit('logs', instance.id)"
+        >
+          <span class="msr" aria-hidden="true">terminal</span>
+        </button>
+        <button
+          class="instance-card__icon-button state-layer"
+          type="button"
+          title="管理实例"
+          aria-label="管理实例"
+          @click="emit('manage', instance.id)"
+        >
+          <span class="msr" aria-hidden="true">tune</span>
+        </button>
+      </div>
+    </footer>
   </article>
 </template>
 
 <style scoped>
-/* 卡片容器与悬停反馈 */
 .instance-card {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  border: 1px solid var(--app-glass-border);
-  border-radius: 20px;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 24px;
   background: var(--md-sys-color-surface-container-low);
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-filter);
-  -webkit-backdrop-filter: var(--app-glass-filter);
-  transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  color: var(--md-sys-color-on-surface);
+  transition: background-color var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .instance-card:hover {
-    box-shadow: var(--app-glass-card-shadow-hover);
+.instance-card:hover {
+  background: var(--md-sys-color-surface-container);
+}
+
+.instance-card__head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.instance-card__mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.instance-card--running .instance-card__mark {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+
+.instance-card--error .instance-card__mark {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+.instance-card__mark .msr {
+  font-size: 27px;
+}
+
+.instance-card__identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.instance-card__name-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.instance-card__name-row h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-title-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instance-card__favorite {
+  flex: none;
+  color: var(--md-sys-color-tertiary);
+  font-size: 17px;
+}
+
+.instance-card__platform {
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instance-card__details {
+  min-width: 0;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.instance-card__details .msr {
+  flex: none;
+  font-size: 19px;
+}
+
+.instance-card__details span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  font: var(--md-sys-typescale-body-small);
+  font-family: var(--md-ref-typeface-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instance-card__progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+}
+
+.instance-card__progress-bar {
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--md-sys-color-primary);
+  animation: instance-progress 1.2s linear infinite;
+}
+
+@keyframes instance-progress {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(285%);
   }
 }
 
-/* 标题与状态区 */
-.instance-card__head {
+.instance-card__actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.instance-card__name {
-  margin: 0;
-  font: var(--md-sys-typescale-title-medium);
-  min-width: 0;
-  color: var(--md-sys-color-on-surface);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.instance-card__like {
-  color: var(--md-sys-color-tertiary);
-  font-size: 18px;
-  margin-right: 4px;
-  vertical-align: -3px;
-}
-
-/* 平台、版本和安装路径 */
-.instance-card__meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 22px;
-}
-
-.instance-card__chip {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 10px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-highest);
-  color: var(--md-sys-color-on-surface-variant);
-  flex: none;
-  font: var(--md-sys-typescale-label-small);
-}
-
-.instance-card__chip--empty {
-  background: color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent);
-  color: var(--md-sys-color-on-surface-variant);
-  opacity: 0.85;
-}
-
-.instance-card__version {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-small);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.instance-card__path {
-  margin: 0;
-  font: var(--md-sys-typescale-body-small);
-  font-family: var(--md-ref-typeface-mono);
-  color: var(--md-sys-color-on-surface-variant);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 状态切换时的不定进度动画；容器常驻占位，仅忙碌时显示轨道与动画 */
-.instance-card__progress {
-  height: 3px;
-  border-radius: var(--md-sys-shape-corner-full);
-  overflow: hidden;
-}
-
-.instance-card__progress--active {
-  background: color-mix(in srgb, var(--md-sys-color-tertiary) 24%, transparent);
-}
-
-.instance-card__progress-bar {
-  width: 40%;
-  height: 100%;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-tertiary);
-  animation: instance-card-indeterminate 1.2s linear infinite;
-}
-
-@keyframes instance-card-indeterminate {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(250%);
-  }
-}
-
-/* 进程控制与辅助操作按钮 */
-.instance-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.instance-card__spacer {
-  flex: 1;
-}
-
-.instance-card__manage-icon {
-  font-size: 18px;
-}
-
-.btn {
+.instance-card__primary {
+  min-height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 24px;
-  border: none;
+  gap: 7px;
+  padding: 0 18px;
+  border: 0;
   border-radius: var(--md-sys-shape-corner-full);
-  font: var(--md-sys-typescale-label-large);
-  cursor: pointer;
-  transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.38;
-}
-
-.btn--filled {
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
+  font: var(--md-sys-typescale-label-large);
+  cursor: pointer;
 }
 
-.btn--tonal {
+.instance-card__primary--stop {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
 }
 
-.icon-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
+.instance-card__primary:disabled,
+.instance-card__icon-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.instance-card__primary .msr {
+  font-size: 20px;
+}
+
+.instance-card__secondary {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.instance-card__icon-button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
   border-radius: var(--md-sys-shape-corner-full);
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
-  display: grid;
-  place-items: center;
   cursor: pointer;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .instance-card {
-    transition:
-      background-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
-      box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-  }
+.instance-card__icon-button .msr {
+  font-size: 20px;
+}
 
-  .instance-card__progress-bar {
+.instance-card__spin {
+  animation: instance-spin 0.9s linear infinite;
+}
+
+@keyframes instance-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .instance-card,
+  .instance-card__progress-bar,
+  .instance-card__spin {
     animation: none;
-    opacity: 0.65;
+    transition-duration: var(--md-sys-motion-duration-short2);
   }
 }
 </style>
