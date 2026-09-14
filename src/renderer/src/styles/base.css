@@ -12,6 +12,27 @@ body,
   margin: 0;
 }
 
+html {
+  font-size: 16px;
+}
+
+html[data-density='compact'] {
+  font-size: 15px;
+}
+
+html[data-density='spacious'] {
+  font-size: 17px;
+}
+
+html[data-motion='none'] *,
+html[data-motion='none'] *::before,
+html[data-motion='none'] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 1ms !important;
+}
+
 /* 页面根容器、文字渲染与主题过渡 */
 body {
   font: var(--md-sys-typescale-body-medium);
@@ -43,12 +64,20 @@ body {
   direction: ltr;
   -webkit-font-feature-settings: 'liga';
   font-feature-settings: 'liga';
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
   font-size: 24px;
 }
 
 .msr--fill {
-  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
 }
 
 /* 使用 MD3 颜色的滚动条 */

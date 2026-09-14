@@ -169,7 +169,7 @@ function onManage(id: string): void {
 
 /* 搜索与筛选共用的模糊容器：无圆角，整条覆盖顶部 */
 .instances-view__panel {
-  padding: 24px 32px 24px;
+  padding: 24px 32px 24px calc(32px + var(--app-nav-overlay-start-inset));
   border-bottom: 1px solid var(--app-glass-border);
   background: var(--app-glass-card);
   box-shadow: var(--app-glass-card-shadow);
@@ -181,7 +181,8 @@ function onManage(id: string): void {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 0 32px 32px;
+  padding: 0 32px calc(32px + var(--app-nav-overlay-bottom-inset))
+    calc(32px + var(--app-nav-overlay-start-inset));
 }
 
 .instances-view__toolbar {

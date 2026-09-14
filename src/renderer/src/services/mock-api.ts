@@ -6,6 +6,7 @@ import type { MofoxApi, MofoxEventMap, Unsubscribe } from '@shared/ipc';
 import type { Instance } from '@shared/domain/instance';
 import {
   DEFAULT_WALLPAPER_BLUR,
+  DEFAULT_WALLPAPER_DIM,
   DEFAULT_WALLPAPER_OPACITY,
   type LauncherSettings,
 } from '@shared/domain/settings';
@@ -90,7 +91,15 @@ const instances: Instance[] = [
 
 let settings: LauncherSettings = {
   themeMode: 'system',
+  themeColorSource: 'manual',
   seedColor: '#7C5CDB',
+  wallpaperSeedColor: '',
+  paletteStyle: 'tonal-spot',
+  themeContrast: 'standard',
+  appearanceDensity: 'comfortable',
+  motionPreference: 'system',
+  navigationPosition: 'side',
+  navigationStyle: 'standard',
   language: 'zh-CN',
   defaultInstallDir: 'D:\\MoFox',
   closeToTray: true,
@@ -101,6 +110,7 @@ let settings: LauncherSettings = {
   wallpaperType: 'none',
   wallpaperFileName: '',
   wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+  wallpaperDim: DEFAULT_WALLPAPER_DIM,
   wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
   oobeCompleted: false,
 };
@@ -573,6 +583,9 @@ export const mockApi: MofoxApi = {
     settings = { ...settings, ...patch };
     return { ...settings };
   },
+  async getSystemAccentColor() {
+    return '#0078D4';
+  },
 
   // 旧启动器迁移：演示构建中模拟一次成功的导入，便于在浏览器中预览界面。
   async detectLegacyLauncher(): Promise<LegacyLauncherInfo | null> {
@@ -687,7 +700,10 @@ export const mockApi: MofoxApi = {
       ...settings,
       wallpaperType: 'none',
       wallpaperFileName: '',
+      wallpaperSeedColor: '',
+      ...(settings.themeColorSource === 'wallpaper' ? { themeColorSource: 'manual' } : {}),
       wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+      wallpaperDim: DEFAULT_WALLPAPER_DIM,
       wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     };
     return { ...settings };

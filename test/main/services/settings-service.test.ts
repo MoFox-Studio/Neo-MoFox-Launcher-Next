@@ -13,7 +13,9 @@ async function createTempDirectory(): Promise<string> {
 }
 
 afterEach(async () => {
-  await Promise.all(tempDirectories.splice(0).map((directory) => rm(directory, { recursive: true })));
+  await Promise.all(
+    tempDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
+  );
 });
 
 describe('SettingsService', () => {
@@ -55,14 +57,19 @@ describe('SettingsService', () => {
 
     await expect(service.get()).resolves.toEqual(DEFAULT_SETTINGS);
     await expect(readFile(path, 'utf8')).resolves.toBe('{broken');
-    expect(report).toHaveBeenCalledWith(expect.stringContaining('launcher-settings.json'), expect.any(Error));
+    expect(report).toHaveBeenCalledWith(
+      expect.stringContaining('launcher-settings.json'),
+      expect.any(Error),
+    );
   });
 
   it('validates updates and atomically persists canonical settings', async () => {
     const directory = await createTempDirectory();
     const service = new SettingsService(directory);
 
-    await expect(service.update({ themeMode: 'dark', maxLogFileSizeMb: 32 })).resolves.toMatchObject({
+    await expect(
+      service.update({ themeMode: 'dark', maxLogFileSizeMb: 32 }),
+    ).resolves.toMatchObject({
       themeMode: 'dark',
       maxLogFileSizeMb: 32,
     });
@@ -74,6 +81,10 @@ describe('SettingsService', () => {
   it.each([
     [{ themeMode: 'purple' }],
     [{ seedColor: 'red' }],
+    [{ paletteStyle: 'pastel' }],
+    [{ themeContrast: 'extreme' }],
+    [{ navigationPosition: 'top' }],
+    [{ wallpaperDim: 0.9 }],
     [{ maxLogFileSizeMb: 0 }],
     [{ unknown: true }],
   ])('rejects an invalid patch: %j', async (patch) => {

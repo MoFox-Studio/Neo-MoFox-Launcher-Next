@@ -58,6 +58,16 @@
   --md-sys-motion-duration-medium4: 400ms;
   --md-sys-motion-duration-long2: 500ms;
 
+  /* 空间移动与按压反馈单独建模，避免把弹性过冲施加到弹窗、圆角和透明度。 */
+  --app-motion-duration-spatial: 300ms;
+  --app-motion-duration-press: 180ms;
+  --app-motion-easing-spatial: cubic-bezier(0.2, 0, 0, 1);
+  --app-motion-easing-spring: cubic-bezier(0.2, 0, 0, 1);
+  --app-motion-dock-press-scale: 1.012;
+  --app-motion-control-hover-scale: 1.025;
+  --app-motion-control-press-scale: 0.96;
+  --app-motion-icon-selected-scale: 1.08;
+
   /* 应用玻璃表面：沿用动态主题色，不引入额外装饰色。 */
   --app-glass-surface: color-mix(in srgb, var(--md-sys-color-surface) 75%, transparent);
   --app-glass-card: color-mix(in srgb, var(--md-sys-color-surface-container) 72%, transparent);
@@ -86,4 +96,95 @@
   /* 应用固定布局尺寸 */
   --app-titlebar-height: 40px;
   --app-navrail-width: 88px;
+  --app-nav-bottom-height: 76px;
+  --app-density-row-min-height: 56px;
+  --app-density-row-padding-block: 12px;
+  --app-density-control-height: 40px;
+  --app-density-content-padding: 32px;
+  --app-density-section-gap: 16px;
+}
+
+/* 密度偏好集中覆盖应用级尺寸；组件只消费令牌，不各自猜测缩放比例。 */
+:root[data-density='compact'] {
+  --app-navrail-width: 76px;
+  --app-nav-bottom-height: 64px;
+  --app-density-row-min-height: 48px;
+  --app-density-row-padding-block: 8px;
+  --app-density-control-height: 36px;
+  --app-density-content-padding: 24px;
+  --app-density-section-gap: 12px;
+}
+
+:root[data-density='spacious'] {
+  --app-navrail-width: 96px;
+  --app-nav-bottom-height: 84px;
+  --app-density-row-min-height: 64px;
+  --app-density-row-padding-block: 16px;
+  --app-density-control-height: 44px;
+  --app-density-content-padding: 40px;
+  --app-density-section-gap: 20px;
+}
+
+/*
+ * Expressive 的弹性只分配给位置、缩放等空间动作。普通组件继续使用 MD3
+ * 强调曲线，防止透明度、遮罩和布局尺寸一起越界回弹而产生“抖一下”的观感。
+ */
+:root[data-motion='expressive'] {
+  --md-sys-motion-duration-short4: 220ms;
+  --md-sys-motion-duration-medium2: 340ms;
+  --md-sys-motion-duration-medium4: 440ms;
+  --app-motion-duration-spatial: 420ms;
+  --app-motion-duration-press: 220ms;
+  --app-motion-easing-spring: cubic-bezier(0.22, 1.32, 0.36, 1);
+  --app-motion-dock-press-scale: 1.025;
+  --app-motion-control-hover-scale: 1.04;
+  --app-motion-control-press-scale: 0.94;
+  --app-motion-icon-selected-scale: 1.14;
+}
+
+:root[data-motion='reduced'] {
+  --md-sys-motion-duration-short2: 60ms;
+  --md-sys-motion-duration-short4: 90ms;
+  --md-sys-motion-duration-medium2: 120ms;
+  --md-sys-motion-duration-medium4: 150ms;
+  --md-sys-motion-duration-long2: 180ms;
+  --app-motion-duration-spatial: 100ms;
+  --app-motion-duration-press: 80ms;
+  --app-motion-easing-spring: var(--md-sys-motion-easing-standard);
+  --app-motion-dock-press-scale: 1;
+  --app-motion-control-hover-scale: 1;
+  --app-motion-control-press-scale: 1;
+  --app-motion-icon-selected-scale: 1;
+}
+
+:root[data-motion='none'] {
+  --md-sys-motion-duration-short2: 1ms;
+  --md-sys-motion-duration-short4: 1ms;
+  --md-sys-motion-duration-medium2: 1ms;
+  --md-sys-motion-duration-medium4: 1ms;
+  --md-sys-motion-duration-long2: 1ms;
+  --app-motion-duration-spatial: 1ms;
+  --app-motion-duration-press: 1ms;
+  --app-motion-easing-spring: linear;
+  --app-motion-dock-press-scale: 1;
+  --app-motion-control-hover-scale: 1;
+  --app-motion-control-press-scale: 1;
+  --app-motion-icon-selected-scale: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-motion='system'] {
+    --md-sys-motion-duration-short2: 60ms;
+    --md-sys-motion-duration-short4: 90ms;
+    --md-sys-motion-duration-medium2: 120ms;
+    --md-sys-motion-duration-medium4: 150ms;
+    --md-sys-motion-duration-long2: 180ms;
+    --app-motion-duration-spatial: 100ms;
+    --app-motion-duration-press: 80ms;
+    --app-motion-easing-spring: var(--md-sys-motion-easing-standard);
+    --app-motion-dock-press-scale: 1;
+    --app-motion-control-hover-scale: 1;
+    --app-motion-control-press-scale: 1;
+    --app-motion-icon-selected-scale: 1;
+  }
 }

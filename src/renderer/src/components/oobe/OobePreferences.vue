@@ -45,7 +45,7 @@ function selectTheme(mode: ThemeMode): void {
 }
 
 function selectSeed(color: string): void {
-  void settingsStore.update({ seedColor: color });
+  void settingsStore.update({ seedColor: color, themeColorSource: 'manual' });
 }
 
 function onInstallDirBlur(): void {
@@ -91,7 +91,7 @@ async function selectWallpaper(): Promise<void> {
     saveWallpaperColors(colors);
     settingsStore.replace(await mofoxApi.commitWallpaper(asset.id));
     assetId = undefined;
-    if (colors[0]) await settingsStore.update({ seedColor: colors[0] });
+    if (colors[0]) await settingsStore.update({ wallpaperSeedColor: colors[0].toUpperCase() });
   } catch (error) {
     wallpaperError.value = describeError(error);
   } finally {
@@ -135,8 +135,18 @@ function updateWallpaperOpacity(event: Event): void {
   }
 }
 
+function updateWallpaperDim(event: Event): void {
+  const value = Number((event.target as HTMLInputElement).value);
+  if (Number.isFinite(value) && value >= 0 && value <= 0.8) {
+    void settingsStore.update({ wallpaperDim: value });
+  }
+}
+
 function applyWallpaperColor(color: string): void {
-  void settingsStore.update({ seedColor: color });
+  void settingsStore.update({
+    wallpaperSeedColor: color.toUpperCase(),
+    themeColorSource: 'wallpaper',
+  });
 }
 </script>
 
@@ -180,7 +190,11 @@ function applyWallpaperColor(color: string): void {
           :key="color"
           type="button"
           class="swatch"
-          :class="{ 'swatch--selected': settingsStore.settings.seedColor === color }"
+          :class="{
+            'swatch--selected':
+              settingsStore.settings.themeColorSource === 'manual' &&
+              settingsStore.settings.seedColor === color,
+          }"
           :style="{ '--swatch-color': color }"
           :aria-label="`选择种子色 ${color}`"
           @click="selectSeed(color)"
@@ -214,6 +228,11 @@ function applyWallpaperColor(color: string): void {
           <span class="msr" aria-hidden="true">wallpaper</span>
           <span>尚未选择壁纸</span>
         </div>
+        <div
+          v-if="hasWallpaper"
+          class="wallpaper-preview__dim"
+          :style="{ opacity: settingsStore.settings.wallpaperDim }"
+        ></div>
       </div>
 
       <div v-if="wallpaperError" class="wallpaper-error">
@@ -257,7 +276,22 @@ function applyWallpaperColor(color: string): void {
           <span class="wallpaper-slider__value">{{ settingsStore.settings.wallpaperBlur }} px</span>
         </label>
         <label class="wallpaper-slider">
-          <span class="wallpaper-slider__label">内容遮罩</span>
+          <span class="wallpaper-slider__label">背景压暗</span>
+          <input
+            type="range"
+            min="0"
+            max="0.8"
+            step="0.05"
+            :value="settingsStore.settings.wallpaperDim"
+            :disabled="!hasWallpaper || wallpaperBusy"
+            @input="updateWallpaperDim"
+          />
+          <span class="wallpaper-slider__value"
+            >{{ Math.round(settingsStore.settings.wallpaperDim * 100) }}%</span
+          >
+        </label>
+        <label class="wallpaper-slider">
+          <span class="wallpaper-slider__label">内容表面</span>
           <input
             type="range"
             min="0"
@@ -281,7 +315,9 @@ function applyWallpaperColor(color: string): void {
             :key="color"
             class="wallpaper-color state-layer"
             :class="{
-              'wallpaper-color--selected': settingsStore.settings.seedColor.toLowerCase() === color,
+              'wallpaper-color--selected':
+                settingsStore.settings.themeColorSource === 'wallpaper' &&
+                settingsStore.settings.wallpaperSeedColor.toLowerCase() === color,
             }"
             :style="{ backgroundColor: color }"
             type="button"
@@ -471,6 +507,13 @@ function applyWallpaperColor(color: string): void {
 
 .wallpaper-preview__empty .msr {
   font-size: 28px;
+}
+
+.wallpaper-preview__dim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
 }
 
 .wallpaper-error {

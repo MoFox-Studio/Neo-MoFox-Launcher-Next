@@ -140,7 +140,8 @@ function onManage(id: string): void {
   display: flex;
   flex-direction: column;
   gap: 32px;
-  padding: 24px 32px 32px;
+  padding: 24px 32px calc(32px + var(--app-nav-overlay-bottom-inset))
+    calc(32px + var(--app-nav-overlay-start-inset));
 }
 
 /* 运行实例汇总与统计项 */

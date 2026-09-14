@@ -16,6 +16,7 @@ describe('registerCoreIpc', () => {
       IPC_INVOKE_CHANNELS.listBotPlatforms,
       IPC_INVOKE_CHANNELS.getSettings,
       IPC_INVOKE_CHANNELS.updateSettings,
+      IPC_INVOKE_CHANNELS.getSystemAccentColor,
     ]);
   });
 
@@ -27,7 +28,9 @@ describe('registerCoreIpc', () => {
       ),
     };
     const services = createServices();
-    services.settings.update.mockRejectedValue(Object.assign(new Error('bad patch'), { code: 'INVALID_ARGUMENT' }));
+    services.settings.update.mockRejectedValue(
+      Object.assign(new Error('bad patch'), { code: 'INVALID_ARGUMENT' }),
+    );
     registerCoreIpc(ipcMain, services);
 
     await expect(
@@ -39,7 +42,8 @@ describe('registerCoreIpc', () => {
   it('rejects non-object settings patches before calling the service', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
     const ipcMain = {
-      handle: (channel: string, handler: (...args: unknown[]) => unknown) => handlers.set(channel, handler),
+      handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
+        handlers.set(channel, handler),
     };
     const services = createServices();
     registerCoreIpc(ipcMain, services);
@@ -60,5 +64,6 @@ function createServices() {
       get: vi.fn(async () => ({})),
       update: vi.fn(async () => ({})),
     },
+    appearance: { getSystemAccentColor: vi.fn(() => '#0078D4') },
   };
 }

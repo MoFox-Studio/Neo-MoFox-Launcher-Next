@@ -80,6 +80,7 @@ export const IPC_INVOKE_CHANNELS = {
   listBotPlatforms: 'bot-platforms:list',
   getSettings: 'settings:get',
   updateSettings: 'settings:update',
+  getSystemAccentColor: 'appearance:system-accent-color',
   detectLegacyLauncher: 'migration:detect-legacy',
   previewLegacyMigration: 'migration:preview',
   importLegacyMigration: 'migration:import',
@@ -119,6 +120,7 @@ export const IPC_EVENT_CHANNELS = {
   'oobe-progress': 'event:oobe-progress',
   'update-progress': 'event:update-progress',
   'venv-progress': 'event:venv-progress',
+  'system-accent-color-changed': 'event:system-accent-color-changed',
 } as const satisfies Record<keyof MofoxEventMap, string>;
 
 /** 从主进程推送至渲染进程的事件载荷映射。 */
@@ -132,6 +134,7 @@ export interface MofoxEventMap {
   'oobe-progress': OobeProgress;
   'update-progress': UpdateProgressEvent;
   'venv-progress': VenvProgressEvent;
+  'system-accent-color-changed': string | null;
 }
 
 export interface MofoxApi {
@@ -195,6 +198,8 @@ export interface MofoxApi {
   /** 启动器设置读取与局部更新。 */
   getSettings(): Promise<LauncherSettings>;
   updateSettings(patch: Partial<LauncherSettings>): Promise<LauncherSettings>;
+  /** 当前操作系统强调色；平台不支持或读取失败时返回 null。 */
+  getSystemAccentColor(): Promise<string | null>;
 
   /** 从旧启动器数据目录探测、预览并导入实例。 */
   detectLegacyLauncher(): Promise<LegacyLauncherInfo | null>;

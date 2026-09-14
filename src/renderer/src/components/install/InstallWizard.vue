@@ -324,12 +324,13 @@ function goToInstances(): void {
 }
 
 .wizard__rail {
-  width: 260px;
-  flex: 0 0 260px;
+  width: calc(260px + var(--app-nav-overlay-start-inset));
+  flex: 0 0 calc(260px + var(--app-nav-overlay-start-inset));
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 40px 24px 28px;
+  padding: 40px 24px calc(28px + var(--app-nav-overlay-bottom-inset))
+    calc(24px + var(--app-nav-overlay-start-inset));
   border-right: 1px solid var(--app-glass-border);
   background: var(--app-subrail-surface);
   backdrop-filter: var(--app-subrail-filter);
@@ -428,7 +429,7 @@ function goToInstances(): void {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 40px 48px;
+  padding: 40px 48px calc(40px + var(--app-nav-overlay-bottom-inset));
   background: var(--app-current-content-surface);
   backdrop-filter: var(--app-current-content-filter);
   -webkit-backdrop-filter: var(--app-current-content-filter);

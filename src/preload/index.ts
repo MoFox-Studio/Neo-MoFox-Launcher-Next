@@ -78,6 +78,7 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     listBotPlatforms: () => invoke(IPC_INVOKE_CHANNELS.listBotPlatforms),
     getSettings: () => invoke(IPC_INVOKE_CHANNELS.getSettings),
     updateSettings: (patch) => invoke(IPC_INVOKE_CHANNELS.updateSettings, patch),
+    getSystemAccentColor: () => invoke(IPC_INVOKE_CHANNELS.getSystemAccentColor),
     detectLegacyLauncher: () => invoke(IPC_INVOKE_CHANNELS.detectLegacyLauncher),
     previewLegacyMigration: () => invoke(IPC_INVOKE_CHANNELS.previewLegacyMigration),
     importLegacyMigration: () => invoke(IPC_INVOKE_CHANNELS.importLegacyMigration),

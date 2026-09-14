@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   DEFAULT_WALLPAPER_BLUR,
+  DEFAULT_WALLPAPER_DIM,
   DEFAULT_WALLPAPER_OPACITY,
   type LauncherSettings,
 } from '../../shared/domain/settings';
@@ -11,7 +12,15 @@ import { writeJsonAtomic } from '../utils/atomic-json';
 /** 管理启动器设置的加载、旧字段兼容与原子持久化；内存快照仅在成功写入后同步。 */
 export const DEFAULT_SETTINGS: LauncherSettings = {
   themeMode: 'system',
+  themeColorSource: 'manual',
   seedColor: '#7C5CDB',
+  wallpaperSeedColor: '',
+  paletteStyle: 'tonal-spot',
+  themeContrast: 'standard',
+  appearanceDensity: 'comfortable',
+  motionPreference: 'system',
+  navigationPosition: 'side',
+  navigationStyle: 'standard',
   language: 'zh-CN',
   defaultInstallDir: '',
   closeToTray: true,
@@ -22,6 +31,7 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   wallpaperType: 'none',
   wallpaperFileName: '',
   wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+  wallpaperDim: DEFAULT_WALLPAPER_DIM,
   wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
   oobeCompleted: false,
 };
@@ -184,8 +194,36 @@ function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boole
   switch (key) {
     case 'themeMode':
       return value === 'system' || value === 'light' || value === 'dark';
+    case 'themeColorSource':
+      return value === 'manual' || value === 'wallpaper' || value === 'system';
     case 'seedColor':
       return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+    case 'wallpaperSeedColor':
+      return typeof value === 'string' && (value === '' || /^#[0-9a-f]{6}$/i.test(value));
+    case 'paletteStyle':
+      return (
+        value === 'tonal-spot' ||
+        value === 'neutral' ||
+        value === 'vibrant' ||
+        value === 'expressive' ||
+        value === 'rainbow' ||
+        value === 'fruit-salad' ||
+        value === 'monochrome' ||
+        value === 'fidelity' ||
+        value === 'content'
+      );
+    case 'themeContrast':
+      return value === 'standard' || value === 'medium' || value === 'high';
+    case 'appearanceDensity':
+      return value === 'compact' || value === 'comfortable' || value === 'spacious';
+    case 'motionPreference':
+      return (
+        value === 'system' || value === 'expressive' || value === 'reduced' || value === 'none'
+      );
+    case 'navigationPosition':
+      return value === 'side' || value === 'bottom';
+    case 'navigationStyle':
+      return value === 'standard' || value === 'floating';
     case 'language':
       return value === 'zh-CN' || value === 'en-US';
     case 'defaultInstallDir':
@@ -203,6 +241,8 @@ function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boole
       );
     case 'wallpaperBlur':
       return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 20;
+    case 'wallpaperDim':
+      return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 0.8;
     case 'wallpaperOpacity':
       return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
     case 'oobeCompleted':

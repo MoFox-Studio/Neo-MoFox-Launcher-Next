@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, shell, systemPreferences } from 'electron';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -53,6 +53,29 @@ import { MofoxError } from '../shared/domain/error';
 let mainWindow: BrowserWindow | null = null;
 /** 运行中的实例进程管理器；ready 后创建，退出时用于回收全部托管进程树。 */
 let processHelper: ProcessHelper | null = null;
+
+/** 将 Electron 返回的 RGB/RGBA 字符串收敛为渲染层使用的 #RRGGBB。 */
+function normalizeSystemColor(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().replace(/^#/, '');
+  if (!/^[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(normalized)) return null;
+  return `#${normalized.slice(0, 6).toUpperCase()}`;
+}
+
+/** 读取当前平台可用的系统强调色；Windows 使用系统高亮色作为稳定的初始值。 */
+function getSystemAccentColor(): string | null {
+  try {
+    if (process.platform === 'darwin') {
+      return normalizeSystemColor(systemPreferences.getAccentColor());
+    }
+    if (process.platform === 'win32') {
+      return normalizeSystemColor(systemPreferences.getColor('highlight'));
+    }
+  } catch {
+    // 某些 Linux 桌面环境或旧系统没有实现颜色查询，交给手动主题色回退。
+  }
+  return null;
+}
 
 // 该协议只服务由 WallpaperService 管理的副本，必须在 app ready 前声明为安全标准协议。
 protocol.registerSchemesAsPrivileged([
@@ -209,6 +232,7 @@ if (!hasSingleInstanceLock) {
       environment,
       platforms: new PlatformMetadataService(platforms),
       settings,
+      appearance: { getSystemAccentColor },
     });
     registerWallpaperIpc(ipcMain, {
       selectAndStage: async () => {
@@ -235,6 +259,16 @@ if (!hasSingleInstanceLock) {
     const send = (channel: string, payload: unknown) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
     };
+    if (process.platform === 'win32' || process.platform === 'linux') {
+      systemPreferences.on('accent-color-changed', (_event, color) => {
+        send(IPC_EVENT_CHANNELS['system-accent-color-changed'], normalizeSystemColor(color));
+      });
+    }
+    if (process.platform === 'win32') {
+      systemPreferences.on('color-changed', () => {
+        send(IPC_EVENT_CHANNELS['system-accent-color-changed'], getSystemAccentColor());
+      });
+    }
     processHelper = new ProcessHelper((command, args, options) =>
       nodePty.spawn(command, args, {
         name: 'xterm-256color',

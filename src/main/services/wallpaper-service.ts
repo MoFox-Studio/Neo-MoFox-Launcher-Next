@@ -3,6 +3,7 @@ import { basename, extname, isAbsolute, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   DEFAULT_WALLPAPER_BLUR,
+  DEFAULT_WALLPAPER_DIM,
   DEFAULT_WALLPAPER_OPACITY,
   type LauncherSettings,
 } from '../../shared/domain/settings';
@@ -111,6 +112,7 @@ export class WallpaperService {
         ...(current.wallpaperType === 'none'
           ? {
               wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+              wallpaperDim: DEFAULT_WALLPAPER_DIM,
               wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
             }
           : {}),
@@ -149,7 +151,10 @@ export class WallpaperService {
     const updated = await this.settings.update({
       wallpaperType: 'none',
       wallpaperFileName: '',
+      wallpaperSeedColor: '',
+      ...(current.themeColorSource === 'wallpaper' ? { themeColorSource: 'manual' as const } : {}),
       wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
+      wallpaperDim: DEFAULT_WALLPAPER_DIM,
       wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     });
     if (current.wallpaperFileName) await this.removeManagedFile(current.wallpaperFileName);

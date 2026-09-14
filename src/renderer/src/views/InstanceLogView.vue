@@ -673,6 +673,8 @@ function goBack(): void {
   display: flex;
   flex-direction: column;
   position: relative;
+  padding-left: var(--app-nav-overlay-start-inset);
+  padding-bottom: var(--app-nav-overlay-bottom-inset);
 }
 
 /* 仅在壁纸背景存在时为日志页整面铺设遮罩驱动的半透明底衬，并保留 82% 下限，

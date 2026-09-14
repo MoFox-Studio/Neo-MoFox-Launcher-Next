@@ -44,6 +44,8 @@ onMounted(async () => {
     :class="{
       'shell--has-wallpaper': hasWallpaper,
       'shell--wallpaper-max': wallpaperAtMax,
+      'shell--nav-bottom': !bare && settings.navigationPosition === 'bottom',
+      'shell--nav-floating': !bare && settings.navigationStyle === 'floating',
     }"
   >
     <WallpaperLayer />
@@ -51,7 +53,13 @@ onMounted(async () => {
       <!-- 应用窗体栏与主导航框架始终位于壁纸层上方。 -->
       <AppTitleBar />
       <div class="shell__body">
-        <NavRail v-if="!bare" />
+        <div v-if="!bare" class="shell__navigation-slot">
+          <NavRail
+            class="shell__navigation"
+            :position="settings.navigationPosition"
+            :variant="settings.navigationStyle"
+          />
+        </div>
         <main class="shell__content" :class="{ 'shell__content--split': splitGlass }">
           <router-view v-slot="{ Component }">
             <transition name="page">
@@ -70,6 +78,8 @@ onMounted(async () => {
 .shell {
   --app-current-content-surface: var(--app-shell-content-surface);
   --app-current-content-filter: blur(6px);
+  --app-nav-overlay-start-inset: 0px;
+  --app-nav-overlay-bottom-inset: 0px;
 
   height: 100%;
   display: flex;
@@ -88,10 +98,78 @@ onMounted(async () => {
 }
 
 .shell__body {
+  position: relative;
   flex: 1;
   display: flex;
   min-height: 0;
   background: transparent;
+}
+
+.shell--nav-bottom .shell__body {
+  flex-direction: column;
+}
+
+.shell--nav-bottom .shell__content {
+  order: 1;
+  min-height: 0;
+}
+
+.shell--nav-bottom .shell__navigation-slot {
+  order: 2;
+}
+
+.shell__navigation-slot {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 0 0 var(--app-navrail-width);
+  min-width: 0;
+  min-height: 0;
+}
+
+.shell__navigation {
+  flex: 1;
+}
+
+.shell--nav-bottom .shell__navigation-slot {
+  width: 100%;
+  flex: 0 0 var(--app-nav-bottom-height);
+}
+
+/*
+ * 悬浮导航是覆盖在内容之上的独立层，不参与 flex 排版。内容表面因此能一直铺到
+ * 窗口边缘；安全区只作用于页面内容，不会再露出一条空的窗口底色。
+ */
+.shell--nav-floating .shell__navigation-slot {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 96px;
+  height: auto;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px;
+  pointer-events: none;
+}
+
+.shell--nav-floating:not(.shell--nav-bottom) {
+  --app-nav-overlay-start-inset: 96px;
+}
+
+.shell--nav-bottom.shell--nav-floating .shell__navigation-slot {
+  inset: auto 0 0;
+  width: auto;
+  height: 84px;
+  padding: 8px 12px 12px;
+}
+
+.shell--nav-bottom.shell--nav-floating {
+  --app-nav-overlay-bottom-inset: 84px;
+}
+
+.shell--nav-floating .shell__navigation {
+  flex: 0 0 auto;
+  pointer-events: auto;
 }
 
 /* 主内容画布保持直角，避免内嵌侧栏右上角出现不连续的圆角。 */

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WallpaperService } from '../../../src/main/services/wallpaper-service';
 import {
+  DEFAULT_WALLPAPER_DIM,
   DEFAULT_WALLPAPER_OPACITY,
   type LauncherSettings,
 } from '../../../src/shared/domain/settings';
@@ -52,6 +53,7 @@ describe('WallpaperService', () => {
     expect(updated).toMatchObject({
       wallpaperType: 'image',
       wallpaperBlur: 0,
+      wallpaperDim: DEFAULT_WALLPAPER_DIM,
       wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     });
   });
@@ -65,6 +67,7 @@ describe('WallpaperService', () => {
       wallpaperType: 'image',
       wallpaperFileName: 'wallpaper-11111111-1111-1111-1111-111111111111.png',
       wallpaperBlur: 3,
+      wallpaperDim: 0.35,
       wallpaperOpacity: 0.35,
     });
     const service = new WallpaperService(directory, settings);
@@ -75,7 +78,33 @@ describe('WallpaperService', () => {
     expect(updated).toMatchObject({
       wallpaperType: 'image',
       wallpaperBlur: 3,
+      wallpaperDim: 0.35,
       wallpaperOpacity: 0.35,
+    });
+  });
+
+  it('clears wallpaper color source when the active wallpaper is removed', async () => {
+    const directory = await createTempDirectory();
+    const settings = createSettingsStore({
+      ...DEFAULT_SETTINGS,
+      themeColorSource: 'wallpaper',
+      wallpaperSeedColor: '#123456',
+      wallpaperType: 'image',
+      wallpaperFileName: 'wallpaper-11111111-1111-1111-1111-111111111111.png',
+      wallpaperBlur: 4,
+      wallpaperDim: 0.4,
+      wallpaperOpacity: 0.3,
+    });
+    const service = new WallpaperService(directory, settings);
+
+    await expect(service.remove()).resolves.toMatchObject({
+      themeColorSource: 'manual',
+      wallpaperSeedColor: '',
+      wallpaperType: 'none',
+      wallpaperFileName: '',
+      wallpaperBlur: 0,
+      wallpaperDim: DEFAULT_WALLPAPER_DIM,
+      wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     });
   });
 });

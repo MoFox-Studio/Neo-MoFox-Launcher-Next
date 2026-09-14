@@ -14,6 +14,9 @@ interface CoreServices {
     get(): Promise<LauncherSettings>;
     update(patch: unknown): Promise<LauncherSettings>;
   };
+  appearance: {
+    getSystemAccentColor(): string | null;
+  };
 }
 
 interface IpcMainRegistrar {
@@ -40,6 +43,9 @@ export function registerCoreIpc(ipcMain: IpcMainRegistrar, services: CoreService
     }
     return services.settings.update(patch);
   });
+  register(ipcMain, IPC_INVOKE_CHANNELS.getSystemAccentColor, () =>
+    services.appearance.getSystemAccentColor(),
+  );
 }
 
 /**

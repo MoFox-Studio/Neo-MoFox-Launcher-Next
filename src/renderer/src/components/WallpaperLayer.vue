@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useSettingsStore } from '@/stores/settings';
+import { shouldReduceMotion } from '@/services/theme';
 import { getWallpaperMediaUrl } from '@/utils/wallpaper-media';
 
 const settingsStore = useSettingsStore();
@@ -23,6 +24,10 @@ const mediaStyle = computed(() =>
   settings.value.wallpaperBlur > 0
     ? { filter: `blur(${settings.value.wallpaperBlur}px)` }
     : undefined,
+);
+
+const reduceWallpaperMotion = computed(() =>
+  shouldReduceMotion(settings.value.motionPreference, prefersReducedMotion.value),
 );
 
 /**
@@ -70,7 +75,7 @@ onBeforeUnmount(() => {
     />
     <video
       v-else-if="
-        settings.wallpaperType === 'video' && !prefersReducedMotion && !videoPlaybackFailed
+        settings.wallpaperType === 'video' && !reduceWallpaperMotion && !videoPlaybackFailed
       "
       class="wallpaper-layer__media"
       :src="mediaUrl"
@@ -82,6 +87,7 @@ onBeforeUnmount(() => {
       preload="metadata"
       @error="videoPlaybackFailed = true"
     />
+    <div class="wallpaper-layer__dim" :style="{ opacity: settings.wallpaperDim }"></div>
   </div>
 </template>
 
@@ -107,9 +113,10 @@ onBeforeUnmount(() => {
   transform: scale(1.04);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .wallpaper-layer__media {
-    filter: none !important;
-  }
+.wallpaper-layer__dim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
 }
 </style>

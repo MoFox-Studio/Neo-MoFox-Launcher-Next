@@ -149,7 +149,7 @@ function onDeleted(): void {
 <style scoped>
 /* 与设置页一致的双栏布局：左栏贴边玻璃导航，右侧独立内容画布并单独模糊。 */
 .manage-view {
-  --manage-sidebar-width: 240px;
+  --manage-sidebar-width: calc(240px + var(--app-nav-overlay-start-inset));
 
   position: relative;
   height: 100%;
@@ -183,7 +183,8 @@ function onDeleted(): void {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 24px 12px 16px;
+  padding: 24px 12px calc(16px + var(--app-nav-overlay-bottom-inset))
+    calc(12px + var(--app-nav-overlay-start-inset));
   border-right: 1px solid var(--app-glass-border);
   background: var(--app-subrail-surface);
   backdrop-filter: var(--app-subrail-filter);
@@ -260,7 +261,7 @@ function onDeleted(): void {
   width: 100%;
   min-width: 0;
   margin: 0 auto;
-  padding: 20px 32px 64px;
+  padding: 20px 32px calc(64px + var(--app-nav-overlay-bottom-inset));
   overflow-y: auto;
 }
 
