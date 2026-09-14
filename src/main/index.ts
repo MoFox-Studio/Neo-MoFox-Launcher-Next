@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import * as nodePty from 'node-pty';
 import { IPC_EVENT_CHANNELS } from '../shared/ipc';
@@ -81,6 +82,16 @@ function emitMaximizeState(window: BrowserWindow): void {
   }
 }
 
+/** 解析开发模式与打包模式共用的应用图标路径。 */
+function resolveAppIcon(): string | undefined {
+  const candidates = [
+    join(process.resourcesPath, 'icon.ico'),
+    join(__dirname, '../../assets/images/icon.ico'),
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
 /**
  * 创建主窗口并绑定首帧显示、最大化同步、关闭回收与导航安全策略。
  *
@@ -92,6 +103,7 @@ function emitMaximizeState(window: BrowserWindow): void {
 function createMainWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin';
   const isWindows = process.platform === 'win32';
+  const appIcon = resolveAppIcon();
 
   const window = new BrowserWindow({
     width: 1180,
@@ -100,6 +112,7 @@ function createMainWindow(): BrowserWindow {
     minHeight: 620,
     frame: false,
     show: false,
+    icon: appIcon,
     transparent: true, // 开启透明
     // 系统原生材质：无壁纸时由 shell 玻璃层透出桌面，提供微微模糊的桌面感。
     backgroundMaterial: isMac ? 'none' : isWindows ? 'mica' : 'none',
