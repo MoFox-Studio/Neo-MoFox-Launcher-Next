@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, protocol, shell, systemPreferences } from 
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { release } from 'node:os';
 import * as nodePty from 'node-pty';
 import { IPC_EVENT_CHANNELS } from '../shared/ipc';
 import { registerCommonIpc } from './ipc/common';
@@ -115,6 +116,13 @@ function resolveAppIcon(): string | undefined {
   return candidates.find((candidate) => existsSync(candidate));
 }
 
+/** Windows 11（Build 22000+）可由 DWM 为无边框 thick-frame 窗口绘制原生圆角。 */
+function supportsNativeWindowsCorners(): boolean {
+  if (process.platform !== 'win32') return false;
+  const build = Number.parseInt(release().split('.')[2] ?? '', 10);
+  return Number.isFinite(build) && build >= 22_000;
+}
+
 /**
  * 创建主窗口并绑定首帧显示、最大化同步、关闭回收与导航安全策略。
  *
@@ -126,6 +134,7 @@ function resolveAppIcon(): string | undefined {
 function createMainWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin';
   const isWindows = process.platform === 'win32';
+  const nativeWindowsCorners = supportsNativeWindowsCorners();
   const appIcon = resolveAppIcon();
 
   const window = new BrowserWindow({
@@ -136,7 +145,11 @@ function createMainWindow(): BrowserWindow {
     frame: false,
     show: false,
     icon: appIcon,
-    transparent: true, // 开启透明
+    // Windows 的透明无边框窗口会被 Electron 强制移除 thick frame，DWM 因而无法绘制
+    // Windows 11 原生圆角。Win11 保留原生 frame 能力；其他平台继续使用透明裁切回退。
+    transparent: !nativeWindowsCorners,
+    roundedCorners: true,
+    ...(isWindows ? { thickFrame: nativeWindowsCorners } : {}),
     // 系统原生材质：无壁纸时由 shell 玻璃层透出桌面，提供微微模糊的桌面感。
     backgroundMaterial: isMac ? 'none' : isWindows ? 'mica' : 'none',
     visualEffectState: 'active',
@@ -146,6 +159,8 @@ function createMainWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // 原生窗口保持不透明时，页面自身仍需透明，才能露出 Windows 的 Mica 背板。
+      transparent: true,
     },
   });
 

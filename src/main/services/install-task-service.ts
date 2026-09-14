@@ -1,6 +1,7 @@
 import { constants } from 'node:fs';
 import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import type { CreateInstanceInput } from '../../shared/domain/instance';
 import type {
   InstallProgressEvent,
@@ -506,7 +507,9 @@ export class InstallTaskService {
       stepCount,
       status,
       progress,
-      message,
+      // 安装子进程常用 ANSI SGR/VT 序列设置颜色与明暗；普通文本视图不会解释它们，
+      // 因此在 IPC 边界统一去除，避免界面显示成方框及 `[2m`、`[0m` 等乱码。
+      message: stripVTControlCharacters(message),
     });
   }
 

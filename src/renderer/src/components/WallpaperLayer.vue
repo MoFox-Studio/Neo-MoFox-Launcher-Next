@@ -93,7 +93,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .wallpaper-layer {
-  position: fixed;
+  position: absolute;
   top: var(--app-titlebar-height);
   right: 0;
   bottom: 0;

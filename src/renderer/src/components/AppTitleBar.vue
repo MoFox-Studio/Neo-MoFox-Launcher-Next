@@ -8,15 +8,22 @@ import { useWindowTitleStore } from '@/stores/window-title';
 const maximized = ref(false);
 let unsubscribe: (() => void) | undefined;
 
+const emit = defineEmits<{
+  maximizeChange: [value: boolean];
+}>();
+
 // 页面通过窗口标题仓库写入各自的标题，格式为「页面标题丨Neo-MoFox Launcher」。
 const { title } = storeToRefs(useWindowTitleStore());
 
+function updateMaximized(value: boolean): void {
+  maximized.value = value;
+  emit('maximizeChange', value);
+}
+
 // 初始化窗口状态并在卸载时清理事件订阅。
 onMounted(async () => {
-  maximized.value = await mofoxApi.windowIsMaximized();
-  unsubscribe = mofoxApi.on('window-maximize-changed', (value) => {
-    maximized.value = value;
-  });
+  updateMaximized(await mofoxApi.windowIsMaximized());
+  unsubscribe = mofoxApi.on('window-maximize-changed', updateMaximized);
 });
 
 onUnmounted(() => unsubscribe?.());
@@ -75,7 +82,6 @@ onUnmounted(() => unsubscribe?.());
   color: var(--md-sys-color-on-surface-variant);
   /* 壁纸层从标题栏下方开始，因此这里始终以固定透明度透出桌面材质。 */
   background: var(--app-shell-chrome-surface);
-  border-bottom: 1px solid var(--app-glass-border);
   backdrop-filter: var(--app-glass-filter);
   -webkit-backdrop-filter: var(--app-glass-filter);
 }

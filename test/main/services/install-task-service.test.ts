@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { InstallRequest } from '../../../src/shared/domain/install';
+import type { InstallProgressEvent, InstallRequest } from '../../../src/shared/domain/install';
 import type { MirrorSource } from '../../../src/shared/domain/mirror';
 import type { InstallTaskContext } from '../../../src/main/utils/install-tasks';
 import { PlatformRegistry } from '../../../src/main/platforms/registry';
@@ -323,6 +323,34 @@ describe('InstallTaskService', () => {
     await service.wait(taskId);
 
     expect(received).toEqual(TEST_MIRRORS);
+  });
+
+  it('strips terminal control sequences before publishing install messages', async () => {
+    const root = await createTempRoot();
+    const progress = vi.fn();
+    const executors = {
+      'install-mofox': async (ctx: InstallTaskContext) => {
+        await mkdir(join(ctx.stageDir, 'mofox'), { recursive: true });
+        ctx.log('\u001B[2mFile "current.py", line 267\u001B[0m');
+      },
+      configure: async () => undefined,
+    };
+    const service = new InstallTaskService(
+      registry(),
+      { repository: { create: vi.fn() }, mirrors: mirrorsProvider, executors },
+      { progress },
+    );
+
+    const taskId = await service.start(
+      request(join(root, 'installed'), { platformId: '', installWebui: false }),
+    );
+    await service.wait(taskId);
+
+    const messages = progress.mock.calls.map(
+      ([event]) => (event as InstallProgressEvent).message,
+    );
+    expect(messages).toContain('[安装 MoFox] File "current.py", line 267');
+    expect(messages.every((message) => !message.includes('\u001B'))).toBe(true);
   });
 });
 

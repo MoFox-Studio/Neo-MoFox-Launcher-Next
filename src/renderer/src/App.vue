@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import AppTitleBar from '@/components/AppTitleBar.vue';
@@ -15,6 +15,7 @@ const route = useRoute();
 const settingsStore = useSettingsStore();
 const integrityStore = useIntegrityStore();
 const { settings } = storeToRefs(settingsStore);
+const windowMaximized = ref(false);
 // 根据路由元数据切换首次引导的沉浸式布局。
 const bare = computed(() => route.meta.bare === true);
 // 设置与安装页自行分隔侧栏和内容画布，避免外层玻璃抹平侧栏背后的纹理。
@@ -44,6 +45,7 @@ onMounted(async () => {
     :class="{
       'shell--has-wallpaper': hasWallpaper,
       'shell--wallpaper-max': wallpaperAtMax,
+      'shell--maximized': windowMaximized,
       'shell--nav-bottom': !bare && settings.navigationPosition === 'bottom',
       'shell--nav-floating': !bare && settings.navigationStyle === 'floating',
     }"
@@ -51,7 +53,7 @@ onMounted(async () => {
     <WallpaperLayer />
     <div class="shell__foreground">
       <!-- 应用窗体栏与主导航框架始终位于壁纸层上方。 -->
-      <AppTitleBar />
+      <AppTitleBar @maximize-change="windowMaximized = $event" />
       <div class="shell__body">
         <div v-if="!bare" class="shell__navigation-slot">
           <NavRail
@@ -81,11 +83,20 @@ onMounted(async () => {
   --app-nav-overlay-start-inset: 0px;
   --app-nav-overlay-bottom-inset: 0px;
 
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--app-window-corner-radius);
+  clip-path: inset(0 round var(--app-window-corner-radius));
   /* 透明：让标题栏与导航栏所在列露出系统材质或壁纸。 */
   background: transparent;
+}
+
+.shell--maximized {
+  border-radius: 0;
+  clip-path: none;
 }
 
 .shell__foreground {
