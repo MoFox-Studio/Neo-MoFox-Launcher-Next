@@ -150,7 +150,7 @@ export async function extractZipSecurely(
   }
   const maximumExpandedBytes = Math.min(
     limits.maxTotalBytes,
-    Math.max(64 * 1024 ** 2, archiveBytes * limits.maxCompressionRatio),
+    archiveBytes * limits.maxCompressionRatio,
   );
   const requestedRoot = resolve(destinationDirectory);
   await mkdir(requestedRoot, { recursive: true });

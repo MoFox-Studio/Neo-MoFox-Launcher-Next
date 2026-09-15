@@ -4,6 +4,8 @@
  */
 import type { MofoxApi, MofoxEventMap, Unsubscribe } from '@shared/ipc';
 import type { Instance } from '@shared/domain/instance';
+import type { InstallTaskSnapshot, InstallStepId } from '@shared/domain/install';
+const mockInstallTasks = new Map<string, InstallTaskSnapshot>();
 import {
   DEFAULT_WALLPAPER_BLUR,
   DEFAULT_WALLPAPER_DIM,
@@ -414,14 +416,30 @@ export const mockApi: MofoxApi = {
   async startInstall(request) {
     // 后台异步逐步派发进度；调用方立即获得任务 ID 以保持非阻塞。
     const taskId = `task-${Date.now()}`;
+    const steps: InstallStepId[] = [
+      'install-mofox',
+      ...(request.platformId ? ['install-platform' as const] : []),
+      ...(request.installWebui ? ['install-webui' as const] : []),
+      'configure',
+      'finalize',
+    ];
+    const { apiKey, webuiApiKey, ...publicRequest } = request;
+    void apiKey;
+    void webuiApiKey;
+    mockInstallTasks.set(taskId, {
+      request: publicRequest,
+      progress: {
+        taskId,
+        instanceName: request.instanceName,
+        step: 'install-mofox',
+        stepIndex: 0,
+        stepCount: steps.length,
+        status: 'running',
+        progress: 0,
+        message: '演示安装已开始',
+      },
+    });
     void (async () => {
-      const steps = [
-        'install-mofox',
-        'install-platform',
-        'install-webui',
-        'configure',
-        'finalize',
-      ] as const;
       for (let s = 0; s < steps.length; s += 1) {
         for (let p = 0; p <= 10; p += 1) {
           await delay(steps[s] === 'install-mofox' ? 260 : 90);
@@ -471,6 +489,14 @@ export const mockApi: MofoxApi = {
     return taskId;
   },
   async retryInstall() {},
+  async listInstallTasks() {
+    return [];
+  },
+  async getInstallTask(taskId) {
+    const task = mockInstallTasks.get(taskId);
+    if (!task) throw new Error('No demo task');
+    return task;
+  },
   async cancelInstall() {},
   async fetchLicense() {
     await delay(200);

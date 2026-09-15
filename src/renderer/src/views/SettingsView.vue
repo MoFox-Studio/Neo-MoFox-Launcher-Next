@@ -198,7 +198,7 @@ onMounted(() => {
 
           <div class="settings-divider"></div>
 
-          <div class="settings-item">
+          <div v-if="false" class="settings-item">
             <span class="msr settings-item__icon">pip</span>
             <div class="settings-item__body">
               <span class="settings-item__label">关闭时最小化到托盘</span>
@@ -216,7 +216,7 @@ onMounted(() => {
 
           <div class="settings-divider"></div>
 
-          <div class="settings-item">
+          <div v-if="false" class="settings-item">
             <span class="msr settings-item__icon">speed</span>
             <div class="settings-item__body">
               <span class="settings-item__label">硬件加速</span>

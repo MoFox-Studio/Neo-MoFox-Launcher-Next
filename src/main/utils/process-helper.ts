@@ -5,6 +5,8 @@ import type { ProcessStats } from '../../shared/domain/instance';
 // 主进程对外部命令的最小封装，统一隐藏窗口、采集输出和处理进程生命周期。
 export interface ExecOptions extends SpawnOptions {
   timeoutMs?: number;
+  /** Maximum retained UTF-8 bytes per output stream; defaults to 4 MiB. */
+  maxOutputBytes?: number;
   /** 可选的 stdin 字符串；提供后通过子进程 stdin 写入并立即关闭。 */
   input?: string;
 }
@@ -60,7 +62,21 @@ export function runOneShot(
     });
   }
   return new Promise((resolve) => {
-    const { timeoutMs = 30_000, input, signal, ...spawnOptions } = options;
+    const {
+      timeoutMs = 30_000,
+      maxOutputBytes = 4 * 1024 ** 2,
+      input,
+      signal,
+      ...spawnOptions
+    } = options;
+    const limit =
+      Number.isSafeInteger(maxOutputBytes) && maxOutputBytes > 0 ? maxOutputBytes : 4 * 1024 ** 2;
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
+    const bounded = (text: string, chunk: string): string =>
+      Buffer.from(text + chunk)
+        .subarray(0, limit)
+        .toString('utf8');
     const stdio: SpawnOptions['stdio'] =
       input !== undefined ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'];
     let stdout = '';
@@ -85,8 +101,8 @@ export function runOneShot(
       clearTimeout(forceTimer);
       if (signal && abortListener) signal.removeEventListener('abort', abortListener);
       resolve({
-        stdout,
-        stderr,
+        stdout: stdout + (stdoutTruncated ? '\n[输出已截断]' : ''),
+        stderr: stderr + (stderrTruncated ? '\n[输出已截断]' : ''),
         exitCode,
         ...(exitSignal ? { signal: exitSignal } : {}),
         timedOut,
@@ -109,10 +125,14 @@ export function runOneShot(
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
-      stdout += chunk;
+      if (stdoutTruncated) return;
+      stdoutTruncated = Buffer.byteLength(stdout) + Buffer.byteLength(chunk) > limit;
+      stdout = bounded(stdout, chunk);
     });
     child.stderr?.on('data', (chunk: string) => {
-      stderr += chunk;
+      if (stderrTruncated) return;
+      stderrTruncated = Buffer.byteLength(stderr) + Buffer.byteLength(chunk) > limit;
+      stderr = bounded(stderr, chunk);
     });
     child.once('error', (error) => {
       stderr += `${stderr ? '\n' : ''}${error.message}`;

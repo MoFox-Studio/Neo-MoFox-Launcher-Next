@@ -14,6 +14,8 @@ import InstallLocationStep from './InstallLocationStep.vue';
 import InstallSummaryStep from './InstallSummaryStep.vue';
 import InstallExecuteStep from './InstallExecuteStep.vue';
 import '@/components/install/install-wizard.css';
+import { mofoxApi } from '@/services/mofox-api';
+import type { InstallTaskSnapshot } from '@shared/domain/install';
 
 type PhaseId = 'license' | 'configure' | 'review' | 'execute';
 type ConfigSectionId = 'identity' | 'model' | 'network' | 'components' | 'location';
@@ -73,6 +75,20 @@ const CONFIG_SECTIONS: ConfigSection[] = [
 
 const draftStore = useInstallDraftStore();
 const installStore = useInstallStore();
+const recoveredTasks = ref<InstallTaskSnapshot[]>([]);
+const recoveryError = ref('');
+async function selectRecovered(task: InstallTaskSnapshot): Promise<void> {
+  try {
+    const fresh = await mofoxApi.getInstallTask(task.progress.taskId);
+    Object.assign(draftStore.draft, fresh.request, { apiKey: '', webuiApiKey: '' });
+    installStore.activeTaskId = fresh.progress.taskId;
+    installStore.progress = fresh.progress;
+    currentPhase.value = 'execute';
+    recoveredTasks.value = [];
+  } catch (error) {
+    recoveryError.value = String(error);
+  }
+}
 
 const emit = defineEmits<{
   close: [];
@@ -284,6 +300,17 @@ watch(
 );
 
 onMounted(() => {
+  if (!installStore.activeTaskId)
+    void mofoxApi
+      .listInstallTasks()
+      .then((tasks) => {
+        recoveredTasks.value = tasks.filter(
+          (task) => !['done', 'cancelled'].includes(task.progress.status),
+        );
+      })
+      .catch((error) => {
+        recoveryError.value = String(error);
+      });
   if (installStore.activeTaskId || installStore.progress) currentPhase.value = 'execute';
   window.addEventListener('keydown', onKeydownEnter);
 });
@@ -322,6 +349,21 @@ function goToInstances(): void {
 </script>
 
 <template>
+  <section
+    v-if="recoveredTasks.length || recoveryError"
+    class="recovery-list"
+    aria-label="未完成的安装任务"
+  >
+    <p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
+    <button
+      v-for="task in recoveredTasks"
+      :key="task.progress.taskId"
+      class="btn btn--tonal"
+      @click="selectRecovered(task)"
+    >
+      查看未完成安装：{{ task.request.instanceName }}（可继续或取消）
+    </button>
+  </section>
   <div class="wizard">
     <InstallerTaskShell
       :title="shellTitle"
@@ -408,6 +450,7 @@ function goToInstances(): void {
         <InstallExecuteStep
           v-else
           :instance-name="draftStore.draft.instanceName"
+          :request="draftStore.draft"
           @cancel="cancelInstall"
           @finish="goToInstances"
         />

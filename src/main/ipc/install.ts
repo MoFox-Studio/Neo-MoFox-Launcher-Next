@@ -1,5 +1,6 @@
 import type {
   InstallRequest,
+  InstallTaskSnapshot,
   InstallTargetCheck,
   LicenseFetchResult,
 } from '../../shared/domain/install';
@@ -9,6 +10,8 @@ import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 /** 安装任务 IPC 边界：只接受结构正确的请求和任务标识，服务层负责后续路径与生命周期校验。 */
 interface InstallActions {
   start(request: InstallRequest): Promise<string>;
+  listInstallTasks?(): InstallTaskSnapshot[];
+  getInstallTask?(id: string): InstallTaskSnapshot;
   retry(taskId: string): Promise<void>;
   cancel(taskId: string): Promise<void>;
   fetchLicense(): Promise<LicenseFetchResult>;
@@ -28,6 +31,10 @@ interface IpcMainRegistrar {
  * @param actions - 暴露给渲染端的安装任务动作集合（start/retry/cancel）。
  */
 export function registerInstallIpc(ipcMain: IpcMainRegistrar, actions: InstallActions): void {
+  register(ipcMain, IPC_INVOKE_CHANNELS.listInstallTasks, () => actions.listInstallTasks?.() ?? []);
+  register(ipcMain, IPC_INVOKE_CHANNELS.getInstallTask, (id) =>
+    actions.getInstallTask?.(requireId(id)),
+  );
   register(ipcMain, IPC_INVOKE_CHANNELS.startInstall, (request) =>
     actions.start(requireRequest(request)),
   );

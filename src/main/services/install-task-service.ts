@@ -7,6 +7,7 @@ import type { Instance } from '../../shared/domain/instance';
 import type {
   InstallProgressEvent,
   InstallRequest,
+  InstallTaskSnapshot,
   InstallStepId,
   InstallTargetCheck,
   LicenseFetchResult,
@@ -98,9 +99,33 @@ export interface InstallTaskDependencies {
   executors?: Partial<Record<InstallStepId, (ctx: InstallTaskContext) => Promise<unknown>>>;
   /** 安装任务恢复清单目录；生产环境指向 userData，测试可省略。 */
   stateDirectory?: string;
+  secrets?: { encrypt(value: string): string; decrypt(value: string): string };
 }
 
 export class InstallTaskService {
+  private shuttingDown = false;
+  listInstallTasks(): InstallTaskSnapshot[] {
+    return [...this.tasks.keys()].map((id) => this.getInstallTask(id));
+  }
+  getInstallTask(id: string): InstallTaskSnapshot {
+    const task = this.requireTask(id);
+    const { apiKey: _apiKey, webuiApiKey: _webuiApiKey, ...request } = task.request;
+    void _apiKey;
+    void _webuiApiKey;
+    return {
+      request,
+      progress: {
+        taskId: id,
+        instanceName: request.instanceName,
+        step: task.currentStep,
+        stepIndex: task.currentIndex,
+        stepCount: this.buildSteps(task.request).length,
+        status: task.status,
+        progress: task.lastFraction,
+        message: '安装任务状态已同步',
+      },
+    };
+  }
   private readonly tasks = new Map<string, TaskRecord>();
   private readonly persistence = new KeyedOperationLock();
 
@@ -124,7 +149,14 @@ export class InstallTaskService {
    * @returns 新建任务的唯一 ID。
    */
   async start(request: InstallRequest): Promise<string> {
+    if (this.shuttingDown) throw new MofoxError('CONFLICT', '应用正在关闭');
     validateRequest(request);
+    if (this.dependencies.stateDirectory && (request.apiKey || request.webuiApiKey)) {
+      if (!this.dependencies.secrets) throw new MofoxError('UNAVAILABLE', '系统安全密钥存储不可用');
+      this.dependencies.secrets.encrypt(
+        JSON.stringify({ apiKey: request.apiKey, webuiApiKey: request.webuiApiKey }),
+      );
+    }
     const task = this.createTask(request);
     this.tasks.set(task.id, task);
     task.running = this.execute(task);
@@ -141,6 +173,7 @@ export class InstallTaskService {
    * @throws {MofoxError} 任务不存在或非失败状态时抛出 `CONFLICT`/`NOT_FOUND`。
    */
   async retry(taskId: string): Promise<void> {
+    if (this.shuttingDown) throw new MofoxError('CONFLICT', '应用正在关闭');
     const task = this.requireTask(taskId);
     if (task.status !== 'failed') throw new MofoxError('CONFLICT', '只有失败任务可以重试');
     task.controller = new AbortController();
@@ -181,6 +214,9 @@ export class InstallTaskService {
    * @returns 所有任务取消完成后的 Promise。
    */
   async cancelAll(): Promise<void> {
+    this.shuttingDown = true;
+    if (this.dependencies.stateDirectory)
+      await writeJsonAtomic(join(this.dependencies.stateDirectory, '.normal-shutdown'), true);
     await Promise.all([...this.tasks.keys()].map((taskId) => this.cancel(taskId)));
   }
 
@@ -220,12 +256,16 @@ export class InstallTaskService {
   }
 
   /**
-   * 从 userData 中读取上次异常退出遗留的任务，并从最后一个完整快照自动续跑。
+   * 从 userData 中读取上次异常退出遗留的任务，等待用户从最后一个完整快照手动续跑。
    * 已越过仓库提交点的任务只清理缓存，不会重复注册实例。
    */
   async recover(): Promise<void> {
     const directory = this.dependencies.stateDirectory;
     if (!directory) return;
+    const normalShutdown = await access(join(directory, '.normal-shutdown')).then(
+      () => true,
+      () => false,
+    );
     let names: string[];
     try {
       names = (await readdir(directory)).filter((name) => name.endsWith('.json'));
@@ -235,9 +275,28 @@ export class InstallTaskService {
     for (const name of names) {
       try {
         const value = JSON.parse(await readFile(join(directory, name), 'utf8')) as unknown;
+        if (
+          isRecord(value) &&
+          isRecord(value.request) &&
+          typeof value.encryptedSecrets === 'string'
+        ) {
+          if (!this.dependencies.secrets) throw new Error('系统密钥存储不可用');
+          const secrets = JSON.parse(this.dependencies.secrets.decrypt(value.encryptedSecrets));
+          value.request = {
+            ...value.request,
+            apiKey: secrets.apiKey,
+            webuiApiKey: secrets.webuiApiKey,
+          };
+        }
+        if (isRecord(value) && isRecord(value.request)) {
+          value.request = { apiKey: '', webuiApiKey: '', ...value.request };
+        }
         const persisted = parsePersistedTask(value);
         if (this.tasks.has(persisted.id)) continue;
         const task = this.restoreTask(persisted);
+        // Rewrite legacy plaintext manifests and their backups before offering recovery.
+        await this.persistTask(task);
+        await this.persistTask(task);
         this.tasks.set(task.id, task);
         if (task.committed || (await this.repositoryContains(task.id))) {
           task.committed = true;
@@ -248,18 +307,34 @@ export class InstallTaskService {
           this.emit(task, 'finalize', stepCount - 1, stepCount, 1, 'done', '已恢复上次完成的安装');
           continue;
         }
-        if (persisted.status === 'cancelled' || persisted.status === 'cancelling') {
+        if (
+          normalShutdown ||
+          persisted.status === 'cancelled' ||
+          persisted.status === 'cancelling'
+        ) {
           task.status = 'cancelled';
           await rm(dirname(task.workspace), { recursive: true, force: true });
           await this.removePersistedTask(task.id);
           continue;
         }
         task.resumeIndex = Math.max(0, task.lastCompletedIndex + 1);
-        task.running = this.execute(task);
+        task.status = 'failed';
+        await this.persistTask(task);
+        this.emit(
+          task,
+          task.currentStep,
+          task.currentIndex,
+          this.buildSteps(task.request).length,
+          0,
+          'failed',
+          '发现未完成任务，请手动继续或取消',
+        );
       } catch {
         // 单份损坏清单不阻断其余任务；保留原文件供人工诊断。
       }
     }
+    await rm(join(directory, '.normal-shutdown'), { force: true });
+    await rm(join(directory, '.normal-shutdown.bak'), { force: true });
   }
 
   /**
@@ -663,10 +738,17 @@ export class InstallTaskService {
   private async persistTask(task: TaskRecord): Promise<void> {
     const directory = this.dependencies.stateDirectory;
     if (!directory) return;
-    const value: PersistedTaskRecord = {
+    const { apiKey, webuiApiKey, ...publicRequest } = task.request;
+    if ((apiKey || webuiApiKey) && !this.dependencies.secrets)
+      throw new Error('系统密钥存储不可用，无法安全保存安装任务');
+    const encryptedSecrets = this.dependencies.secrets?.encrypt(
+      JSON.stringify({ apiKey, webuiApiKey }),
+    );
+    const value = {
       version: 1,
       id: task.id,
-      request: task.request,
+      request: publicRequest,
+      ...(encryptedSecrets ? { encryptedSecrets } : {}),
       workspace: task.workspace,
       currentStep: task.currentStep,
       currentIndex: task.currentIndex,

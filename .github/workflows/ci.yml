@@ -14,7 +14,11 @@ concurrency:
 jobs:
   quality:
     name: 类型、规范、测试与构建
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: 检出仓库
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -42,3 +46,14 @@ jobs:
 
       - name: 生产构建
         run: npm run build
+
+      - name: 重建 Electron 原生模块
+        run: npm run rebuild:native
+
+      - name: Electron 与 PTY 冒烟测试 (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npx electron scripts/native-smoke.cjs --no-sandbox
+
+      - name: Electron 与 PTY 冒烟测试 (Windows)
+        if: runner.os == 'Windows'
+        run: npx electron scripts/native-smoke.cjs

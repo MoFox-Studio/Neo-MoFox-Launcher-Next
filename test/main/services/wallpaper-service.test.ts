@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, symlink, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WallpaperService } from '../../../src/main/services/wallpaper-service';
@@ -106,5 +106,30 @@ describe('WallpaperService', () => {
       wallpaperDim: DEFAULT_WALLPAPER_DIM,
       wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     });
+  });
+});
+
+describe('wallpaper path boundary', () => {
+  it('accepts a regular managed file and rejects a directory junction to external files', async () => {
+    const root = await createTempDirectory();
+    const settings = { ...DEFAULT_SETTINGS, wallpaperFileName: 'wallpaper-abcd.png' };
+    const service = new WallpaperService(root, {
+      get: async () => settings,
+      update: async () => settings,
+    });
+    const directory = join(root, 'wallpapers');
+    await mkdir(directory);
+    await writeFile(join(directory, settings.wallpaperFileName), 'image');
+    await expect(service.resolveMediaPath(settings.wallpaperFileName)).resolves.toBe(
+      join(directory, settings.wallpaperFileName),
+    );
+    await rm(directory, { recursive: true });
+    const external = join(root, 'external');
+    await mkdir(external);
+    await writeFile(join(external, settings.wallpaperFileName), 'private');
+    await symlink(external, directory, process.platform === 'win32' ? 'junction' : 'dir');
+    await expect(service.resolveMediaPath(settings.wallpaperFileName)).rejects.toThrow(
+      'symbolic link',
+    );
   });
 });

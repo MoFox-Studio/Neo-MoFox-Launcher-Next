@@ -4,7 +4,10 @@ import { useInstallStore } from '@/stores/install';
 import WavyLinearProgress from '@/components/WavyLinearProgress.vue';
 import type { InstallStepId } from '@shared/domain/install';
 
-const props = defineProps<{ instanceName: string }>();
+const props = defineProps<{
+  instanceName: string;
+  request: { platformId: string; installWebui: boolean };
+}>();
 
 const emit = defineEmits<{
   cancel: [];
@@ -25,6 +28,13 @@ const STEPS: { id: InstallStepId; label: string; description: string; icon: stri
 ];
 
 const installStore = useInstallStore();
+const steps = computed(() =>
+  STEPS.filter(
+    (step) =>
+      (step.id !== 'install-platform' || props.request.platformId !== '') &&
+      (step.id !== 'install-webui' || props.request.installWebui),
+  ),
+);
 const progress = computed(() => installStore.progress);
 const logOpen = ref(false);
 const retrying = ref(false);
@@ -96,7 +106,10 @@ async function retry(): Promise<void> {
         <p>主程序、所选组件与实例配置均已完成，现在可以前往实例页启动它。</p>
       </div>
       <div class="result-state__facts">
-        <span><span class="msr" aria-hidden="true">verified</span> 5 个阶段已完成</span>
+        <span
+          ><span class="msr" aria-hidden="true">verified</span>
+          {{ steps.length }} 个阶段已完成</span
+        >
         <span><span class="msr" aria-hidden="true">folder</span> 实例已登记</span>
       </div>
       <button type="button" class="btn btn--filled btn--large state-layer" @click="emit('finish')">
@@ -165,7 +178,7 @@ async function retry(): Promise<void> {
         <div class="progress-overview__copy">
           <div>
             <p class="progress-overview__eyebrow">
-              第 {{ currentStepIndex + 1 }} / {{ progress?.stepCount ?? STEPS.length }} 步
+              第 {{ currentStepIndex + 1 }} / {{ progress?.stepCount ?? steps.length }} 步
             </p>
             <h2>{{ currentStepLabel }}</h2>
           </div>
@@ -181,7 +194,7 @@ async function retry(): Promise<void> {
 
       <div class="pipeline" aria-label="安装阶段">
         <div
-          v-for="(step, index) in STEPS"
+          v-for="(step, index) in steps"
           :key="step.id"
           class="pipeline__step"
           :class="`pipeline__step--${stepState(index)}`"

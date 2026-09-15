@@ -53,6 +53,8 @@ describe('createMofoxApi', () => {
       webuiApiKey: 'abcdefgh',
       targetDir: 'C:\\MoFox',
     });
+    await api.listInstallTasks();
+    await api.getInstallTask('task-1');
     await api.retryInstall('task-1');
     await api.cancelInstall('task-1');
     await api.fetchLicense();

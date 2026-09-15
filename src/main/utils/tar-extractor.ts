@@ -45,7 +45,7 @@ export async function extractTarGzSecurely(
   const root = await realpath(requestedRoot);
   const maximumExpandedBytes = Math.min(
     limits.maxTotalBytes,
-    Math.max(64 * 1024 ** 2, archiveBytes * limits.maxCompressionRatio),
+    archiveBytes * limits.maxCompressionRatio,
   );
   const extractor = tar.extract({ allowUnknownFormat: false });
   let entryCount = 0;

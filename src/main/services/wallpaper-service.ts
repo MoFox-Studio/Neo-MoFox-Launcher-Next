@@ -1,5 +1,5 @@
-import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
-import { basename, extname, isAbsolute, join } from 'node:path';
+import { copyFile, mkdir, rename, rm, lstat, realpath } from 'node:fs/promises';
+import { basename, extname, isAbsolute, join, relative, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   DEFAULT_WALLPAPER_BLUR,
@@ -177,13 +177,22 @@ export class WallpaperService {
     if (!isCurrent && !isStaged) throw new MofoxError('NOT_FOUND', 'Wallpaper asset was not found');
     const path = join(this.directory, fileName);
     await this.getRegularFileStat(path);
-    return path;
+    if ((await lstat(this.directory)).isSymbolicLink()) {
+      throw new MofoxError('INVALID_ARGUMENT', 'Wallpaper directory must not be a symbolic link');
+    }
+    const root = await realpath(this.directory);
+    const actual = await realpath(path);
+    const inside = relative(root, actual);
+    if (!inside || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
+      throw new MofoxError('INVALID_ARGUMENT', 'Wallpaper escaped its managed directory');
+    }
+    return actual;
   }
 
   /** 确认文件存在且不是目录、套接字等非常规节点。 */
   private async getRegularFileStat(path: string) {
     try {
-      const info = await stat(path);
+      const info = await lstat(path);
       if (!info.isFile())
         throw new MofoxError('INVALID_ARGUMENT', 'Wallpaper must be a regular file');
       return info;

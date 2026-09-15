@@ -17,6 +17,11 @@ const TEST_MIRRORS: readonly MirrorSource[] = [
 ];
 
 const mirrorsProvider = { list: () => [...TEST_MIRRORS] };
+// Test-only codec; production uses Electron safeStorage, never this reversible stub.
+const secrets = {
+  encrypt: (s: string) => Buffer.from(s).toString('base64'),
+  decrypt: (s: string) => Buffer.from(s, 'base64').toString(),
+};
 
 // 编排服务会按请求解析平台实例；测试覆盖执行器但未安装真实平台，因此注入最小桩平台。
 const platformStub = {
@@ -46,6 +51,46 @@ afterEach(async () => {
 });
 
 describe('InstallTaskService', () => {
+  it('rejects secret persistence before starting when secure storage is unavailable', async () => {
+    const root = await createTempRoot();
+    const run = vi.fn();
+    const service = new InstallTaskService(
+      registry(),
+      {
+        repository: { create: vi.fn() },
+        mirrors: mirrorsProvider,
+        stateDirectory: join(root, 'state'),
+        executors: { 'install-mofox': run },
+      },
+      { progress: vi.fn() },
+    );
+    await expect(service.start(request(root))).rejects.toThrow('密钥存储');
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('honors a normal-shutdown marker without resuming a persisted task', async () => {
+    const root = await createTempRoot();
+    const stateDirectory = join(root, 'state');
+    const run = vi.fn(async () => {
+      throw new Error('interrupted');
+    });
+    const dependencies = {
+      repository: { create: vi.fn() },
+      mirrors: mirrorsProvider,
+      stateDirectory,
+      secrets,
+      executors: { 'install-mofox': run },
+    };
+    const first = new InstallTaskService(registry(), dependencies, { progress: vi.fn() });
+    const id = await first.start(request(root));
+    await first.wait(id);
+    await writeFile(join(stateDirectory, '.normal-shutdown'), 'true');
+    const recovered = new InstallTaskService(registry(), dependencies, { progress: vi.fn() });
+    await recovered.recover();
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(recovered.getInstallTask(id).progress.status).toBe('cancelled');
+    expect(await exists(join(stateDirectory, `${id}.json`))).toBe(false);
+  });
   it('retains snapshots on repository failure and recovers after a service restart', async () => {
     const root = await createTempRoot();
     const target = join(root, 'installed');
@@ -62,6 +107,7 @@ describe('InstallTaskService', () => {
       repository: { create },
       mirrors: mirrorsProvider,
       stateDirectory,
+      secrets,
       executors: { 'install-mofox': install, configure: async () => undefined },
     };
     const progress = vi.fn();
@@ -70,8 +116,18 @@ describe('InstallTaskService', () => {
     await first.wait(id);
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'failed' }));
     expect(await exists(join(target, id, '.cache', 'stage-1', 'mofox', 'main.py'))).toBe(true);
+    for (const suffix of ['.json', '.json.bak']) {
+      const manifest = await readFile(join(stateDirectory, `${id}${suffix}`), 'utf8');
+      expect(manifest).not.toContain('sk-test-1234');
+      expect(manifest).not.toContain('abcdefgh');
+      expect(JSON.parse(manifest).encryptedSecrets).toBeTypeOf('string');
+    }
+    expect(first.getInstallTask(id).request).not.toHaveProperty('apiKey');
+    expect(first.getInstallTask(id).request).not.toHaveProperty('webuiApiKey');
     const recovered = new InstallTaskService(registry(), dependencies, { progress });
     await recovered.recover();
+    expect(recovered.getInstallTask(id).progress.status).toBe('failed');
+    await recovered.retry(id);
     await recovered.wait(id);
     expect(await readFile(join(target, id, 'mofox', 'main.py'), 'utf8')).toBe('complete');
     expect(install).toHaveBeenCalledTimes(1);
@@ -97,6 +153,7 @@ describe('InstallTaskService', () => {
         repository: { create },
         mirrors: mirrorsProvider,
         stateDirectory: join(root, 'state'),
+        secrets,
         executors: {
           'install-mofox': async (ctx) => {
             await mkdir(join(ctx.stageDir, 'mofox'), { recursive: true });

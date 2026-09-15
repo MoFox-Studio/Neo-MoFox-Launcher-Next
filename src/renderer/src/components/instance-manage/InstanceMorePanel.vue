@@ -378,7 +378,7 @@ watch(
 
         <div class="settings-divider"></div>
 
-        <div class="settings-item">
+        <div v-if="false" class="settings-item">
           <span class="msr settings-item__icon" aria-hidden="true">power</span>
           <div class="settings-item__body">
             <span class="settings-item__label">启动器启动时自动运行</span>

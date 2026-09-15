@@ -1,4 +1,14 @@
-import { app, BrowserWindow, ipcMain, protocol, shell, systemPreferences } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  protocol,
+  safeStorage,
+  shell,
+  systemPreferences,
+} from 'electron';
+import { setUnverifiedDownloadConfirmation } from './utils/git/download-consent';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -205,7 +215,22 @@ if (!hasSingleInstanceLock) {
     mainWindow.focus();
   });
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
+    setUnverifiedDownloadConfirmation(async (request, signal) => {
+      if (!mainWindow || mainWindow.isDestroyed() || signal?.aborted) return false;
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: '无法验证下载包',
+        message: '此下载无法进行 SHA-256 校验，是否仍要继续？',
+        detail: `${request.reason}\n\n仓库：${request.repository}\n版本：${request.version}\n文件：${request.assetName}\n\n无法确认下载内容是否被篡改。仅在信任该来源且理解风险时继续；本次选择不会用于其他文件或后续安装。`,
+        buttons: ['取消下载', '我理解风险，继续本次下载'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+        ...(signal ? { signal } : {}),
+      });
+      return result.response === 1;
+    });
     const dataDirectory = app.getPath('userData');
     let logger: Logger | undefined;
     /**
@@ -367,7 +392,25 @@ if (!hasSingleInstanceLock) {
     });
     const installTasks = new InstallTaskService(
       platforms,
-      { repository: instances, mirrors, stateDirectory: join(dataDirectory, 'install-tasks') },
+      {
+        repository: instances,
+        mirrors,
+        stateDirectory: join(dataDirectory, 'install-tasks'),
+        secrets: {
+          encrypt(value) {
+            if (
+              !safeStorage.isEncryptionAvailable() ||
+              (process.platform === 'linux' &&
+                safeStorage.getSelectedStorageBackend() === 'basic_text')
+            )
+              throw new Error('系统安全密钥存储不可用，安装已停止');
+            return safeStorage.encryptString(value).toString('base64');
+          },
+          decrypt(value) {
+            return safeStorage.decryptString(Buffer.from(value, 'base64'));
+          },
+        },
+      },
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
     registerInstallIpc(ipcMain, installTasks);
@@ -408,8 +451,7 @@ if (!hasSingleInstanceLock) {
       },
     );
     registerOobeIpc(ipcMain, oobeService);
-    mainWindow = createMainWindow();
-    void installTasks
+    await installTasks
       .recover()
       .catch((error: unknown) =>
         report(
@@ -417,16 +459,29 @@ if (!hasSingleInstanceLock) {
           error instanceof Error ? error : new Error(String(error)),
         ),
       );
+    mainWindow = createMainWindow();
 
-    // 关闭窗口时立即向活跃安装任务发出中止信号，并马上放行关闭，避免被单个长步骤
-    // （如下载/子进程）拖住导致窗口关不掉；后台流水线会尽快回收临时文件。
+    // 正常关闭先持久化关闭标记并等待任务取消；等待期间重复关闭也不能绕过收尾。
     let installCloseDispatched = false;
+    let installCloseReady = false;
     mainWindow.on('close', (event) => {
-      if (!installTasks.hasActiveTasks() || installCloseDispatched) return;
+      if (installCloseReady) return;
       event.preventDefault();
+      if (installCloseDispatched) return;
       installCloseDispatched = true;
-      installTasks.abortAll();
-      mainWindow?.close();
+      void installTasks
+        .cancelAll()
+        .then(() => {
+          installCloseReady = true;
+          mainWindow?.close();
+        })
+        .catch((error: unknown) => {
+          installCloseDispatched = false;
+          report(
+            '取消安装失败，未关闭窗口',
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        });
     });
 
     app.on('activate', () => {

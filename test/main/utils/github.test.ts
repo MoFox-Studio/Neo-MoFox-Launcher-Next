@@ -3,6 +3,12 @@ import type { MirrorSource } from '../../../src/shared/domain/mirror';
 import { fetchReleases, installGithubRelease } from '../../../src/main/utils/git/github';
 import { describeGitError, describeNetworkError } from '../../../src/main/utils/network-error';
 import type { InstallContext } from '../../../src/shared/domain/bot-platform';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { downloadReleaseAsset, parseChecksum } from '../../../src/main/utils/git/github';
+import { downloadRange } from '../../../src/main/utils/range-downloader';
+import { setUnverifiedDownloadConfirmation } from '../../../src/main/utils/git/download-consent';
 
 vi.mock('../../../src/main/utils/zip-extractor', () => ({
   extractZipSecurely: vi.fn(async () => undefined),
@@ -20,6 +26,123 @@ vi.mock('../../../src/main/utils/range-downloader', async () => {
 });
 
 const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+describe('download verification policy', () => {
+  const directories: string[] = [];
+  afterEach(async () => {
+    setUnverifiedDownloadConfirmation(async () => false);
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    await Promise.all(
+      directories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+    );
+  });
+  async function run(digest?: string, signal?: AbortSignal) {
+    const directory = await mkdtemp(join(tmpdir(), 'mofox-checksum-'));
+    directories.push(directory);
+    return downloadReleaseAsset({
+      mirrors: MIRRORS,
+      repository: 'SnowLuma/SnowLuma',
+      destination: join(directory, 'app.zip'),
+      selectAsset: () => ({
+        name: 'app.zip',
+        browser_download_url: 'https://github.com/SnowLuma/SnowLuma/releases/download/v1/app.zip',
+        ...(digest ? { digest } : {}),
+      }),
+      ...(signal ? { signal } : {}),
+    });
+  }
+  function metadata(checksum?: string, officialDigest?: string) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.endsWith('/SHA256SUMS')) return new Response(checksum);
+        return new Response(
+          JSON.stringify({
+            ...releasePayload('v1'),
+            assets: [
+              {
+                name: 'app.zip',
+                browser_download_url:
+                  'https://github.com/SnowLuma/SnowLuma/releases/download/v1/app.zip',
+                ...(officialDigest ? { digest: officialDigest } : {}),
+              },
+              ...(checksum === undefined
+                ? []
+                : [
+                    {
+                      name: 'SHA256SUMS',
+                      browser_download_url:
+                        'https://github.com/SnowLuma/SnowLuma/releases/download/v1/SHA256SUMS',
+                    },
+                  ]),
+            ],
+          }),
+        );
+      }),
+    );
+  }
+  it('uses an existing digest without prompting', async () => {
+    metadata();
+    const confirm = vi.fn(async () => false);
+    setUnverifiedDownloadConfirmation(confirm);
+    await run(`sha256:${EMPTY_SHA256}`);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+  it('recovers a missing digest from official metadata', async () => {
+    metadata(undefined, `sha256:${EMPTY_SHA256}`);
+    await expect(run()).resolves.toMatchObject({ assetName: 'app.zip' });
+  });
+  it('uses the exact asset hash in the official checksum file', async () => {
+    metadata(`${'0'.repeat(64)}  other.zip\n${EMPTY_SHA256} *app.zip`);
+    await expect(run()).resolves.toMatchObject({ assetName: 'app.zip' });
+  });
+  it('refuses missing checksums by default before downloading', async () => {
+    metadata();
+    await expect(run()).rejects.toThrow('已停止下载');
+    expect(downloadRange).not.toHaveBeenCalled();
+  });
+  it('only allows missing checksums after explicit per-download consent', async () => {
+    metadata();
+    const confirm = vi.fn(async () => true);
+    setUnverifiedDownloadConfirmation(confirm);
+    await run();
+    await run();
+    expect(confirm).toHaveBeenCalledTimes(2);
+  });
+  it('never offers a bypass for a checksum mismatch', async () => {
+    metadata();
+    const confirm = vi.fn(async () => true);
+    setUnverifiedDownloadConfirmation(confirm);
+    await expect(run(`sha256:${'0'.repeat(64)}`)).rejects.toThrow('校验失败');
+    expect(confirm).not.toHaveBeenCalled();
+  });
+  it('does not download if cancellation occurs during confirmation', async () => {
+    metadata();
+    const controller = new AbortController();
+    setUnverifiedDownloadConfirmation(async () => {
+      controller.abort();
+      return true;
+    });
+    await expect(run(undefined, controller.signal)).rejects.toThrow();
+    expect(downloadRange).not.toHaveBeenCalled();
+  });
+  it('rejects conflicting hashes without asking to bypass', async () => {
+    metadata(`${EMPTY_SHA256}  app.zip\n${'0'.repeat(64)}  app.zip`);
+    const confirm = vi.fn(async () => true);
+    setUnverifiedDownloadConfirmation(confirm);
+    await expect(run()).rejects.toThrow('冲突');
+    expect(confirm).not.toHaveBeenCalled();
+  });
+  it('parses BSD and sidecar checksums without matching other filenames', () => {
+    expect(parseChecksum(`SHA256 (app.zip) = ${EMPTY_SHA256}`, 'app.zip', false)).toBe(
+      EMPTY_SHA256,
+    );
+    expect(parseChecksum(EMPTY_SHA256, 'app.zip', true)).toBe(EMPTY_SHA256);
+    expect(parseChecksum(EMPTY_SHA256, 'app.zip', false)).toBeUndefined();
+    expect(parseChecksum(`${EMPTY_SHA256}  myapp.zip`, 'app.zip', false)).toBeUndefined();
+  });
+});
 
 const MIRRORS: readonly MirrorSource[] = [
   { id: 'gh-direct', type: 'github', name: 'GitHub', baseUrl: 'https://github.com' },

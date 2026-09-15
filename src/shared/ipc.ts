@@ -11,7 +11,12 @@ import type {
   InstanceStatus,
   EditableInstancePatch,
 } from './domain/instance';
-import type { InstallProgressEvent, InstallRequest, LicenseFetchResult } from './domain/install';
+import type {
+  InstallProgressEvent,
+  InstallRequest,
+  InstallTaskSnapshot,
+  LicenseFetchResult,
+} from './domain/install';
 import type { MofoxUpdateInfo, PlatformUpdateInfo, UpdateProgressEvent } from './domain/update';
 import type {
   ManualImportRequest,
@@ -68,6 +73,8 @@ export const IPC_INVOKE_CHANNELS = {
   exportInstanceLogs: 'instances:export-logs',
   checkInstancesIntegrity: 'instances:integrity-check',
   startInstall: 'install:start',
+  listInstallTasks: 'install:list',
+  getInstallTask: 'install:get',
   retryInstall: 'install:retry',
   cancelInstall: 'install:cancel',
   fetchLicense: 'install:fetch-license',
@@ -176,6 +183,8 @@ export interface MofoxApi {
 
   /** 安装任务控制。 */
   startInstall(request: InstallRequest): Promise<string>;
+  listInstallTasks(): Promise<InstallTaskSnapshot[]>;
+  getInstallTask(taskId: string): Promise<InstallTaskSnapshot>;
   retryInstall(taskId: string): Promise<void>;
   cancelInstall(taskId: string): Promise<void>;
   /** 经主进程镜像轮询拉取 Neo-MoFox 许可协议文本。 */

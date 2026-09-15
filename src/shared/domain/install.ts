@@ -38,6 +38,11 @@ export interface InstallRequest {
   targetDir: string;
 }
 
+export interface InstallTaskSnapshot {
+  request: Omit<InstallRequest, 'apiKey' | 'webuiApiKey'>;
+  progress: InstallProgressEvent;
+}
+
 /** 单份协议文档；`source` 为实际命中的镜像源名称。 */
 export interface LicenseDocument {
   source: string;

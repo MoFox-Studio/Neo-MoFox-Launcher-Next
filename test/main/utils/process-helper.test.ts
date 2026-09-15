@@ -15,6 +15,16 @@ vi.mock('tree-kill', () => ({
 }));
 
 describe('runOneShot', () => {
+  it('bounds both output streams and marks truncation without failing the command', async () => {
+    const result = await runOneShot(
+      process.execPath,
+      ['-e', "process.stdout.write('x'.repeat(10000));process.stderr.write('y'.repeat(10000));"],
+      { maxOutputBytes: 128 },
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('x'.repeat(128) + '\n[输出已截断]');
+    expect(result.stderr).toBe('y'.repeat(128) + '\n[输出已截断]');
+  });
   // 分别验证子进程输出边界、启动失败结算和超时后的终止路径。
   it('captures stdout, stderr and the exit code separately', async () => {
     const result = await runOneShot(process.execPath, [

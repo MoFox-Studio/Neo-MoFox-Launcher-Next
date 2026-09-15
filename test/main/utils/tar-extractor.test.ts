@@ -34,6 +34,12 @@ async function archive(
 }
 
 describe('extractTarGzSecurely', () => {
+  it('enforces compression ratio even below 64 MiB', async () => {
+    const { path, destination } = await archive([{ name: 'zeros', body: '0'.repeat(100_000) }]);
+    await expect(
+      extractTarGzSecurely(path, destination, { maxCompressionRatio: 2 }),
+    ).rejects.toThrow();
+  });
   it('extracts a normal archive with a root directory and AbortSignal', async () => {
     const { path, destination } = await archive([
       { name: './', type: 'directory' },

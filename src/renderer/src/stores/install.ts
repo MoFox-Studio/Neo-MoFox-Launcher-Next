@@ -30,7 +30,7 @@ export const useInstallStore = defineStore('install', () => {
 
   // 只接收当前任务事件，并限制日志缓存以控制长期内存占用。
   const unsubscribe = mofoxApi.on('install-progress', (event) => {
-    if (activeTaskId.value !== null && event.taskId !== activeTaskId.value) return;
+    if (activeTaskId.value === null || event.taskId !== activeTaskId.value) return;
     progress.value = event;
     logLines.value.push(event.message);
     if (logLines.value.length > 500) logLines.value.splice(0, logLines.value.length - 500);
@@ -42,6 +42,7 @@ export const useInstallStore = defineStore('install', () => {
     logLines.value = [];
     progress.value = null;
     activeTaskId.value = await mofoxApi.startInstall(request);
+    progress.value = (await mofoxApi.getInstallTask(activeTaskId.value)).progress;
   }
 
   async function retry(): Promise<void> {

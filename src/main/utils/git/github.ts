@@ -11,6 +11,7 @@ import { resolveGithubUrl, tryEachGithubMirror } from './github-mirror';
 import { describeNetworkError } from '../network-error';
 import { extractZipSecurely } from '../zip-extractor';
 import { extractTarGzSecurely } from '../tar-extractor';
+import { confirmUnverifiedDownload } from './download-consent';
 
 // GitHub Release 下载与查询的镜像轮询实现，供平台安装/更新与版本列表复用。
 
@@ -21,7 +22,7 @@ export type ReleaseAsset = GithubReleaseAsset;
 /**
  * 通过 GitHub Release 资产完成平台安装。
  *
- * 流水线依次执行：发行版查询、资产选择、分镜下载、可选 SHA-256 校验、
+ * 流水线依次执行：发行版查询、资产选择、摘要解析或风险确认、分镜下载、SHA-256 校验、
  * ZIP/tar.gz 解压与根目录确认；每一步均按 `github` 类镜像顺序轮询。
  *
  * `context.version` 为 `latest` 时拉取最新发行版，否则拉取对应 tag 的发行版，
@@ -54,7 +55,7 @@ export async function installGithubRelease(
   const archive = join(context.workDir, basename(asset.name));
   const payload = join(context.workDir, 'payload');
   await mkdir(payload, { recursive: true });
-  await downloadAsset(mirrors, asset, archive, context.signal);
+  await downloadAsset(mirrors, asset, archive, repository, release, context.signal);
 
   // 两种归档均由受限的进程内解压器处理，拒绝路径穿越、链接、特殊文件与压缩炸弹。
   if (asset.name.endsWith('.zip')) await extractZipSecurely(archive, payload);
@@ -92,7 +93,7 @@ export async function downloadReleaseAsset(options: {
   const release = await fetchRelease(mirrors, repository, 'latest', signal);
   const asset = selectAsset(release);
   if (!asset) throw new MofoxError('UNAVAILABLE', `发行版 ${release.tag_name} 没有匹配的资产`);
-  await downloadAsset(mirrors, asset, destination, signal);
+  await downloadAsset(mirrors, asset, destination, repository, release, signal);
   return { assetName: asset.name, version: release.tag_name };
 }
 
@@ -192,9 +193,11 @@ async function downloadAsset(
   mirrors: readonly MirrorSource[],
   asset: ReleaseAsset,
   destination: string,
+  repository: string,
+  release: Release,
   signal?: AbortSignal,
 ): Promise<void> {
-  const expectedDigest = requireSha256Digest(asset);
+  const expectedDigest = await resolveAssetDigest(repository, release, asset, signal);
   const assetUrl = requireHttpsUrl(asset.browser_download_url, '发行版下载地址');
   return tryEachGithubMirror(
     mirrors,
@@ -212,8 +215,8 @@ async function downloadAsset(
         maxBytes: 4 * 1024 ** 3,
         allowedRedirectHosts,
       });
-      const actual = await sha256(destination);
-      if (actual !== expectedDigest) {
+      const actual = expectedDigest ? await sha256(destination) : undefined;
+      if (expectedDigest && actual !== expectedDigest) {
         await rm(destination, { force: true }).catch(() => undefined);
         throw new MofoxError('IO_ERROR', `${asset.name} SHA-256 校验失败`);
       }
@@ -361,11 +364,128 @@ async function sha256(path: string): Promise<string> {
   return hash.digest('hex');
 }
 
-function requireSha256Digest(asset: ReleaseAsset): string {
-  if (!asset.digest || !/^sha256:[0-9a-f]{64}$/i.test(asset.digest)) {
-    throw new MofoxError('UNAVAILABLE', `${asset.name} 未提供可验证的 SHA-256 摘要`);
+async function resolveAssetDigest(
+  repository: string,
+  release: Release,
+  asset: ReleaseAsset,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  if (asset.digest && /^sha256:[0-9a-f]{64}$/i.test(asset.digest)) {
+    return asset.digest.slice(7).toLowerCase();
   }
-  return asset.digest.slice(7).toLowerCase();
+  let reason = '该发布包没有可用的 SHA-256 摘要或官方校验文件。';
+  const lookupSignal = AbortSignal.any([AbortSignal.timeout(15_000), ...(signal ? [signal] : [])]);
+  try {
+    // Bypass mirrors for fallback metadata/checksums; never infer a checksum URL from a mirror.
+    const response = await githubFetch(
+      '官方校验信息请求失败',
+      `https://api.github.com/repos/${repository}/releases/tags/${encodeURIComponent(release.tag_name)}`,
+      {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
+        signal: lookupSignal,
+      },
+    );
+    if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`);
+    const official = parseRelease(await response.json());
+    if (official.tag_name !== release.tag_name) throw new Error('官方版本信息不匹配');
+    const officialAsset = official.assets.find((item) => item.name === asset.name);
+    if (officialAsset?.digest && /^sha256:[0-9a-f]{64}$/i.test(officialAsset.digest)) {
+      return officialAsset.digest.slice(7).toLowerCase();
+    }
+    const candidates = official.assets
+      .filter(
+        (item) =>
+          item.name === `${asset.name}.sha256` ||
+          item.name === `${asset.name}.sha256sum` ||
+          /^(sha256sums?(\.txt)?|checksums?(\.txt|\.sha256)?)$/i.test(item.name),
+      )
+      .slice(0, 8);
+    let lookupFailed = false;
+    const hashes = new Set<string>();
+    for (const candidate of candidates) {
+      const url = new URL(candidate.browser_download_url);
+      if (
+        url.origin !== 'https://github.com' ||
+        !url.pathname.startsWith(`/${repository}/releases/download/`)
+      )
+        continue;
+      try {
+        const checksumResponse = await githubFetch('官方校验文件下载失败', url.toString(), {
+          signal: lookupSignal,
+        });
+        if (!checksumResponse.ok) throw new Error(`HTTP ${checksumResponse.status}`);
+        const content = await readChecksumText(checksumResponse);
+        const hash = parseChecksum(
+          content,
+          asset.name,
+          candidate.name.startsWith(`${asset.name}.`),
+        );
+        if (hash) hashes.add(hash);
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        if (error instanceof MofoxError && error.code === 'INVALID_ARGUMENT') throw error;
+        lookupFailed = true;
+      }
+    }
+    if (hashes.size > 1)
+      throw new MofoxError('INVALID_ARGUMENT', '官方校验文件中的 SHA-256 摘要相互冲突');
+    const hash = hashes.values().next().value as string | undefined;
+    if (hash) return hash;
+    if (lookupFailed) reason = '无法获取或读取官方校验文件，当前不能验证下载内容。';
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    if (error instanceof MofoxError && error.code === 'INVALID_ARGUMENT') throw error;
+    reason = '无法获取有效的官方校验信息（可能是网络问题或 GitHub 限流）。';
+  }
+  if (
+    !(await confirmUnverifiedDownload(
+      { repository, version: release.tag_name, assetName: asset.name, reason },
+      signal,
+    ))
+  ) {
+    throw new MofoxError('UNAVAILABLE', `${asset.name} 无法验证 SHA-256，已停止下载`);
+  }
+  return undefined;
+}
+
+async function readChecksumText(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('校验文件正文为空');
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 1024 * 1024) throw new Error('校验文件超过 1 MiB');
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks).toString('utf8');
+  } finally {
+    await reader.cancel();
+    reader.releaseLock();
+  }
+}
+
+/** Exact filenames only: GNU sha256sum, BSD SHA256, or a dedicated sidecar's bare hash. */
+export function parseChecksum(
+  content: string,
+  assetName: string,
+  dedicated: boolean,
+): string | undefined {
+  const hashes = new Set<string>();
+  for (const raw of content.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (dedicated && /^[a-f0-9]{64}$/i.test(line)) hashes.add(line.toLowerCase());
+    const gnu = /^([a-f0-9]{64})\s+\*?(.+)$/i.exec(line);
+    if (gnu && gnu[2]?.replace(/^\.\//, '') === assetName) hashes.add(gnu[1]!.toLowerCase());
+    const bsd = /^SHA256\s*\((.+)\)\s*=\s*([a-f0-9]{64})$/i.exec(line);
+    if (bsd && bsd[1] === assetName) hashes.add(bsd[2]!.toLowerCase());
+  }
+  if (hashes.size > 1)
+    throw new MofoxError('INVALID_ARGUMENT', '官方校验文件中的 SHA-256 摘要相互冲突');
+  return hashes.values().next().value as string | undefined;
 }
 
 function parseReleaseList(value: unknown): Release[] {
