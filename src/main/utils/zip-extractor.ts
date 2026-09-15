@@ -1,8 +1,9 @@
 import { createWriteStream } from 'node:fs';
-import { lstat, mkdir, realpath, rm } from 'node:fs/promises';
+import { lstat, mkdir, realpath, rm, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import * as yauzl from 'yauzl';
+import type { ArchiveExtractionLimits } from './tar-extractor';
 
 const UNIX_FILE_TYPE_MASK = 0o170000;
 const UNIX_REGULAR_FILE = 0o100000;
@@ -10,6 +11,12 @@ const UNIX_DIRECTORY = 0o040000;
 const UNIX_SYMBOLIC_LINK = 0o120000;
 const DOS_DIRECTORY_ATTRIBUTE = 0x10;
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+const DEFAULT_LIMITS: Required<ArchiveExtractionLimits> = {
+  maxEntries: 50_000,
+  maxFileBytes: 2 * 1024 ** 3,
+  maxTotalBytes: 8 * 1024 ** 3,
+  maxCompressionRatio: 500,
+};
 
 /** 判断 Node 文件系统错误是否带有指定错误码。 */
 function hasErrorCode(error: unknown, code: string): boolean {
@@ -34,6 +41,9 @@ function unsafeEntry(entryName: string, reason: string): Error {
  * 会在 Windows 上被折叠的尾随空格/句点，避免跨平台路径解释差异造成越界写入。
  */
 function safeEntrySegments(entryName: string): string[] {
+  if (entryName.length > 4096 || entryName.includes('\0')) {
+    throw unsafeEntry(entryName, '条目名无效或过长');
+  }
   const normalized = entryName.replace(/\\/g, '/');
   if (!normalized || normalized.startsWith('/') || normalized.startsWith('//')) {
     throw unsafeEntry(entryName, '条目路径必须是非空相对路径');
@@ -46,18 +56,18 @@ function safeEntrySegments(entryName: string): string[] {
     if (!segment || segment === '.') continue;
     if (segment === '..') throw unsafeEntry(entryName, '不允许使用上级目录');
     if (segment.includes(':')) throw unsafeEntry(entryName, '不允许使用 NTFS 数据流路径');
-    if (process.platform === 'win32') {
-      if (/[. ]$/.test(segment)) {
-        throw unsafeEntry(entryName, 'Windows 路径段不能以空格或句点结尾');
-      }
-      if (WINDOWS_RESERVED_NAME.test(segment)) {
-        throw unsafeEntry(entryName, '不允许使用 Windows 设备名');
-      }
+    if (/[. ]$/.test(segment)) {
+      throw unsafeEntry(entryName, 'Windows 路径段不能以空格或句点结尾');
+    }
+    if (WINDOWS_RESERVED_NAME.test(segment)) {
+      throw unsafeEntry(entryName, '不允许使用 Windows 设备名');
     }
     segments.push(segment);
   }
 
-  if (segments.length === 0) throw unsafeEntry(entryName, '条目路径为空');
+  if (segments.length === 0 || segments.length > 128) {
+    throw unsafeEntry(entryName, '条目路径为空或嵌套过深');
+  }
   return segments;
 }
 
@@ -131,7 +141,17 @@ async function prepareOutputFile(target: string, entryName: string): Promise<voi
 export async function extractZipSecurely(
   zipPath: string,
   destinationDirectory: string,
+  options: ArchiveExtractionLimits = {},
 ): Promise<void> {
+  const limits = resolveLimits(options);
+  const archiveBytes = (await stat(zipPath)).size;
+  if (archiveBytes <= 0 || archiveBytes > limits.maxTotalBytes) {
+    throw new Error('拒绝大小异常的 ZIP 归档');
+  }
+  const maximumExpandedBytes = Math.min(
+    limits.maxTotalBytes,
+    Math.max(64 * 1024 ** 2, archiveBytes * limits.maxCompressionRatio),
+  );
   const requestedRoot = resolve(destinationDirectory);
   await mkdir(requestedRoot, { recursive: true });
   const rootStats = await lstat(requestedRoot);
@@ -145,8 +165,25 @@ export async function extractZipSecurely(
     // 兼容旧版 .NET 生成的反斜杠条目；yauzl 会先转换为正斜杠再进行安全校验。
     strictFileNames: false,
   });
+  let entryCount = 0;
+  let expandedBytes = 0;
 
   for await (const entry of zipFile.eachEntry()) {
+    entryCount += 1;
+    if (entryCount > limits.maxEntries) {
+      throw unsafeEntry(entry.fileName, '条目数量超过限制');
+    }
+    if (
+      !Number.isSafeInteger(entry.uncompressedSize) ||
+      entry.uncompressedSize < 0 ||
+      entry.uncompressedSize > limits.maxFileBytes
+    ) {
+      throw unsafeEntry(entry.fileName, '单文件声明大小超过限制');
+    }
+    expandedBytes += entry.uncompressedSize;
+    if (expandedBytes > maximumExpandedBytes) {
+      throw unsafeEntry(entry.fileName, '归档展开大小或压缩率超过限制');
+    }
     const fileType = unixFileType(entry);
     if (fileType === UNIX_SYMBOLIC_LINK) {
       throw unsafeEntry(entry.fileName, '不允许解压符号链接');
@@ -178,4 +215,14 @@ export async function extractZipSecurely(
       throw error;
     }
   }
+}
+
+function resolveLimits(options: ArchiveExtractionLimits): Required<ArchiveExtractionLimits> {
+  const resolved = { ...DEFAULT_LIMITS, ...options };
+  for (const [name, value] of Object.entries(resolved)) {
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new Error(`归档安全限制 ${name} 必须是正整数`);
+    }
+  }
+  return resolved;
 }

@@ -36,12 +36,8 @@ const expanded = ref(false);
 const logboxExpanded = ref(false);
 
 const collapsedLogHeight = computed(() => Math.max(0, props.collapsedHeight));
-const expandedLogHeight = computed(() =>
-  Math.max(collapsedLogHeight.value, props.expandedHeight),
-);
-const logRevealDistance = computed(
-  () => expandedLogHeight.value - collapsedLogHeight.value,
-);
+const expandedLogHeight = computed(() => Math.max(collapsedLogHeight.value, props.expandedHeight));
+const logRevealDistance = computed(() => expandedLogHeight.value - collapsedLogHeight.value);
 
 // 每次打开时复位语义状态和布局状态，保证多次复用时的初始体验一致。
 watch(
@@ -110,13 +106,7 @@ function onClose(): void {
 </script>
 
 <template>
-  <BaseDialog
-    :open="open"
-    :title="title"
-    :dismissible="dismissible"
-    :width="480"
-    @close="onClose"
-  >
+  <BaseDialog :open="open" :title="title" :dismissible="dismissible" :width="480" @close="onClose">
     <!-- 头部：错误图标与可读描述 -->
     <div class="error-dialog__head">
       <span class="error-dialog__icon msr" aria-hidden="true">error</span>
@@ -160,7 +150,7 @@ function onClose(): void {
         <pre
           class="error-dialog__logbox"
           :class="{ 'error-dialog__logbox--collapsed': !expanded }"
-        >{{ stack }}</pre>
+          >{{ stack }}</pre>
       </div>
     </div>
 
@@ -273,11 +263,7 @@ function onClose(): void {
   height: 24px;
   border-bottom-left-radius: var(--md-sys-shape-corner-medium);
   border-bottom-right-radius: var(--md-sys-shape-corner-medium);
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    var(--md-sys-color-surface-container)
-  );
+  background: linear-gradient(to bottom, transparent, var(--md-sys-color-surface-container));
   pointer-events: none;
 }
 

@@ -7,7 +7,10 @@ interface IpcMainRegistrar {
   handle(channel: string, handler: (...args: unknown[]) => unknown): unknown;
 }
 
-function createIpcMain(): { handlers: Map<string, (...args: unknown[]) => unknown>; ipcMain: IpcMainRegistrar } {
+function createIpcMain(): {
+  handlers: Map<string, (...args: unknown[]) => unknown>;
+  ipcMain: IpcMainRegistrar;
+} {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
   const ipcMain: IpcMainRegistrar = {
     handle: (channel, handler) => handlers.set(channel, handler),
@@ -81,8 +84,8 @@ describe('registerOobeIpc', () => {
     );
     registerOobeIpc(ipcMain, actions);
 
-    await expect(
-      handlers.get(IPC_INVOKE_CHANNELS.oobeInstallDependencies)?.({}),
-    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.oobeInstallDependencies)?.({})).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
   });
 });

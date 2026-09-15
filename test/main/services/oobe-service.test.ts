@@ -56,24 +56,35 @@ function createService(env?: Partial<SystemEnvInfo>) {
   const events: OobeProgress[] = [];
   const settings = { update: vi.fn(async (patch: unknown) => patch) };
   const legacy = {
-    detect: vi.fn(async () => null as { dataDirectory: string; instanceCount: number; modifiedAt: number | null } | null),
+    detect: vi.fn(
+      async () =>
+        null as { dataDirectory: string; instanceCount: number; modifiedAt: number | null } | null,
+    ),
   };
   const mirrors = { list: () => [] };
   const environment = {
-    detect: vi.fn(async () => ({
-      arch: 'x64',
-      osType: 'Windows_NT',
-      osRelease: '10',
-      hostname: 'host',
-      homedir: 'home',
-      tmpdir: 'tmp',
-      shell: 'shell',
-      ...env,
-    }) as SystemEnvInfo),
+    detect: vi.fn(
+      async () =>
+        ({
+          arch: 'x64',
+          osType: 'Windows_NT',
+          osRelease: '10',
+          hostname: 'host',
+          homedir: 'home',
+          tmpdir: 'tmp',
+          shell: 'shell',
+          ...env,
+        }) as SystemEnvInfo,
+    ),
   };
 
   const service = new OobeService(
-    { settings: settings as never, legacy: legacy as never, mirrors: mirrors as never, environment: environment as never },
+    {
+      settings: settings as never,
+      legacy: legacy as never,
+      mirrors: mirrors as never,
+      environment: environment as never,
+    },
     { progress: (event) => events.push(event) },
   );
   return { service, events, settings, legacy, environment };
@@ -164,7 +175,11 @@ describe('OobeService', () => {
 
     expect(summary.completed).toBe(true);
     expect(summary.dependencies).toHaveLength(3);
-    expect(summary.dependencies.map((d) => d.status)).toEqual(['installed', 'installed', 'installed']);
+    expect(summary.dependencies.map((d) => d.status)).toEqual([
+      'installed',
+      'installed',
+      'installed',
+    ]);
     expect(summary.legacy?.instanceCount).toBe(2);
     expect(settings.update).toHaveBeenCalledWith({ oobeCompleted: true });
   });
@@ -184,9 +199,7 @@ describe('OobeService', () => {
     expect(finalEvent.dependencies.map((d) => d.status)).toEqual(['skipped', 'skipped', 'skipped']);
 
     // 处理 python 时发出的进度事件中，git 必须保持 `skipped` 而非回退为 `pending`。
-    const pythonEvent = events.find(
-      (e) => e.dependencyId === 'python' || /Python/.test(e.message),
-    );
+    const pythonEvent = events.find((e) => e.dependencyId === 'python' || /Python/.test(e.message));
     expect(pythonEvent).toBeDefined();
     const gitInPythonEvent = pythonEvent!.dependencies.find((d) => d.id === 'git');
     expect(gitInPythonEvent?.status).toBe('skipped');

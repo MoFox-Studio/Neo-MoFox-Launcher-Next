@@ -50,6 +50,8 @@ export class OobeService {
   private workDir: string | undefined;
   /** 取消信号；安装阶段触发后立即中止。 */
   private abortController: AbortController | undefined;
+  /** 非空时表示已有 OOBE 安装会话，阻止重复 IPC 同时修改系统依赖。 */
+  private installSession: Promise<OobeDependencyStatus[]> | undefined;
   /** 当前安装会话累积的日志行；随进度事件推送，失败时一并塞入错误对象。 */
   private logs: string[] = [];
 
@@ -132,6 +134,19 @@ export class OobeService {
    * @returns 安装完成后的全部依赖状态汇总。
    */
   async installDependencies(): Promise<OobeDependencyStatus[]> {
+    if (this.installSession) {
+      throw new MofoxError('CONFLICT', '依赖安装正在进行，请勿重复提交');
+    }
+    const session = this.runInstallDependencies();
+    this.installSession = session;
+    try {
+      return await session;
+    } finally {
+      if (this.installSession === session) this.installSession = undefined;
+    }
+  }
+
+  private async runInstallDependencies(): Promise<OobeDependencyStatus[]> {
     this.abortController = new AbortController();
     this.workDir = await mkdtemp(join(this.dependencies.tempRoot ?? tmpdir(), 'neo-mofox-oobe-'));
     this.logs = [];

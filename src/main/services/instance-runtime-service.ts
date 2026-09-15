@@ -9,7 +9,8 @@ import type {
 import type { StartCommand } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { PlatformRegistry } from '../platforms/registry';
-import { ProcessHelper } from '../utils/process-helper';
+import { ProcessHelper, type ProcessIdentity } from '../utils/process-helper';
+import { KeyedOperationLock } from '../utils/keyed-operation-lock';
 import { venvPythonOf } from '../utils/platform-helper';
 import type { UpdateInstancePatch } from '../../shared/domain/instance';
 
@@ -32,7 +33,11 @@ export class InstanceRuntimeService {
   private readonly running = new Map<string, Set<InstanceProcessSource>>();
   /** 正在被优雅停止的进程键，用于区分正常退出与人为停止。 */
   private readonly stoppingKeys = new Set<string>();
+  /** 当前进程键对应的单次 spawn 身份，防止旧退出回调收敛新进程。 */
+  private readonly processIdentities = new Map<string, ProcessIdentity>();
   private readonly logBuffers = new Map<string, string>();
+  /** 同一实例的启停、重启、更新与 venv 写操作共享此串行队列。 */
+  private readonly operations = new KeyedOperationLock();
 
   constructor(
     private readonly repository: {
@@ -57,8 +62,11 @@ export class InstanceRuntimeService {
    * @throws {MofoxError} 实例不存在、无可用启动入口或进程启动失败时抛出。
    */
   async start(instanceId: string): Promise<void> {
+    await this.operations.runExclusive(instanceId, () => this.startUnlocked(instanceId));
+  }
+
+  private async startUnlocked(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
-    if (instance.status === 'starting') return;
     const started: InstanceProcessSource[] = [];
     await this.saveStatus(instance, 'starting');
     try {
@@ -83,7 +91,11 @@ export class InstanceRuntimeService {
       await this.saveStatus(await this.find(instanceId), 'running');
     } catch (error) {
       // 部分启动失败时仅回收本次新拉起的进程，保留原先已在运行的来源。
-      for (const source of started) this.helper.killAll(this.key(instanceId, source));
+      for (const source of started) {
+        this.helper.killAll(this.key(instanceId, source));
+        this.processIdentities.delete(this.key(instanceId, source));
+        this.running.get(instanceId)?.delete(source);
+      }
       this.emitLauncherMessage(
         instanceId,
         'mofox',
@@ -105,6 +117,15 @@ export class InstanceRuntimeService {
    * @throws {MofoxError} 实例不存在、无该源可用启动入口或进程启动失败时抛出。
    */
   async startSource(instanceId: string, source: InstanceProcessSource): Promise<void> {
+    await this.operations.runExclusive(instanceId, () =>
+      this.startSourceUnlocked(instanceId, source),
+    );
+  }
+
+  private async startSourceUnlocked(
+    instanceId: string,
+    source: InstanceProcessSource,
+  ): Promise<void> {
     const instance = await this.find(instanceId);
     if (this.helper.has(this.key(instanceId, source))) return;
     const command = await this.resolveCommand(instance, source);
@@ -129,6 +150,8 @@ export class InstanceRuntimeService {
       this.spawn(instanceId, source, command);
     } catch (error) {
       this.helper.killAll(this.key(instanceId, source));
+      this.processIdentities.delete(this.key(instanceId, source));
+      this.running.get(instanceId)?.delete(source);
       this.stoppingKeys.delete(this.key(instanceId, source));
       this.emitLauncherMessage(
         instanceId,
@@ -154,6 +177,10 @@ export class InstanceRuntimeService {
    * @param instanceId - 待停止的实例 ID。
    */
   async stop(instanceId: string): Promise<void> {
+    await this.operations.runExclusive(instanceId, () => this.stopUnlocked(instanceId));
+  }
+
+  private async stopUnlocked(instanceId: string): Promise<void> {
     const instance = await this.find(instanceId);
     const sources = this.running.get(instanceId);
     if (!sources || sources.size === 0) {
@@ -166,6 +193,9 @@ export class InstanceRuntimeService {
       this.stoppingKeys.add(key);
       this.emitLauncherMessage(instanceId, source, 'info', '正在停止进程...');
       await this.helper.stop(key);
+      sources.delete(source);
+      this.stoppingKeys.delete(key);
+      this.processIdentities.delete(key);
       this.emitLauncherMessage(instanceId, source, 'success', '进程已停止');
     }
     if (!this.hasActive(instanceId)) {
@@ -183,6 +213,15 @@ export class InstanceRuntimeService {
    * @param source - 待停止的进程源。
    */
   async stopSource(instanceId: string, source: InstanceProcessSource): Promise<void> {
+    await this.operations.runExclusive(instanceId, () =>
+      this.stopSourceUnlocked(instanceId, source),
+    );
+  }
+
+  private async stopSourceUnlocked(
+    instanceId: string,
+    source: InstanceProcessSource,
+  ): Promise<void> {
     const instance = await this.find(instanceId);
     const key = this.key(instanceId, source);
     if (!this.helper.has(key)) {
@@ -194,6 +233,9 @@ export class InstanceRuntimeService {
     this.stoppingKeys.add(key);
     this.emitLauncherMessage(instanceId, source, 'info', '正在停止进程...');
     await this.helper.stop(key);
+    this.running.get(instanceId)?.delete(source);
+    this.stoppingKeys.delete(key);
+    this.processIdentities.delete(key);
     this.emitLauncherMessage(instanceId, source, 'success', '进程已停止');
     const current = await this.find(instanceId);
     await this.saveStatus(current, this.hasActive(instanceId) ? 'running' : 'stopped');
@@ -205,8 +247,10 @@ export class InstanceRuntimeService {
    * @param instanceId - 待重启的实例 ID。
    */
   async restart(instanceId: string): Promise<void> {
-    await this.stop(instanceId);
-    await this.start(instanceId);
+    await this.operations.runExclusive(instanceId, async () => {
+      await this.stopUnlocked(instanceId);
+      await this.startUnlocked(instanceId);
+    });
   }
 
   /**
@@ -216,8 +260,53 @@ export class InstanceRuntimeService {
    * @param source - 待重启的进程源。
    */
   async restartSource(instanceId: string, source: InstanceProcessSource): Promise<void> {
-    await this.stopSource(instanceId, source);
-    await this.startSource(instanceId, source);
+    await this.operations.runExclusive(instanceId, async () => {
+      await this.stopSourceUnlocked(instanceId, source);
+      await this.startSourceUnlocked(instanceId, source);
+    });
+  }
+
+  /**
+   * 在同一实例操作锁内暂时停止指定进程源，执行文件/环境变更后恢复原先运行的来源。
+   *
+   * 更新服务、venv 服务和删除服务通过这里与普通启停共享状态机，避免“刚停下又被另一个
+   * IPC 启动”或两个写操作同时修改同一工作树。`restore` 为 false 时用于删除实例。
+   */
+  async withStoppedSources<T>(
+    instanceId: string,
+    sources: readonly InstanceProcessSource[],
+    operation: () => Promise<T>,
+    restore = true,
+  ): Promise<T> {
+    return this.operations.runExclusive(instanceId, async () => {
+      await this.find(instanceId);
+      const previouslyRunning = sources.filter((source) =>
+        this.helper.has(this.key(instanceId, source)),
+      );
+      for (const source of previouslyRunning) await this.stopSourceUnlocked(instanceId, source);
+
+      let result: T | undefined;
+      let operationError: unknown;
+      try {
+        result = await operation();
+      } catch (error) {
+        operationError = error;
+      }
+
+      let restoreError: unknown;
+      if (restore) {
+        for (const source of previouslyRunning) {
+          try {
+            await this.startSourceUnlocked(instanceId, source);
+          } catch (error) {
+            restoreError ??= error;
+          }
+        }
+      }
+      if (operationError !== undefined) throw operationError;
+      if (restoreError !== undefined) throw restoreError;
+      return result as T;
+    });
   }
 
   /**
@@ -403,20 +492,41 @@ export class InstanceRuntimeService {
    */
   private spawn(instanceId: string, source: InstanceProcessSource, command: StartCommand): void {
     const key = this.key(instanceId, source);
-    this.helper.spawn(key, {
+    const identity = this.helper.spawn(key, {
       command: command.command,
       args: command.args,
       cwd: command.cwd,
       env: command.env ?? {},
       onData: (data) => this.appendLog(instanceId, source, data),
-      onExit: ({ exitCode }) => {
-        void this.onSourceExit(instanceId, source, exitCode);
+      onExit: ({ exitCode }, exitedIdentity) => {
+        void this.operations
+          .runExclusive(instanceId, () =>
+            this.onSourceExit(instanceId, source, exitCode, exitedIdentity),
+          )
+          .catch((error) =>
+            this.emitLauncherMessage(
+              instanceId,
+              source,
+              'error',
+              `退出状态保存失败: ${String(error)}`,
+            ),
+          );
       },
-      onError: (error) => {
+      onError: (error, failedIdentity) => {
         this.emitLauncherMessage(instanceId, source, 'error', `进程启动失败: ${error.message}`);
-        void this.onSourceExit(instanceId, source, 1);
+        void this.operations
+          .runExclusive(instanceId, () => this.onSourceExit(instanceId, source, 1, failedIdentity))
+          .catch((error) =>
+            this.emitLauncherMessage(
+              instanceId,
+              source,
+              'error',
+              `退出状态保存失败: ${String(error)}`,
+            ),
+          );
       },
     });
+    this.processIdentities.set(key, identity);
     let set = this.running.get(instanceId);
     if (!set) {
       set = new Set();
@@ -436,10 +546,14 @@ export class InstanceRuntimeService {
     instanceId: string,
     source: InstanceProcessSource,
     exitCode: number,
+    identity: ProcessIdentity,
   ): Promise<void> {
+    const key = this.key(instanceId, source);
+    if (this.processIdentities.get(key) !== identity) return;
+    this.processIdentities.delete(key);
     const set = this.running.get(instanceId);
     if (!set || !set.delete(source)) return;
-    const stopping = this.stoppingKeys.delete(this.key(instanceId, source));
+    const stopping = this.stoppingKeys.delete(key);
     if (!stopping) {
       if (exitCode === 0) this.emitLauncherMessage(instanceId, source, 'info', '进程已退出');
       else
@@ -457,7 +571,7 @@ export class InstanceRuntimeService {
   }
 
   private hasActive(instanceId: string): boolean {
-    return (this.running.get(instanceId)?.size ?? 0) > 0;
+    return SOURCES.some((source) => this.helper.has(this.key(instanceId, source)));
   }
 
   private appendLog(instanceId: string, source: InstanceProcessSource, data: string): void {

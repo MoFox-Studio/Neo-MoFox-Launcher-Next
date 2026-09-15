@@ -31,7 +31,8 @@ export function createWallpaperProtocolHandler(service: WallpaperService) {
       }
       const path = await service.resolveMediaPath(fileName);
       const info = await stat(path);
-      const mime = MIME_TYPES[fileName.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';
+      const mime =
+        MIME_TYPES[fileName.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';
       const headers = new Headers({
         'Content-Type': mime,
         'Accept-Ranges': 'bytes',
@@ -42,7 +43,9 @@ export function createWallpaperProtocolHandler(service: WallpaperService) {
       if (!range) {
         headers.set('Content-Length', String(info.size));
         return new Response(
-          request.method === 'HEAD' ? null : (Readable.toWeb(createReadStream(path)) as ReadableStream),
+          request.method === 'HEAD'
+            ? null
+            : (Readable.toWeb(createReadStream(path)) as ReadableStream),
           { status: 200, headers },
         );
       }

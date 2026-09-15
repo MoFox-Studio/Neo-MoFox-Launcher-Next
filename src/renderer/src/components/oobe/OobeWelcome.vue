@@ -11,7 +11,8 @@ const emit = defineEmits<{ (e: 'next'): void }>();
     </div>
     <h1 class="oobe__title">欢迎使用 Neo-MoFox</h1>
     <p class="oobe__intro">
-      Neo-MoFox Launcher 帮助你快速安装、配置与管理机器人实例。 接下来的几步将安装运行所需依赖、检测旧版数据并设置基础偏好，整个过程只需几分钟。
+      Neo-MoFox Launcher 帮助你快速安装、配置与管理机器人实例。
+      接下来的几步将安装运行所需依赖、检测旧版数据并设置基础偏好，整个过程只需几分钟。
     </p>
     <p class="oobe__version">版本 {{ version }}</p>
     <button type="button" class="btn btn--filled btn--large state-layer" @click="emit('next')">

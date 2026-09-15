@@ -4,7 +4,6 @@ on:
   schedule:
     # 每天 UTC 16:00 (北京时间午夜 00:00) 执行
     - cron: '0 16 * * *'
-      timezone: Asia/Shanghai
   workflow_dispatch: # 允许手动触发
 
 permissions:
@@ -51,7 +50,7 @@ jobs:
 
   build-windows:
     name: 构建 Windows
-    needs: check-commits
+    needs: [check-commits, quality]
     if: needs.check-commits.outputs.has_new_commits == 'true'
     runs-on: windows-latest
     strategy:
@@ -82,6 +81,14 @@ jobs:
       - name: 打包 Windows ${{ matrix.arch }}
         run: npx electron-builder --win --${{ matrix.arch }} --publish never --config electron-builder.yml
 
+      - name: 检查 Windows 产物完整性
+        shell: pwsh
+        run: |
+          foreach ($kind in @('setup', 'portable')) {
+            $artifact = "release/Neo-MoFox-Launcher-$env:BUILD_DATE-nightly-win-${{ matrix.arch }}-$kind.exe"
+            if (-not (Test-Path -LiteralPath $artifact)) { throw "缺少产物：$artifact" }
+          }
+
       - name: 上传产物
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -91,7 +98,7 @@ jobs:
 
   build-linux:
     name: 构建 Linux
-    needs: check-commits
+    needs: [check-commits, quality]
     if: needs.check-commits.outputs.has_new_commits == 'true'
     runs-on: ubuntu-latest
     strategy:
@@ -145,7 +152,8 @@ jobs:
               cp "$file" "$target"
               echo "${ext} 产物：$(basename "$target")"
             else
-              echo "警告：未找到 .${ext} 文件！"
+              echo "错误：未找到 .${ext} 文件！"
+              exit 1
             fi
           done
 
@@ -165,7 +173,8 @@ jobs:
     if: |
       always() &&
       needs.check-commits.outputs.has_new_commits == 'true' &&
-      (needs.build-windows.result == 'success' || needs.build-linux.result == 'success')
+      needs.build-windows.result == 'success' &&
+      needs.build-linux.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -273,3 +282,28 @@ jobs:
             --prerelease \
             release-files/*
           echo "✅ 发布完成: nightly-${{ env.BUILD_DATE }}"
+
+  quality:
+    name: 发布前质量检查
+    needs: check-commits
+    if: needs.check-commits.outputs.has_new_commits == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 格式、静态检查、类型与测试
+        run: |
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test

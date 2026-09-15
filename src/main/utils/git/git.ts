@@ -54,7 +54,10 @@ export async function cloneRepository(options: CloneRepositoryOptions): Promise<
         },
       );
       if (result.exitCode === 0) return;
-      lastError = new MofoxError('IO_ERROR', describeGitError(result.stderr?.trim() || `git clone 失败 (exit ${result.exitCode})`));
+      lastError = new MofoxError(
+        'IO_ERROR',
+        describeGitError(result.stderr?.trim() || `git clone 失败 (exit ${result.exitCode})`),
+      );
       onProgress?.(`镜像 ${mirror.name} 克隆失败，尝试下一个镜像`);
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -291,7 +294,10 @@ async function fetchApiBranches(
         ...(signal ? { signal } : {}),
       });
       if (!response.ok)
-        throw new MofoxError('IO_ERROR', `HTTP ${response.status}（${describeNetworkError(response.status)}）`);
+        throw new MofoxError(
+          'IO_ERROR',
+          `HTTP ${response.status}（${describeNetworkError(response.status)}）`,
+        );
       const data = (await response.json()) as Array<{ name?: string }>;
       const branches = data.map((entry) => entry.name ?? '').filter(Boolean);
       if (branches.length > 0) return branches;
@@ -348,7 +354,10 @@ async function runGit(
   if (progressMessage) onProgress?.(progressMessage);
   const result = await execCommand('git', args, { cwd: directory, timeoutMs });
   if (result.exitCode !== 0) {
-    throw new MofoxError('IO_ERROR', describeGitError(result.stderr?.trim() || `git ${args[0]} 失败`));
+    throw new MofoxError(
+      'IO_ERROR',
+      describeGitError(result.stderr?.trim() || `git ${args[0]} 失败`),
+    );
   }
 }
 

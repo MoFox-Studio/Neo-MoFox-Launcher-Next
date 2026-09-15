@@ -1,5 +1,12 @@
-import { join } from 'node:path';
-import type { Instance, UpdateInstancePatch } from '../../shared/domain/instance';
+import { randomUUID } from 'node:crypto';
+import { access, rename, realpath, lstat } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import type {
+  EditableInstancePatch,
+  Instance,
+  UpdateInstancePatch,
+} from '../../shared/domain/instance';
 import type { BotPlatform } from '../../shared/domain/bot-platform';
 import { MofoxError } from '../../shared/domain/error';
 import type { InstanceRuntimeService } from './instance-runtime-service';
@@ -15,7 +22,7 @@ import { requireDirectory, requireFile, requireVenvDir } from '../utils/path-ins
  */
 export class InstanceManageService {
   constructor(
-    private readonly runtime: Pick<InstanceRuntimeService, 'stop' | 'clearLogs'>,
+    private readonly runtime: Pick<InstanceRuntimeService, 'withStoppedSources' | 'clearLogs'>,
     private readonly repository: {
       list(): Promise<Instance[]>;
       remove(instanceId: string): Promise<void>;
@@ -32,12 +39,39 @@ export class InstanceManageService {
    * @param instanceId - 待删除的实例 ID。
    */
   async remove(instanceId: string): Promise<void> {
-    // 先停机，再删除目录和记录，避免运行进程继续持有已删除路径。
-    const instance = await this.find(instanceId);
-    await this.runtime.stop(instanceId);
-    await this.removePath(instance.mofoxInstallDir);
-    await this.repository.remove(instanceId);
-    this.runtime.clearLogs(instanceId);
+    await this.runtime.withStoppedSources(
+      instanceId,
+      ['mofox', 'platform'],
+      async () => {
+        const instance = await this.find(instanceId);
+        const instances = await this.repository.list();
+        const roots = await deletionRoots(instance, instances);
+        const staged: Array<{ original: string; temporary: string }> = [];
+        try {
+          // 先在同一文件系统内改名隔离。仓库写入失败时仍能无损改名回来。
+          for (const original of roots) {
+            if (!(await pathExists(original))) continue;
+            const temporary = join(
+              dirname(original),
+              `.${basename(original)}.neo-mofox-delete-${randomUUID()}`,
+            );
+            await rename(original, temporary);
+            staged.push({ original, temporary });
+          }
+          await this.repository.remove(instanceId);
+        } catch (error) {
+          for (const entry of [...staged].reverse()) {
+            await rename(entry.temporary, entry.original).catch(() => undefined);
+          }
+          throw error;
+        }
+
+        // 记录提交后再物理删除；失败时隔离目录仍保留在原路径旁，不会误删其他实例数据。
+        for (const entry of staged) await this.removePath(entry.temporary);
+        this.runtime.clearLogs(instanceId);
+      },
+      false,
+    );
   }
 
   /**
@@ -60,7 +94,22 @@ export class InstanceManageService {
    * @param patch - 需要更新的字段；省略的字段保持原值。
    * @returns 更新后的实例记录。
    */
-  async update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance> {
+  async update(instanceId: string, patch: EditableInstancePatch): Promise<Instance> {
+    const changesPaths =
+      patch.mofoxInstallDir !== undefined ||
+      patch.venvDir !== undefined ||
+      patch.platform !== undefined;
+    return this.runtime.withStoppedSources(
+      instanceId,
+      changesPaths ? ['mofox', 'platform'] : [],
+      () => this.updateUnlocked(instanceId, patch),
+    );
+  }
+
+  private async updateUnlocked(
+    instanceId: string,
+    patch: EditableInstancePatch,
+  ): Promise<Instance> {
     let validated = patch;
     if (patch.mofoxInstallDir !== undefined && patch.mofoxInstallDir.trim()) {
       const mofoxInstallDir = await requireDirectory(patch.mofoxInstallDir, '主程序路径');
@@ -76,7 +125,10 @@ export class InstanceManageService {
     } else if (patch.venvDir !== undefined) {
       // 显式传入空字符串时视为跟随主程序目录的默认 .venv。
       const current = await this.find(instanceId);
-      validated = { ...validated, venvDir: inferVenvDir('', current.mofoxInstallDir) };
+      validated = {
+        ...validated,
+        venvDir: inferVenvDir('', patch.mofoxInstallDir ?? current.mofoxInstallDir),
+      };
     }
     if (patch.platform && patch.platform.id && patch.platform.installDir) {
       const platformDir = await requireDirectory(patch.platform.installDir, '平台安装目录');
@@ -105,5 +157,89 @@ export class InstanceManageService {
     );
     if (!instance) throw new MofoxError('NOT_FOUND', `未知实例: ${instanceId}`);
     return instance;
+  }
+}
+
+/**
+ * 计算当前实例独占且互不重叠的删除根目录。
+ *
+ * 手动导入的平台目录可能位于 MoFox 目录之外，也可能被其他实例共享；共享目录不会删除，
+ * 子目录已被某个待删父目录覆盖时也不会重复处理。
+ */
+async function deletionRoots(instance: Instance, all: readonly Instance[]): Promise<string[]> {
+  const candidates = [instance.mofoxInstallDir, instance.platform.installDir ?? '']
+    .map((path) => path.trim())
+    .filter(Boolean)
+    .map((path) => resolve(path));
+  for (const candidate of candidates) {
+    if (
+      candidate === dirname(candidate) ||
+      samePath(candidate, homedir()) ||
+      samePath(candidate, process.cwd())
+    ) {
+      throw new MofoxError('INVALID_ARGUMENT', `拒绝删除受保护的目录：${candidate}`);
+    }
+    const info = await lstat(candidate).catch((error: unknown) => {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT')
+        return undefined;
+      throw error;
+    });
+    if (info?.isSymbolicLink())
+      throw new MofoxError('INVALID_ARGUMENT', `请先解除实例的链接目录：${candidate}`);
+  }
+  const canonicalCandidates = await Promise.all(candidates.map(canonicalPath));
+  const otherPaths = await Promise.all(
+    all
+      .filter((candidate) => candidate.id !== instance.id)
+      .flatMap((candidate) => [
+        candidate.mofoxInstallDir,
+        candidate.venvDir,
+        candidate.platform.installDir ?? '',
+      ])
+      .map((path) => path.trim())
+      .filter(Boolean)
+      .map((path) => canonicalPath(resolve(path))),
+  );
+  const exclusive = candidates.filter(
+    (_candidate, index) =>
+      !otherPaths.some(
+        (other) =>
+          isInside(canonicalCandidates[index], other) ||
+          isInside(other, canonicalCandidates[index]),
+      ),
+  );
+  const roots: string[] = [];
+  for (const candidate of [...new Set(exclusive)].sort((a, b) => a.length - b.length)) {
+    if (!roots.some((root) => isInside(root, candidate))) roots.push(candidate);
+  }
+  return roots;
+}
+
+async function canonicalPath(path: string): Promise<string> {
+  return realpath(path).catch(() => resolve(path));
+}
+
+function samePath(left: string, right: string): boolean {
+  return process.platform === 'win32'
+    ? left.localeCompare(right, undefined, { sensitivity: 'accent' }) === 0
+    : left === right;
+}
+
+function isInside(parent: string, candidate: string): boolean {
+  if (samePath(parent, candidate)) return true;
+  const value = relative(parent, candidate);
+  return (
+    value !== '..' &&
+    !value.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) &&
+    !isAbsolute(value)
+  );
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
   }
 }

@@ -14,6 +14,8 @@ import { MofoxError } from '../../shared/domain/error';
 import { execCommand } from '../utils/platform-helper';
 import { venvPythonOf } from '../utils/platform-helper';
 import type { ExecOptions, ExecResult } from '../utils/process-helper';
+import { KeyedOperationLock } from '../utils/keyed-operation-lock';
+import type { InstanceRuntimeService } from './instance-runtime-service';
 
 /** uv 命令在指定 venv 上执行的最小仓库与镜像能力。 */
 export interface VenvDependencies {
@@ -38,12 +40,15 @@ const INSTALL_TIMEOUT_MS = 600_000;
  * 涉及包索引的操作按内置 pip 镜像顺序轮询，首个成功即采用，全部失败才抛出错误。
  */
 export class VenvService {
+  private readonly writes = new KeyedOperationLock();
+
   constructor(
     private readonly dependencies: VenvDependencies,
     private readonly run: VenvCommandRunner = execCommand,
     private readonly events: { progress(event: VenvProgressEvent): void } = {
       progress: () => undefined,
     },
+    private readonly runtime?: Pick<InstanceRuntimeService, 'withStoppedSources'>,
   ) {}
 
   /**
@@ -190,6 +195,14 @@ export class VenvService {
    * @returns 安装结果摘要。
    */
   async install(instanceId: string, name: string, version?: string): Promise<VenvPackageResult> {
+    return this.withVenvWrite(instanceId, () => this.installUnlocked(instanceId, name, version));
+  }
+
+  private async installUnlocked(
+    instanceId: string,
+    name: string,
+    version?: string,
+  ): Promise<VenvPackageResult> {
     const packageName = requirePackageName(name);
     const instance = await this.find(instanceId);
     const python = await this.resolvePython(instance);
@@ -222,6 +235,10 @@ export class VenvService {
    * @returns 卸载结果摘要。
    */
   async uninstall(instanceId: string, name: string): Promise<VenvPackageResult> {
+    return this.withVenvWrite(instanceId, () => this.uninstallUnlocked(instanceId, name));
+  }
+
+  private async uninstallUnlocked(instanceId: string, name: string): Promise<VenvPackageResult> {
     const packageName = requirePackageName(name);
     const instance = await this.find(instanceId);
     const python = await this.resolvePython(instance);
@@ -245,6 +262,10 @@ export class VenvService {
    * @returns 升级结果摘要。
    */
   async upgrade(instanceId: string, name?: string): Promise<VenvPackageResult> {
+    return this.withVenvWrite(instanceId, () => this.upgradeUnlocked(instanceId, name));
+  }
+
+  private async upgradeUnlocked(instanceId: string, name?: string): Promise<VenvPackageResult> {
     const instance = await this.find(instanceId);
     const python = await this.resolvePython(instance);
     const target = name?.trim();
@@ -280,6 +301,13 @@ export class VenvService {
   }
 
   // ─── 内部实现 ─────────────────────────────────────────────────────
+
+  private withVenvWrite<T>(instanceId: string, operation: () => Promise<T>): Promise<T> {
+    if (this.runtime) {
+      return this.runtime.withStoppedSources(instanceId, ['mofox'], operation);
+    }
+    return this.writes.runExclusive(instanceId, operation);
+  }
 
   private async find(instanceId: string): Promise<Instance> {
     if (!instanceId.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Instance ID is required');
@@ -537,10 +565,14 @@ function parsePackageInfo(data: unknown, normalizedName: string): VenvPackageInf
     throw new MofoxError('IO_ERROR', `镜像未返回 ${normalizedName} 的包信息`);
   }
   const info = data.info;
+  if (typeof info.description === 'string' && info.description.length > 2 * 1024 ** 2) {
+    throw new MofoxError('IO_ERROR', '包介绍超过 2 MiB，拒绝渲染');
+  }
   const projectUrls = isRecord(info.project_urls)
     ? (Object.fromEntries(
         Object.entries(info.project_urls).filter(
-          (entry): entry is [string, string] => typeof entry[1] === 'string',
+          (entry): entry is [string, string] =>
+            typeof entry[1] === 'string' && isSafePackageUrl(entry[1]),
         ),
       ) as Record<string, string>)
     : {};
@@ -551,10 +583,20 @@ function parsePackageInfo(data: unknown, normalizedName: string): VenvPackageInf
     description: typeof info.description === 'string' ? info.description : '',
     author: typeof info.author === 'string' ? info.author : '',
     requiresPython: typeof info.requires_python === 'string' ? info.requires_python : '',
-    homePage: typeof info.home_page === 'string' ? info.home_page : '',
+    homePage:
+      typeof info.home_page === 'string' && isSafePackageUrl(info.home_page) ? info.home_page : '',
     projectUrls,
     pypiUrl: `https://pypi.org/project/${normalizedName}/`,
   };
+}
+
+function isSafePackageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password;
+  } catch {
+    return false;
+  }
 }
 
 /** 从 simple index 的 HTML/JSON 文件名中提取并去重版本号。 */

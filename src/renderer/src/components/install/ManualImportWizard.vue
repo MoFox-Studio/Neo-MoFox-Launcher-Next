@@ -388,7 +388,11 @@ onMounted(async () => {
                 />
                 <span class="field__label">Neo-MoFox 安装目录</span>
               </label>
-              <button type="button" class="btn btn--tonal state-layer" @click="chooseMofoxDirectory">
+              <button
+                type="button"
+                class="btn btn--tonal state-layer"
+                @click="chooseMofoxDirectory"
+              >
                 <span class="msr" aria-hidden="true">folder_open</span>浏览
               </button>
             </div>
@@ -396,7 +400,9 @@ onMounted(async () => {
               {{ mofoxDirError }}
             </p>
             <p v-else class="field__support">
-              {{ checkingMofoxDir ? '正在校验目录…' : '目录内需要包含 Neo-MoFox 的 main.py 文件。' }}
+              {{
+                checkingMofoxDir ? '正在校验目录…' : '目录内需要包含 Neo-MoFox 的 main.py 文件。'
+              }}
             </p>
           </div>
 
@@ -438,7 +444,9 @@ onMounted(async () => {
           </span>
           <span class="platform-toggle__text">
             <strong>导入已安装的平台</strong>
-            <small>{{ includePlatform ? '选择平台类型和它的安装目录' : '关闭时仅登记 Neo-MoFox 主程序' }}</small>
+            <small>{{
+              includePlatform ? '选择平台类型和它的安装目录' : '关闭时仅登记 Neo-MoFox 主程序'
+            }}</small>
           </span>
           <span class="platform-toggle__state">{{ includePlatform ? '已开启' : '跳过' }}</span>
         </label>
@@ -467,11 +475,16 @@ onMounted(async () => {
                   </md-select-option>
                   <!-- eslint-enable vue/no-deprecated-slot-attribute -->
                 </md-outlined-select>
-                <p v-if="currentPlatform" class="platform-hint">{{ currentPlatform.description }}</p>
+                <p v-if="currentPlatform" class="platform-hint">
+                  {{ currentPlatform.description }}
+                </p>
 
                 <div class="form-group">
                   <div class="path-field">
-                    <label class="field field--grow" :class="{ 'field--error': showPlatformDirError }">
+                    <label
+                      class="field field--grow"
+                      :class="{ 'field--error': showPlatformDirError }"
+                    >
                       <input
                         v-model="platformDir"
                         class="field__input"
@@ -479,7 +492,9 @@ onMounted(async () => {
                         placeholder=" "
                         @focus="onPlatformDirFocus"
                       />
-                      <span class="field__label">{{ currentPlatform?.name ?? '平台' }}安装目录</span>
+                      <span class="field__label"
+                        >{{ currentPlatform?.name ?? '平台' }}安装目录</span
+                      >
                     </label>
                     <button
                       type="button"

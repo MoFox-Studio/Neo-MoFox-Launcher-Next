@@ -1,4 +1,13 @@
-import { appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  appendFile,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzip } from 'node:zlib';
 import { promisify } from 'node:util';
@@ -42,7 +51,12 @@ export function createLogger(options: LoggerOptions): Logger {
 
   return {
     async log(scope, level, message) {
-      const entry: LogEntry = { timestamp: Date.now(), level, scope: sanitizeScope(scope), message };
+      const entry: LogEntry = {
+        timestamp: Date.now(),
+        level,
+        scope: sanitizeScope(scope),
+        message,
+      };
       const operation = writeQueue.then(async () => {
         await mkdir(options.directory, { recursive: true });
         const path = logPath(options.directory, scope);

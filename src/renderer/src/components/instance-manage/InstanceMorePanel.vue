@@ -578,7 +578,15 @@ watch(
   <!-- 删除必须二次确认；删除前会先停止进程并清理目录与记录 -->
   <BaseDialog :open="pendingRemove" title="删除实例" :width="320" @close="cancelRemove">
     <p class="remove-dialog__body">
-      确定要删除实例「{{ instance.name }}」吗？此操作会删除其文件夹且无法撤销。
+      确定要删除实例「{{
+        instance.name
+      }}」吗？将停止进程并删除以下独占目录，无法撤销。与其他实例共用或重叠的目录会保留。
+    </p>
+    <p v-if="instance.mofoxInstallDir" class="remove-dialog__body">
+      主程序：{{ instance.mofoxInstallDir }}
+    </p>
+    <p v-if="instance.platform.installDir" class="remove-dialog__body">
+      平台：{{ instance.platform.installDir }}
     </p>
     <template #actions>
       <button class="btn btn--text state-layer" type="button" @click="cancelRemove">取消</button>

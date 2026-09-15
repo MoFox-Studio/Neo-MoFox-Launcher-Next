@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { marked } from 'marked';
 import { mofoxApi } from '@/services/mofox-api';
+import { normalizeHttpsUrl, renderRemoteMarkdown } from '@/utils/remote-markdown';
 import type { LicenseFetchResult } from '@shared/domain/install';
 
 // 许可协议步骤：经主进程镜像轮询拉取 Neo-MoFox 内部的两份协议
 // （eula.md 与 PRIVACY.md），以 Markdown 渲染并切换展示；勾选同意后向导才能继续。
-marked.setOptions({ gfm: true, breaks: true });
-
 const agreed = defineModel<boolean>('agreed', { default: false });
 
 const loading = ref(false);
@@ -15,10 +13,20 @@ const error = ref('');
 const licenses = ref<LicenseFetchResult | null>(null);
 const activeTab = ref<'eula' | 'privacy'>('eula');
 
-const eulaHtml = computed(() => (licenses.value ? marked.parse(licenses.value.eula.content) : ''));
-const privacyHtml = computed(() =>
-  licenses.value ? marked.parse(licenses.value.privacy.content) : '',
+const eulaHtml = computed(() =>
+  licenses.value ? renderRemoteMarkdown(licenses.value.eula.content) : '',
 );
+const privacyHtml = computed(() =>
+  licenses.value ? renderRemoteMarkdown(licenses.value.privacy.content) : '',
+);
+
+function openLicenseLink(event: MouseEvent): void {
+  const element = event.target instanceof window.Element ? event.target.closest('a') : null;
+  if (!(element instanceof window.HTMLAnchorElement)) return;
+  event.preventDefault();
+  const url = normalizeHttpsUrl(element.href);
+  if (url) void mofoxApi.openExternal(url);
+}
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -83,12 +91,13 @@ onMounted(load);
       </div>
 
       <div class="license-content-wrapper">
-        <!-- 内容来自 MoFox 官方仓库的 eula.md / PRIVACY.md，属受信来源。 -->
+        <!-- 远程正文已禁用原始 HTML、过滤标签，并把链接限制为 HTTPS。 -->
         <!-- eslint-disable vue/no-v-html -->
         <div
           class="license-content"
           :class="{ 'license-content--eula': activeTab === 'eula' }"
           v-html="activeTab === 'eula' ? eulaHtml : privacyHtml"
+          @click="openLicenseLink"
         ></div>
         <!-- eslint-enable vue/no-v-html -->
       </div>

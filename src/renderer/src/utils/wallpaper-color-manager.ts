@@ -9,9 +9,7 @@ const WALLPAPER_COLORS_KEY = 'mofox_wallpaper_colors';
 
 /** 将 RGB 分量转换为小写六位十六进制颜色。 */
 function rgbToHex(r: number, g: number, b: number): string {
-  return `#${[r, g, b]
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('')}`;
+  return `#${[r, g, b].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
 }
 
 /** 按 WebUI 的 Rec. 601 权重计算 0..1 的近似亮度。 */
@@ -162,7 +160,9 @@ export function loadWallpaperColors(): string[] | null {
     const stored = localStorage.getItem(WALLPAPER_COLORS_KEY);
     if (!stored) return null;
     const colors = JSON.parse(stored);
-    return Array.isArray(colors) && colors.every((color) => typeof color === 'string') ? colors : null;
+    return Array.isArray(colors) && colors.every((color) => typeof color === 'string')
+      ? colors
+      : null;
   } catch {
     return null;
   }

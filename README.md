@@ -6,7 +6,7 @@
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-0.1.0-FF8A65?style=flat-square">
-  <img alt="electron" src="https://img.shields.io/badge/Electron-35-4DD0E1?style=flat-square">
+  <img alt="electron" src="https://img.shields.io/badge/Electron-43-4DD0E1?style=flat-square">
   <img alt="vue" src="https://img.shields.io/badge/Vue-3-4DD0E1?style=flat-square">
   <img alt="typescript" src="https://img.shields.io/badge/TypeScript-5.7-4DD0E1?style=flat-square">
   <img alt="status" src="https://img.shields.io/badge/status-early%20dev-8B90A0?style=flat-square">
@@ -26,7 +26,7 @@
 - **卡片式实例列表** —— 状态（运行中 / 已停止 / 启动中 / 停止中 / 错误）一目了然，启停 / 重启 / 删除 / 打开安装目录 / 开机自启一键完成
 - **双进程独立控制** —— 每个实例最多运行 MoFox 本体与平台适配器两个子进程，分别启停、分别看日志
 - **实时终端** —— 基于 `node-pty` + `xterm.js`，双进程双终端独立标签页，不是文本回显而是真 PTY
-- **六阶段安装流水线** —— 从 GitHub Release 拉取、镜像轮询、SHA-256 校验、断点续传到入口探测，全自动
+- **分阶段安装流水线** —— 从 GitHub Release 拉取、镜像轮询、SHA-256 校验、分块下载到入口探测，全自动
 
 <p align="center">
   <img src="./assets/readme/pipeline.svg" width="100%" alt="六阶段安装流水线：准备、下载、解压、依赖、配置、完成，每阶段实时上报进度事件，失败可重试">
@@ -37,7 +37,7 @@
 ### 环境要求
 
 - **操作系统**：Windows 10/11（64 位）或主流 Linux 发行版；macOS 已列入打包配置，平台适配暂未覆盖
-- **运行时**：Node.js 18+（推荐 LTS）与 npm
+- **运行时**：Node.js 22+（推荐 LTS）与 npm
 
 ### 安装与开发
 
@@ -66,16 +66,16 @@ npm run dev
 
 ### 安装向导
 
-- 五步引导界面：选择平台 → 实例信息 → 安装位置 → 确认摘要 → 执行安装
-- 后台六阶段流水线：`准备 → 下载 → 解压 → 依赖 → 配置 → 完成`，实时进度事件
-- 失败可重试，取消时自动清理临时文件；关闭窗口前先取消进行中的安装任务
+- 引导界面：协议 → 配置 → 确认 → 安装。
+- 后台按 MoFox、平台、WebUI、配置与登记组织阶段，具体阶段取决于安装选项，实时上报进度。
+- 失败可重试；任务清单持久化到应用数据目录的 `install-tasks`，重启后恢复未完成阶段（不是字节级断点续传）。取消会清理本次安装目录，已成功登记的实例不会因取消竞争而删除。
 
 ### 平台适配层
 
 - 插件化平台注册表，当前内置：
   - **NapCat**（基于 NapCatQQ 的 OneBot 11 接入，Windows x64）
   - **SnowLuma**（跨平台轻量适配器，Windows x64 / Linux x64、arm64）
-- 从 GitHub Release 安装，支持镜像顺序轮询、SHA-256 校验、断点续传与解压结构校验
+- 从 GitHub Release 安装，支持镜像顺序轮询、强制 SHA-256 校验、分块下载与安全解压；缺少有效摘要的发布资产会被拒绝，不会跳过校验。
 - 智能探测实例启动入口，兼容不同版本的解压目录布局
 
 ### 开箱引导与环境检测
@@ -127,38 +127,38 @@ flowchart LR
 
 ## 技术栈
 
-| 层级 | 选型 |
-| --- | --- |
-| 桌面运行时 | Electron 35 |
-| 主进程 / 预加载 | Node.js + TypeScript |
-| 渲染层 | Vue 3（Composition API + SFC）+ Vue Router + Pinia |
-| 构建工具 | Vite 6（renderer / main / preload 三入口独立构建） |
-| UI | Material Design 3（`@material/web`、`@material/material-color-utilities`、`material-symbols`） |
-| 终端 | `node-pty` + `@xterm/xterm`（fit / search / web-links 插件） |
-| 测试 | Vitest + Vue Test Utils |
-| 代码质量 | TypeScript、ESLint、Prettier |
-| 打包 | electron-builder |
+| 层级            | 选型                                                                                           |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| 桌面运行时      | Electron 43                                                                                    |
+| 主进程 / 预加载 | Node.js + TypeScript                                                                           |
+| 渲染层          | Vue 3（Composition API + SFC）+ Vue Router + Pinia                                             |
+| 构建工具        | Vite 6（renderer / main / preload 三入口独立构建）                                             |
+| UI              | Material Design 3（`@material/web`、`@material/material-color-utilities`、`material-symbols`） |
+| 终端            | `node-pty` + `@xterm/xterm`（fit / search / web-links 插件）                                   |
+| 测试            | Vitest + jsdom                                                                                 |
+| 代码质量        | TypeScript、ESLint、Prettier                                                                   |
+| 打包            | electron-builder                                                                               |
 
 ## 常用脚本
 
-| 命令 | 说明 |
-| --- | --- |
-| `npm run dev` | 开发模式（renderer + main + preload + Electron 并行） |
-| `npm run dev:demo` | 浏览器演示模式（Mock API） |
-| `npm run build` | 类型检查 + 三端生产构建（输出到 `dist/`） |
-| `npm run typecheck` | 三端 TypeScript 类型检查 |
-| `npm test` | 运行 Vitest 单元测试 |
-| `npm run lint` | ESLint 静态检查 |
-| `npm run format:check` | Prettier 格式检查 |
-| `npm run pack:dir` | 构建 + 重建原生模块 + electron-builder 打包目录产物（`release/`） |
+| 命令                   | 说明                                                              |
+| ---------------------- | ----------------------------------------------------------------- |
+| `npm run dev`          | 开发模式（renderer + main + preload + Electron 并行）             |
+| `npm run dev:demo`     | 浏览器演示模式（Mock API）                                        |
+| `npm run build`        | 类型检查 + 三端生产构建（输出到 `dist/`）                         |
+| `npm run typecheck`    | 三端 TypeScript 类型检查                                          |
+| `npm test`             | 运行 Vitest 单元测试                                              |
+| `npm run lint`         | ESLint 静态检查                                                   |
+| `npm run format:check` | Prettier 格式检查                                                 |
+| `npm run pack:dir`     | 构建 + 重建原生模块 + electron-builder 打包目录产物（`release/`） |
 
 ## 环境变量
 
-| 变量 | 说明 |
-| --- | --- |
-| `VITE_DEV_SERVER_URL` | 开发模式下 Electron 加载的渲染地址（`npm run dev` 自动设置为 `http://localhost:5199`） |
-| `VITE_MOFOX_DEMO` | 设为 `true` 时启用浏览器演示 API（`src/renderer/src/services/mock-api.ts`） |
-| `NEO_MOFOX_LEGACY_DATA` | 覆盖旧启动器数据目录；默认探测 `<appData>/Neo-MoFox-Launcher` |
+| 变量                    | 说明                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| `VITE_DEV_SERVER_URL`   | 开发模式下 Electron 加载的渲染地址（`npm run dev` 自动设置为 `http://localhost:5199`） |
+| `VITE_MOFOX_DEMO`       | 设为 `true` 时启用浏览器演示 API（`src/renderer/src/services/mock-api.ts`）            |
+| `NEO_MOFOX_LEGACY_DATA` | 覆盖旧启动器数据目录；默认探测 `<appData>/Neo-MoFox-Launcher`                          |
 
 ## 项目结构
 
@@ -210,26 +210,31 @@ npm run pack:dir
 
 构建产物输出到 `release/`。打包配置（`electron-builder.yml`）：
 
-| 目标平台 | 目标格式 |
-| --- | --- |
-| Windows | `nsis` 安装包 / `portable` 便携版 |
-| Linux | AppImage |
-| macOS | dmg |
+| 目标平台 | 目标格式                          |
+| -------- | --------------------------------- |
+| Windows  | `nsis` 安装包 / `portable` 便携版 |
+| Linux    | AppImage / deb / rpm              |
+| macOS    | dmg                               |
 
 注意：
 
 - `node-pty` 为原生模块，打包前需执行 `npm run rebuild:native`（`pack:dir` 已包含该步骤）。
-- Windows 图标资源引用 `assets/icon.ico`。
+- Windows 图标资源引用 `assets/images/icon.ico`。
+- 夜间 CI 构建 Windows x64/ia32/arm64 与 Linux x64/arm64；只有质量检查和所有构建任务成功才发布。打包目标不代表每个平台适配器都支持该架构，macOS 暂无 CI 打包验证。
+
+### 数据损坏与恢复
+
+实例仓库与设置文件写入前保留 `.bak`。读取损坏文件时保留 `.corrupt.*` 副本并尝试从备份恢复；无法恢复时拒绝继续写入，避免用空列表覆盖原数据。请先备份应用数据目录，再检查损坏副本及备份。高于当前支持版本的实例仓库不会被旧版启动器覆盖。
 
 ## 与旧版的关系
 
-| | 旧版（Neo-MoFox-Launcher） | 本工程（Next） |
-| --- | --- | --- |
-| 语言 | JavaScript（CommonJS） | TypeScript |
-| 渲染层 | 原生 HTML/CSS/JS + 手写 DOM | Vue 3 + Vue Router + Pinia |
-| 构建 | — | Vite（renderer / main / preload） |
-| IPC | 无类型 `window.mofoxAPI` | 共享类型契约 `shared/ipc.ts` |
-| 数据 | 旧 `instances.json` 格式 | 版本化仓库（`INSTANCES_VERSION`），内置旧版迁移入口 |
+|        | 旧版（Neo-MoFox-Launcher）  | 本工程（Next）                                      |
+| ------ | --------------------------- | --------------------------------------------------- |
+| 语言   | JavaScript（CommonJS）      | TypeScript                                          |
+| 渲染层 | 原生 HTML/CSS/JS + 手写 DOM | Vue 3 + Vue Router + Pinia                          |
+| 构建   | —                           | Vite（renderer / main / preload）                   |
+| IPC    | 无类型 `window.mofoxAPI`    | 共享类型契约 `shared/ipc.ts`                        |
+| 数据   | 旧 `instances.json` 格式    | 版本化仓库（`INSTANCES_VERSION`），内置旧版迁移入口 |
 
 新工程不引用旧代码作为兼容层，但保留业务语义与数据兼容性；首次运行时可在设置/引导流程中从旧启动器数据目录一键迁移实例。
 
@@ -238,7 +243,7 @@ npm run pack:dir
 - 处于早期开发阶段（`0.1.0`），部分界面与流程仍在完善中。
 - NapCat 平台仅支持 Windows x64。
 - SnowLuma 平台支持 Windows x64 与 Linux x64/arm64，macOS 暂未覆盖。
-- 尚未提供 CI 工作流、CHANGELOG 与贡献指南。
+- 尚未提供 CHANGELOG 与贡献指南；提交与拉取请求会运行格式、Lint、类型、单测和生产构建检查。
 
 ## 相关项目
 

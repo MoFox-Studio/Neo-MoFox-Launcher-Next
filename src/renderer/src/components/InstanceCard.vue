@@ -66,7 +66,8 @@ function onPrimaryAction(): void {
             class="msr instance-card__favorite msr--fill"
             title="已收藏"
             aria-label="已收藏"
-          >favorite</span>
+            >favorite</span
+          >
         </div>
         <span class="instance-card__platform">
           {{ platformName }}<template v-if="platformVersion"> · v{{ platformVersion }}</template>

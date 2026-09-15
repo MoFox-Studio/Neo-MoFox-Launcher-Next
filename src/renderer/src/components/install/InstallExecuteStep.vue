@@ -12,7 +12,12 @@ const emit = defineEmits<{
 }>();
 
 const STEPS: { id: InstallStepId; label: string; description: string; icon: string }[] = [
-  { id: 'install-mofox', label: 'Neo-MoFox', description: '获取主程序与 Python 依赖', icon: 'smart_toy' },
+  {
+    id: 'install-mofox',
+    label: 'Neo-MoFox',
+    description: '获取主程序与 Python 依赖',
+    icon: 'smart_toy',
+  },
   { id: 'install-platform', label: '机器人平台', description: '安装并连接所选适配器', icon: 'hub' },
   { id: 'install-webui', label: 'WebUI', description: '准备可视化管理组件', icon: 'dashboard' },
   { id: 'configure', label: '写入配置', description: '应用账号、模型与网络设置', icon: 'tune' },
@@ -131,7 +136,9 @@ async function retry(): Promise<void> {
       </ul>
 
       <div class="result-state__actions">
-        <button type="button" class="btn btn--text state-layer" @click="emit('cancel')">取消任务</button>
+        <button type="button" class="btn btn--text state-layer" @click="emit('cancel')">
+          取消任务
+        </button>
         <button
           type="button"
           class="btn btn--filled state-layer"
@@ -210,7 +217,11 @@ async function retry(): Promise<void> {
         <button type="button" class="log-disclosure state-layer" @click="logOpen = !logOpen">
           <span class="msr" aria-hidden="true">terminal</span>
           {{ logOpen ? '收起安装日志' : `安装日志 · ${installStore.logLines.length}` }}
-          <span class="msr log-disclosure__arrow" :class="{ 'is-open': logOpen }" aria-hidden="true">
+          <span
+            class="msr log-disclosure__arrow"
+            :class="{ 'is-open': logOpen }"
+            aria-hidden="true"
+          >
             expand_more
           </span>
         </button>

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   DEFAULT_WALLPAPER_BLUR,
@@ -44,7 +44,9 @@ export class SettingsService {
   private readonly settingsPath: string;
   private readonly legacyPath: string;
   private settings?: LauncherSettings;
+  private loading?: Promise<LauncherSettings>;
   private updateQueue: Promise<void> = Promise.resolve();
+  private writeBlockedReason?: Error;
 
   /**
    * @param dataDirectory - 启动器数据目录的绝对路径。
@@ -64,7 +66,7 @@ export class SettingsService {
    * @returns 设置对象的浅拷贝。
    */
   async get(): Promise<LauncherSettings> {
-    if (!this.settings) this.settings = await this.load();
+    if (!this.settings) this.settings = await (this.loading ??= this.load());
     return { ...this.settings };
   }
 
@@ -82,6 +84,12 @@ export class SettingsService {
     // 串行化读改写，避免并发 IPC 更新基于同一旧快照而相互覆盖。
     const operation = this.updateQueue.then(async () => {
       const current = await this.get();
+      if (this.writeBlockedReason) {
+        throw new MofoxError(
+          'UNAVAILABLE',
+          `设置文件处于只读保护状态：${this.writeBlockedReason.message}`,
+        );
+      }
       result = { ...current, ...validatedPatch };
       await writeJsonAtomic(this.settingsPath, result);
       this.settings = result;
@@ -114,13 +122,32 @@ export class SettingsService {
   private async read(path: string): Promise<{ found: boolean; value?: LauncherSettings }> {
     try {
       const source = JSON.parse(await readFile(path, 'utf8')) as unknown;
+      if (!isRecord(source)) throw new MofoxError('INVALID_ARGUMENT', '设置文件顶层结构无效');
       return { found: true, value: normalizeSettings(source) };
     } catch (error) {
       if (isFileNotFound(error)) return { found: false };
       const parsedError = error instanceof Error ? error : new Error(String(error));
       // 损坏或不可读配置降级为默认值，并将诊断交给应用日志而非中断启动。
       this.report(`Unable to read settings file ${path}`, parsedError);
+      await copyFile(path, `${path}.corrupt.${Date.now()}`).catch(() => undefined);
+      const recovered = await this.readBackup(path);
+      if (recovered) return { found: true, value: recovered };
+      this.writeBlockedReason = parsedError;
       return { found: true };
+    }
+  }
+
+  private async readBackup(path: string): Promise<LauncherSettings | undefined> {
+    const backupPath = `${path}.bak`;
+    try {
+      const source = JSON.parse(await readFile(backupPath, 'utf8')) as unknown;
+      if (!isRecord(source)) return undefined;
+      const recovered = normalizeSettings(source);
+      await copyFile(backupPath, path);
+      this.report('Recovered settings from backup', new Error(backupPath));
+      return recovered;
+    } catch {
+      return undefined;
     }
   }
 }

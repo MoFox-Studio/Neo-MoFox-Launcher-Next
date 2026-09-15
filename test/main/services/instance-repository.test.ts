@@ -21,6 +21,18 @@ afterEach(async () => {
 });
 
 describe('InstanceRepository', () => {
+  it('recovers a last-good backup without losing existing instances', async () => {
+    const directory = await createTempDirectory();
+    const first = new InstanceRepository(directory, vi.fn());
+    await first.create({ id: 'one', name: 'Original', mofoxInstallDir: '/bots/one' });
+    await first.update('one', { name: 'Updated' });
+    await writeFile(join(directory, 'instances.json'), '{broken');
+    const recovered = new InstanceRepository(directory, vi.fn());
+    expect(await recovered.list()).toEqual([
+      expect.objectContaining({ id: 'one', name: 'Original' }),
+    ]);
+    await recovered.update('one', { name: 'Recovered' });
+  });
   it('returns an empty list when the repository does not exist', async () => {
     const repository = new InstanceRepository(await createTempDirectory());
 
@@ -80,6 +92,10 @@ describe('InstanceRepository', () => {
     const repository = new InstanceRepository(directory, vi.fn());
 
     await expect(repository.list()).resolves.toEqual([]);
+    await expect(readFile(path, 'utf8')).resolves.toBe('not json');
+    await expect(
+      repository.create({ id: 'new', name: 'New', mofoxInstallDir: '/bots/new' }),
+    ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
     await expect(readFile(path, 'utf8')).resolves.toBe('not json');
   });
 
@@ -216,7 +232,7 @@ describe('InstanceRepository', () => {
     });
   });
 
-  it('uses the default instance structure for an unhandled repository version', async () => {
+  it('rejects a repository from a future schema version without rewriting it', async () => {
     const directory = await createTempDirectory();
     const instancesPath = join(directory, 'instances.json');
     await writeFile(
@@ -228,20 +244,9 @@ describe('InstanceRepository', () => {
     );
     const repository = new InstanceRepository(directory, vi.fn());
 
-    await repository.list();
-
-    expect(JSON.parse(await readFile(instancesPath, 'utf8'))).toEqual({
-      version: INSTANCES_VERSION,
-      instances: [
-        {
-          ...DEFAULT_INSTANCE,
-          id: 'bot-1',
-          name: 'Bot 1',
-          mofoxInstallDir: '/bots/1',
-          venvDir: '/bots/1/.venv',
-          createdAt: 123,
-        },
-      ],
+    await expect(repository.list()).rejects.toThrow('来自更新版本');
+    expect(JSON.parse(await readFile(instancesPath, 'utf8'))).toMatchObject({
+      version: INSTANCES_VERSION + 1,
     });
   });
 

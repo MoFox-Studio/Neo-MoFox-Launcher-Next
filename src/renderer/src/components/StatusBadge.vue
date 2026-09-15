@@ -25,10 +25,7 @@ const isTransitioning = computed(() => props.status === 'starting' || props.stat
 <template>
   <span
     class="status-badge"
-    :class="[
-      `status-badge--${status}`,
-      { 'status-badge--pulsing': isTransitioning },
-    ]"
+    :class="[`status-badge--${status}`, { 'status-badge--pulsing': isTransitioning }]"
   >
     <!-- 状态色圆点与可读标签 -->
     <span class="status-badge__dot"></span>

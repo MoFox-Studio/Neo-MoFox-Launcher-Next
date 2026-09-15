@@ -29,7 +29,8 @@ const problemCount = computed(
   () => favoriteInstances.value.filter((instance) => instance.status === 'error').length,
 );
 const platformCount = computed(
-  () => new Set(favoriteInstances.value.map((instance) => instance.platform?.id).filter(Boolean)).size,
+  () =>
+    new Set(favoriteInstances.value.map((instance) => instance.platform?.id).filter(Boolean)).size,
 );
 const hasAnyInstances = computed(() => instancesStore.instances.length > 0);
 
@@ -51,7 +52,8 @@ const heroTitle = computed(() => {
 });
 const heroDescription = computed(() => {
   if (problemCount.value > 0) return '打开实例管理或日志，查看具体错误与恢复选项。';
-  if (runningCount.value > 0) return `共 ${totalCount.value} 个收藏实例，运行状态会在这里实时同步。`;
+  if (runningCount.value > 0)
+    return `共 ${totalCount.value} 个收藏实例，运行状态会在这里实时同步。`;
   if (totalCount.value > 0) return '需要时可直接从下方卡片启动，常用实例会一直留在概览。';
   return hasAnyInstances.value
     ? '在实例管理中收藏常用实例，它们就会出现在这里。'

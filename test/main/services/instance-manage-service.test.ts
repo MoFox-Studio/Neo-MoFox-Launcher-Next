@@ -15,7 +15,13 @@ async function createTemporaryDirectory(): Promise<string> {
 }
 
 function createRuntime() {
-  return { stop: vi.fn(async () => undefined), clearLogs: vi.fn() };
+  return {
+    withStoppedSources: vi.fn(
+      async <T>(_instanceId: string, _sources: readonly string[], operation: () => Promise<T>) =>
+        operation(),
+    ),
+    clearLogs: vi.fn(),
+  };
 }
 
 /** 构造带 main.py 的 MoFox 目录。 */
@@ -87,8 +93,64 @@ afterEach(async () => {
 });
 
 describe('InstanceManageService', () => {
-  it('stops, removes the directory and record, then clears logs', async () => {
+  it('restores both directories if removing the repository record fails', async () => {
+    const root = await createTemporaryDirectory();
     const instance = createInstance();
+    instance.mofoxInstallDir = await createMofoxDirectory(root);
+    instance.platform.installDir = await createPlatformDirectory(root, 'platform');
+    const repository = createRepository(instance);
+    repository.remove.mockRejectedValueOnce(new Error('disk full'));
+    const removePath = vi.fn();
+    const service = new InstanceManageService(
+      createRuntime(),
+      repository,
+      createPlatformResolver(),
+      removePath,
+      vi.fn(),
+    );
+    await expect(service.remove(instance.id)).rejects.toThrow('disk full');
+    await expect(access(join(instance.mofoxInstallDir, 'main.py'))).resolves.toBeUndefined();
+    await expect(access(join(instance.platform.installDir, 'index.mjs'))).resolves.toBeUndefined();
+    expect(removePath).not.toHaveBeenCalled();
+  });
+
+  it('preserves parent directories containing another instance', async () => {
+    const root = await createTemporaryDirectory();
+    const parent = await createMofoxDirectory(root);
+    const child = await createMofoxDirectory(parent, 'child');
+    const instance = {
+      ...createInstance(),
+      mofoxInstallDir: parent,
+      platform: { id: null, installDir: null, version: null },
+    };
+    const repository = createRepository(instance);
+    repository.list.mockResolvedValue([
+      instance,
+      { ...instance, id: 'two', mofoxInstallDir: child },
+    ]);
+    const removePath = vi.fn();
+    const service = new InstanceManageService(
+      createRuntime(),
+      repository,
+      createPlatformResolver(),
+      removePath,
+      vi.fn(),
+    );
+    await service.remove(instance.id);
+    await expect(access(join(child, 'main.py'))).resolves.toBeUndefined();
+    expect(removePath).not.toHaveBeenCalled();
+    expect(repository.remove).toHaveBeenCalledWith(instance.id);
+  });
+  it('stops, removes the directory and record, then clears logs', async () => {
+    const root = await createTemporaryDirectory();
+    const mofoxInstallDir = await createMofoxDirectory(root);
+    const platformInstallDir = await createPlatformDirectory(root, 'platform');
+    const instance = {
+      ...createInstance(),
+      mofoxInstallDir,
+      venvDir: join(mofoxInstallDir, '.venv'),
+      platform: { id: 'test', installDir: platformInstallDir, version: '1' },
+    };
     const repository = createRepository(instance);
     const runtime = createRuntime();
     const removePath = vi.fn(async () => undefined);
@@ -102,8 +164,19 @@ describe('InstanceManageService', () => {
 
     await service.remove('one');
 
-    expect(runtime.stop).toHaveBeenCalledWith('one');
-    expect(removePath).toHaveBeenCalledWith(instance.mofoxInstallDir);
+    expect(runtime.withStoppedSources).toHaveBeenCalledWith(
+      'one',
+      ['mofox', 'platform'],
+      expect.any(Function),
+      false,
+    );
+    expect(removePath).toHaveBeenCalledTimes(2);
+    expect(removePath.mock.calls.map(([path]) => path)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('.mofox.neo-mofox-delete-'),
+        expect.stringContaining('.platform.neo-mofox-delete-'),
+      ]),
+    );
     expect(repository.remove).toHaveBeenCalledWith('one');
     expect(runtime.clearLogs).toHaveBeenCalledWith('one');
   });

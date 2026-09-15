@@ -1,6 +1,6 @@
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
-import { detectSystemEnv, pythonExeName } from './platform-helper';
-import { runOneShot, type ExecResult } from './process-helper';
+import { detectSystemEnv, execCommand, pythonExeName } from './platform-helper';
+import type { ExecResult } from './process-helper';
 
 /** 并行汇总系统和外部工具版本；任一可选命令失败只省略该字段，不影响环境检测结果。 */
 type SystemDetector = () => Promise<SystemEnvInfo>;
@@ -9,7 +9,7 @@ type CommandRunner = (command: string, args: readonly string[]) => Promise<ExecR
 export class EnvironmentService {
   constructor(
     private readonly detectSystem: SystemDetector = detectSystemEnv,
-    private readonly run: CommandRunner = runOneShot,
+    private readonly run: CommandRunner = execCommand,
   ) {}
 
   /**
@@ -43,7 +43,10 @@ export class EnvironmentService {
    * @param args - 命令参数列表。
    * @returns 命令输出中匹配到的版本号字符串；未匹配或失败时为 `undefined`。
    */
-  private async detectVersion(command: string, args: readonly string[]): Promise<string | undefined> {
+  private async detectVersion(
+    command: string,
+    args: readonly string[],
+  ): Promise<string | undefined> {
     try {
       const result = await this.run(command, args);
       if (result.exitCode !== 0 || result.timedOut) return undefined;

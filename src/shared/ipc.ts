@@ -9,7 +9,7 @@ import type {
   InstanceProcessSource,
   InstanceStats,
   InstanceStatus,
-  UpdateInstancePatch,
+  EditableInstancePatch,
 } from './domain/instance';
 import type { InstallProgressEvent, InstallRequest, LicenseFetchResult } from './domain/install';
 import type { MofoxUpdateInfo, PlatformUpdateInfo, UpdateProgressEvent } from './domain/update';
@@ -158,7 +158,7 @@ export interface MofoxApi {
   removeInstance(instanceId: string): Promise<void>;
   openInstanceFolder(instanceId: string): Promise<void>;
   /** 更新实例的可编辑配置字段，返回持久化后的最新实例。 */
-  updateInstance(instanceId: string, patch: UpdateInstancePatch): Promise<Instance>;
+  updateInstance(instanceId: string, patch: EditableInstancePatch): Promise<Instance>;
   getInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<string>;
   clearInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<void>;
   writeInstancePty(instanceId: string, source: InstanceProcessSource, data: string): Promise<void>;

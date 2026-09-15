@@ -24,6 +24,23 @@ function createActions() {
 }
 
 describe('registerInstanceManageIpc', () => {
+  it.each([
+    { status: 'running' },
+    { lastStartedAt: 123 },
+    { surprise: true },
+    { extra: { hidden: true } },
+  ])('rejects internal and unknown patch fields: %j', async (patch) => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const actions = createActions();
+    registerInstanceManageIpc(
+      { handle: (channel, handler) => handlers.set(channel, handler) },
+      actions,
+    );
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.updateInstance)?.({}, 'one', patch),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    expect(actions.update).not.toHaveBeenCalled();
+  });
   it('registers and forwards every manage action', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
     const ipcMain = {

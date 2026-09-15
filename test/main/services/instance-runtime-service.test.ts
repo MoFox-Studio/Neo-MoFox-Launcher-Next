@@ -53,6 +53,41 @@ function createPty() {
 }
 
 describe('InstanceRuntimeService', () => {
+  it('serializes concurrent starts and permits restart after a natural exit', async () => {
+    const repository = createRepository(createInstance());
+    const handles: ReturnType<typeof createPty>[] = [];
+    const factory = vi.fn(() => {
+      const pty = createPty();
+      handles.push(pty);
+      return pty;
+    });
+    const service = new InstanceRuntimeService(
+      repository,
+      new PlatformRegistry([
+        {
+          id: 'test',
+          getStartCommand: async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' }),
+        } as never,
+      ]),
+      { statusChanged: vi.fn(), ptyData: vi.fn() },
+      new ProcessHelper(factory, FAST_TIMINGS),
+    );
+    await Promise.all([service.start('one'), service.start('one')]);
+    expect(factory).toHaveBeenCalledTimes(1);
+    handles[0].emitExit(0);
+    expect(service.getStats('one').platform.running).toBe(false);
+    await vi.waitFor(() => expect(repository.current.status).toBe('stopped'));
+    await service.start('one');
+    expect(factory).toHaveBeenCalledTimes(2);
+    await expect(
+      service.withStoppedSources('one', ['platform'], async () => {
+        expect(service.getStats('one').platform.running).toBe(false);
+        throw new Error('update failed');
+      }),
+    ).rejects.toThrow('update failed');
+    expect(service.getStats('one').platform.running).toBe(true);
+    await service.stop('one');
+  });
   it('starts the platform process, forwards output and stops idempotently', async () => {
     const instance = createInstance();
     const repository = createRepository(instance);
@@ -480,8 +515,9 @@ async function createMofoxDir(): Promise<string> {
   await mkdir(join(root, 'neo-mofox'), { recursive: true });
   const mofoxDir = join(root, 'neo-mofox');
   await writeFile(join(mofoxDir, 'main.py'), 'print("hi")');
-  await mkdir(join(mofoxDir, '.venv', 'bin'), { recursive: true });
-  await writeFile(join(mofoxDir, '.venv', 'bin', 'python3'), '#!/bin/sh\n');
+  const binDir = join(mofoxDir, '.venv', process.platform === 'win32' ? 'Scripts' : 'bin');
+  await mkdir(binDir, { recursive: true });
+  await writeFile(join(binDir, process.platform === 'win32' ? 'python.exe' : 'python3'), 'python');
   return mofoxDir;
 }
 

@@ -51,8 +51,16 @@ export function runOneShot(
   args: readonly string[],
   options: ExecOptions = {},
 ): Promise<ExecResult> {
+  if (options.signal?.aborted) {
+    return Promise.resolve({
+      stdout: '',
+      stderr: 'Command cancelled',
+      exitCode: null,
+      timedOut: false,
+    });
+  }
   return new Promise((resolve) => {
-    const { timeoutMs = 30_000, input, ...spawnOptions } = options;
+    const { timeoutMs = 30_000, input, signal, ...spawnOptions } = options;
     const stdio: SpawnOptions['stdio'] =
       input !== undefined ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'];
     let stdout = '';
@@ -60,6 +68,7 @@ export function runOneShot(
     let timedOut = false;
     let settled = false;
     let child: ChildProcess;
+    let forceTimer: ReturnType<typeof setTimeout> | undefined;
 
     /**
      * 以首个进程终态结算执行结果，并清理超时定时器。
@@ -67,12 +76,21 @@ export function runOneShot(
      * @param exitCode - 子进程退出码；未能启动时为 `null`。
      * @param signal - 终止子进程的可选信号。
      */
-    const finish = (exitCode: number | null, signal?: NodeJS.Signals) => {
+    let abortListener: (() => void) | undefined;
+    const finish = (exitCode: number | null, exitSignal?: NodeJS.Signals) => {
       // spawn error、close 和超时终止可能交错发生，只允许第一个终态结算结果。
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve({ stdout, stderr, exitCode, ...(signal ? { signal } : {}), timedOut });
+      clearTimeout(forceTimer);
+      if (signal && abortListener) signal.removeEventListener('abort', abortListener);
+      resolve({
+        stdout,
+        stderr,
+        exitCode,
+        ...(exitSignal ? { signal: exitSignal } : {}),
+        timedOut,
+      });
     };
 
     try {
@@ -102,11 +120,40 @@ export function runOneShot(
     });
     child.once('close', (code, signal) => finish(code, signal ?? undefined));
 
+    const terminateTree = (terminationSignal: NodeJS.Signals) => {
+      if (settled) return;
+      if (child.pid) {
+        void killProcessTree(child.pid, terminationSignal)
+          .catch(() => undefined)
+          .finally(() => {
+            try {
+              child.kill(terminationSignal);
+            } catch {
+              /* process already exited */
+            }
+          });
+      } else {
+        try {
+          child.kill(terminationSignal);
+        } catch {
+          /* process already exited */
+        }
+      }
+    };
+
+    abortListener = () => {
+      terminateTree('SIGTERM');
+      forceTimer = setTimeout(() => terminateTree('SIGKILL'), 1_000);
+      forceTimer.unref();
+    };
+    if (signal?.aborted) abortListener();
+    else signal?.addEventListener('abort', abortListener, { once: true });
+
     const timer = setTimeout(() => {
       timedOut = true;
       // 先请求正常终止，再在宽限期后强制杀死，覆盖不响应 SIGTERM 的子进程。
-      child.kill('SIGTERM');
-      const forceTimer = setTimeout(() => child.kill('SIGKILL'), 1_000);
+      terminateTree('SIGTERM');
+      forceTimer = setTimeout(() => terminateTree('SIGKILL'), 1_000);
       forceTimer.unref();
     }, timeoutMs);
     timer.unref();
@@ -188,9 +235,12 @@ export interface ProcessSpawnOptions {
   cwd: string;
   env: Record<string, string>;
   onData: (data: string) => void;
-  onExit: (event: { exitCode: number; signal?: number }) => void;
-  onError: (error: Error) => void;
+  onExit: (event: { exitCode: number; signal?: number }, identity: ProcessIdentity) => void;
+  onError: (error: Error, identity: ProcessIdentity) => void;
 }
+
+/** 单次 spawn 的不可伪造身份；同一个 key 的不同进程拥有不同令牌。 */
+export type ProcessIdentity = symbol;
 
 interface ManagedProcess {
   process: ChildProcess | ProcessHandle;
@@ -236,13 +286,25 @@ export class ProcessHelper {
    * @param key - 进程的稳定标识（如 `${instanceId}:${source}`）。
    * @param options - 启动命令与事件订阅。
    */
-  spawn(key: string, options: ProcessSpawnOptions): void {
+  spawn(key: string, options: ProcessSpawnOptions): ProcessIdentity {
+    if (this.active.has(key)) throw new Error(`Process is already active: ${key}`);
+    const identity = Symbol(key);
     const env = { ...process.env, ...options.env } as Record<string, string>;
     let resolveExited = () => undefined as void;
     const exited = new Promise<void>((resolve) => {
       resolveExited = resolve;
     });
     let entry: ManagedProcess;
+    let finished = false;
+    const finish = (callback: () => void) => {
+      if (finished) return;
+      finished = true;
+      resolveExited();
+      // 只允许创建该监听器的进程删除自己。旧进程的延迟退出事件不得误删同 key 的新进程。
+      if (this.active.get(key) !== entry) return;
+      this.active.delete(key);
+      callback();
+    };
     if (this.ptyFactory) {
       const size = this.sizes.get(key) ?? DEFAULT_SIZE;
       const pty = this.ptyFactory(options.command, options.args, {
@@ -258,11 +320,11 @@ export class ProcessHelper {
         resolveExited,
         stopping: false,
       };
+      this.active.set(key, entry);
       pty.onData(options.onData);
       // 进程真实退出时结算 stop 等待，避免优雅停止被完整升级窗口拖慢。
       pty.onExit((event) => {
-        resolveExited();
-        options.onExit(event);
+        finish(() => options.onExit(event, identity));
       });
     } else {
       const child = spawnProcess(options.command, options.args, { cwd: options.cwd, env });
@@ -274,15 +336,15 @@ export class ProcessHelper {
         resolveExited,
         stopping: false,
       };
+      this.active.set(key, entry);
       child.stdout?.on('data', (data: Buffer) => options.onData(data.toString()));
       child.stderr?.on('data', (data: Buffer) => options.onData(data.toString()));
       child.once('close', (code) => {
-        resolveExited();
-        options.onExit({ exitCode: code ?? 0 });
+        finish(() => options.onExit({ exitCode: code ?? 0 }, identity));
       });
-      child.once('error', (error) => options.onError(error));
+      child.once('error', (error) => finish(() => options.onError(error, identity)));
     }
-    this.active.set(key, entry);
+    return identity;
   }
 
   /**
@@ -382,7 +444,7 @@ export class ProcessHelper {
       ),
     ]);
     for (const timer of timers) clearTimeout(timer);
-    this.active.delete(key);
+    if (this.active.get(key) === entry) this.active.delete(key);
   }
 
   /**

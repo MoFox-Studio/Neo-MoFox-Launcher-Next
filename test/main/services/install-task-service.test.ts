@@ -46,6 +46,97 @@ afterEach(async () => {
 });
 
 describe('InstallTaskService', () => {
+  it('retains snapshots on repository failure and recovers after a service restart', async () => {
+    const root = await createTempRoot();
+    const target = join(root, 'installed');
+    const stateDirectory = join(root, 'state');
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('disk unavailable'))
+      .mockResolvedValue(undefined);
+    const install = vi.fn(async (ctx: InstallTaskContext) => {
+      await mkdir(join(ctx.stageDir, 'mofox'), { recursive: true });
+      await writeFile(join(ctx.stageDir, 'mofox', 'main.py'), 'complete');
+    });
+    const dependencies = {
+      repository: { create },
+      mirrors: mirrorsProvider,
+      stateDirectory,
+      executors: { 'install-mofox': install, configure: async () => undefined },
+    };
+    const progress = vi.fn();
+    const first = new InstallTaskService(registry(), dependencies, { progress });
+    const id = await first.start(request(target, { platformId: '', installWebui: false }));
+    await first.wait(id);
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'failed' }));
+    expect(await exists(join(target, id, '.cache', 'stage-1', 'mofox', 'main.py'))).toBe(true);
+    const recovered = new InstallTaskService(registry(), dependencies, { progress });
+    await recovered.recover();
+    await recovered.wait(id);
+    expect(await readFile(join(target, id, 'mofox', 'main.py'), 'utf8')).toBe('complete');
+    expect(install).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
+    expect(await exists(join(stateDirectory, `${id}.json`))).toBe(false);
+  });
+
+  it('does not delete an installation when cancellation races with repository commit', async () => {
+    const root = await createTempRoot();
+    const target = join(root, 'installed');
+    let commit!: () => void;
+    const create = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          commit = resolve;
+        }),
+    );
+    const progress = vi.fn();
+    const service = new InstallTaskService(
+      registry(),
+      {
+        repository: { create },
+        mirrors: mirrorsProvider,
+        stateDirectory: join(root, 'state'),
+        executors: {
+          'install-mofox': async (ctx) => {
+            await mkdir(join(ctx.stageDir, 'mofox'), { recursive: true });
+          },
+          configure: async () => undefined,
+        },
+      },
+      { progress },
+    );
+    const id = await service.start(request(target, { platformId: '', installWebui: false }));
+    await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    const cancellation = service.cancel(id);
+    commit();
+    await cancellation;
+    await service.wait(id);
+    expect(await exists(join(target, id, 'mofox'))).toBe(true);
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'done' }));
+  });
+
+  it('rejects simultaneous retries', async () => {
+    const root = await createTempRoot();
+    const install = vi.fn(async () => {
+      throw new Error('failure');
+    });
+    const service = new InstallTaskService(
+      registry(),
+      {
+        repository: { create: vi.fn() },
+        mirrors: mirrorsProvider,
+        executors: { 'install-mofox': install },
+      },
+      { progress: vi.fn() },
+    );
+    const id = await service.start(request(join(root, 'installed')));
+    await service.wait(id);
+    const retry = service.retry(id);
+    await expect(service.retry(id)).rejects.toMatchObject({ code: 'CONFLICT' });
+    await retry;
+    expect(install).toHaveBeenCalledTimes(2);
+  });
   it('installs in a temporary directory, finalizes, and persists only after success', async () => {
     const root = await createTempRoot();
     const target = join(root, 'installed');
@@ -346,9 +437,7 @@ describe('InstallTaskService', () => {
     );
     await service.wait(taskId);
 
-    const messages = progress.mock.calls.map(
-      ([event]) => (event as InstallProgressEvent).message,
-    );
+    const messages = progress.mock.calls.map(([event]) => (event as InstallProgressEvent).message);
     expect(messages).toContain('[安装 MoFox] File "current.py", line 267');
     expect(messages.every((message) => !message.includes('\u001B'))).toBe(true);
   });

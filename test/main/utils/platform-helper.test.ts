@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildSpawnEnv, parseOsRelease, prepareArgsForShell, quoteShellArg } from '../../../src/main/utils/platform-helper';
+import {
+  buildSpawnEnv,
+  parseOsRelease,
+  prepareArgsForShell,
+  quoteShellArg,
+} from '../../../src/main/utils/platform-helper';
 
 describe('platform helper', () => {
   // 表格覆盖主要 Linux 发行版谱系，其他用例保护进程环境和 shell 参数边界。

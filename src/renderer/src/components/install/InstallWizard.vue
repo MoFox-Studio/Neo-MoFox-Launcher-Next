@@ -296,9 +296,7 @@ function cancelInstall(): void {
   confirmingCancel.value = true;
 }
 
-const cancelTitle = computed(() =>
-  installStore.activeTaskId ? '确认取消安装' : '放弃本次配置？',
-);
+const cancelTitle = computed(() => (installStore.activeTaskId ? '确认取消安装' : '放弃本次配置？'));
 
 const cancelMessage = computed(() =>
   installStore.activeTaskId
@@ -424,12 +422,7 @@ function goToInstances(): void {
         >
           取消
         </button>
-        <button
-          v-else
-          type="button"
-          class="btn btn--text state-layer"
-          @click="backOnePhase"
-        >
+        <button v-else type="button" class="btn btn--text state-layer" @click="backOnePhase">
           <span class="msr" aria-hidden="true">arrow_back</span>
           返回
         </button>
@@ -668,8 +661,7 @@ function goToInstances(): void {
 .config-section__chevron {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 22px;
-  transition: transform var(--md-sys-motion-duration-medium2)
-    var(--md-sys-motion-easing-standard);
+  transition: transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
 }
 
 .config-section--open .config-section__chevron {
@@ -681,8 +673,7 @@ function goToInstances(): void {
   grid-template-rows: 0fr;
   opacity: 0;
   transition:
-    grid-template-rows var(--md-sys-motion-duration-medium2)
-      var(--md-sys-motion-easing-standard),
+    grid-template-rows var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
     opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 

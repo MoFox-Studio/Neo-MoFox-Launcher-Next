@@ -53,7 +53,10 @@ async function resolvePackageManager(): Promise<PackageManager | undefined> {
  * @param command - 待以 sudo 执行的命令数组（不含 `sudo`）。
  * @param context - 安装上下文，提供 `sudoPassword` 与取消信号。
  */
-async function runSudo(command: readonly string[], context: DependencyInstallContext): Promise<void> {
+async function runSudo(
+  command: readonly string[],
+  context: DependencyInstallContext,
+): Promise<void> {
   if (!context.sudoPassword) {
     throw new MofoxError('INVALID_ARGUMENT', 'Linux 安装依赖需要 sudo 密码');
   }

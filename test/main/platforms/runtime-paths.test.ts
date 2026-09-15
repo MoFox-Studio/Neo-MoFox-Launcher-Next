@@ -9,7 +9,9 @@ const temporaryDirectories: string[] = [];
 
 // 每个用例后递归清理临时根目录。
 afterEach(async () => {
-  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  await Promise.all(
+    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+  );
 });
 
 describe('platform runtime paths (v2)', () => {

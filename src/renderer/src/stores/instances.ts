@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref } from 'vue';
-import type { Instance, UpdateInstancePatch } from '@shared/domain/instance';
+import type { EditableInstancePatch, Instance } from '@shared/domain/instance';
 import { mofoxApi } from '@/services/mofox-api';
 
 // 实例仓库集中管理列表、进程状态事件和截断后的实时日志缓存。
@@ -83,7 +83,7 @@ export const useInstancesStore = defineStore('instances', () => {
     await refresh();
   }
 
-  async function update(id: string, patch: UpdateInstancePatch): Promise<void> {
+  async function update(id: string, patch: EditableInstancePatch): Promise<void> {
     await mofoxApi.updateInstance(id, patch);
     await refresh();
   }

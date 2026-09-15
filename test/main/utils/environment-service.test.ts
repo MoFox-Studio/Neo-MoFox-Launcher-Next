@@ -8,7 +8,12 @@ describe('EnvironmentService', () => {
       .fn()
       .mockResolvedValueOnce({ exitCode: 0, stdout: 'Python 3.12.2', stderr: '', timedOut: false })
       .mockResolvedValueOnce({ exitCode: 0, stdout: 'uv 0.6.0', stderr: '', timedOut: false })
-      .mockResolvedValueOnce({ exitCode: 0, stdout: 'git version 2.47.1', stderr: '', timedOut: false });
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'git version 2.47.1',
+        stderr: '',
+        timedOut: false,
+      });
     const service = new EnvironmentService(
       async () => ({
         arch: 'x64',
@@ -30,7 +35,12 @@ describe('EnvironmentService', () => {
   });
 
   it('returns partial results when tools are missing or interrupted', async () => {
-    const run = vi.fn(async () => ({ exitCode: 1, stdout: '', stderr: 'missing', timedOut: false }));
+    const run = vi.fn(async () => ({
+      exitCode: 1,
+      stdout: '',
+      stderr: 'missing',
+      timedOut: false,
+    }));
     const service = new EnvironmentService(
       async () => ({
         arch: 'arm64',

@@ -26,8 +26,23 @@ export function githubMirrorsOf(mirrors: readonly MirrorSource[]): MirrorSource[
  * @returns 用于发起请求或克隆的最终地址。
  */
 export function resolveGithubUrl(mirror: MirrorSource, originalUrl: string): string {
-  if (mirror.baseUrl === 'https://github.com') return originalUrl;
-  return `${mirror.baseUrl}/${originalUrl}`;
+  const original = requireSecureUrl(originalUrl, 'GitHub 原始地址');
+  const base = requireSecureUrl(mirror.baseUrl, `镜像 ${mirror.name}`);
+  if (base.origin === 'https://github.com') return original.toString();
+  return `${base.toString().replace(/\/$/, '')}/${original.toString()}`;
+}
+
+function requireSecureUrl(value: string, label: string): URL {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new MofoxError('INVALID_ARGUMENT', `${label} URL 无效`);
+  }
+  if (url.protocol !== 'https:' || url.username || url.password) {
+    throw new MofoxError('INVALID_ARGUMENT', `${label} 必须使用无凭据的 HTTPS`);
+  }
+  return url;
 }
 
 /**

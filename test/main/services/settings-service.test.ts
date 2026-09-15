@@ -19,6 +19,18 @@ afterEach(async () => {
 });
 
 describe('SettingsService', () => {
+  it('recovers the last good backup and allows further updates', async () => {
+    const directory = await createTempDirectory();
+    const first = new SettingsService(directory, vi.fn());
+    await first.update({ themeMode: 'dark' });
+    await first.update({ themeMode: 'light' });
+    await writeFile(join(directory, 'launcher-settings.json'), '{broken');
+    const recovered = new SettingsService(directory, vi.fn());
+    expect((await recovered.get()).themeMode).toBe('dark');
+    await expect(recovered.update({ themeMode: 'system' })).resolves.toMatchObject({
+      themeMode: 'system',
+    });
+  });
   it('returns safe defaults when no settings file exists', async () => {
     const service = new SettingsService(await createTempDirectory());
 
@@ -56,6 +68,10 @@ describe('SettingsService', () => {
     const service = new SettingsService(directory, report);
 
     await expect(service.get()).resolves.toEqual(DEFAULT_SETTINGS);
+    await expect(readFile(path, 'utf8')).resolves.toBe('{broken');
+    await expect(service.update({ themeMode: 'dark' })).rejects.toMatchObject({
+      code: 'UNAVAILABLE',
+    });
     await expect(readFile(path, 'utf8')).resolves.toBe('{broken');
     expect(report).toHaveBeenCalledWith(
       expect.stringContaining('launcher-settings.json'),

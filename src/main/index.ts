@@ -349,7 +349,7 @@ if (!hasSingleInstanceLock) {
       instances,
       platforms,
       mirrors,
-      { stopSource: (instanceId, source) => runtime.stopSource(instanceId, source) },
+      runtime,
       {
         progress: (event) => send(IPC_EVENT_CHANNELS['update-progress'], event),
       },
@@ -367,7 +367,7 @@ if (!hasSingleInstanceLock) {
     });
     const installTasks = new InstallTaskService(
       platforms,
-      { repository: instances, mirrors },
+      { repository: instances, mirrors, stateDirectory: join(dataDirectory, 'install-tasks') },
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
     registerInstallIpc(ipcMain, installTasks);
@@ -377,9 +377,14 @@ if (!hasSingleInstanceLock) {
       },
     });
     registerManualImportIpc(ipcMain, new ManualImportService(instances, platforms));
-    const venvs = new VenvService({ list: () => instances.list(), mirrors }, undefined, {
-      progress: (event) => send(IPC_EVENT_CHANNELS['venv-progress'], event),
-    });
+    const venvs = new VenvService(
+      { list: () => instances.list(), mirrors },
+      undefined,
+      {
+        progress: (event) => send(IPC_EVENT_CHANNELS['venv-progress'], event),
+      },
+      runtime,
+    );
     registerVenvIpc(ipcMain, {
       inspect: (value) => venvs.inspect(value),
       getVenvInfo: (instanceId) => venvs.getVenvInfo(instanceId),
@@ -404,6 +409,14 @@ if (!hasSingleInstanceLock) {
     );
     registerOobeIpc(ipcMain, oobeService);
     mainWindow = createMainWindow();
+    void installTasks
+      .recover()
+      .catch((error: unknown) =>
+        report(
+          '恢复未完成的安装任务失败',
+          error instanceof Error ? error : new Error(String(error)),
+        ),
+      );
 
     // 关闭窗口时立即向活跃安装任务发出中止信号，并马上放行关闭，避免被单个长步骤
     // （如下载/子进程）拖住导致窗口关不掉；后台流水线会尽快回收临时文件。

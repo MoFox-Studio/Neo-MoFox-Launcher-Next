@@ -7,10 +7,10 @@ import type { MirrorSource } from '../../../shared/domain/mirror';
 import type { GithubRelease, GithubReleaseAsset } from '../../../shared/domain/github';
 import { MofoxError } from '../../../shared/domain/error';
 import { downloadRange } from '../range-downloader';
-import { runOneShot } from '../process-helper';
 import { resolveGithubUrl, tryEachGithubMirror } from './github-mirror';
 import { describeNetworkError } from '../network-error';
 import { extractZipSecurely } from '../zip-extractor';
+import { extractTarGzSecurely } from '../tar-extractor';
 
 // GitHub Release 下载与查询的镜像轮询实现，供平台安装/更新与版本列表复用。
 
@@ -55,21 +55,11 @@ export async function installGithubRelease(
   const payload = join(context.workDir, 'payload');
   await mkdir(payload, { recursive: true });
   await downloadAsset(mirrors, asset, archive, context.signal);
-  if (asset.digest?.startsWith('sha256:')) {
-    // 仅在发布元数据提供 SHA-256 时校验，失败时不允许进入解压阶段。
-    const actual = await sha256(archive);
-    if (actual !== asset.digest.slice(7).toLowerCase()) {
-      throw new MofoxError('IO_ERROR', `${asset.name} SHA-256 校验失败`);
-    }
-  }
 
-  // ZIP 由库在当前进程解压，tar.gz 交给系统 tar 并限制外部进程最长执行时间。
+  // 两种归档均由受限的进程内解压器处理，拒绝路径穿越、链接、特殊文件与压缩炸弹。
   if (asset.name.endsWith('.zip')) await extractZipSecurely(archive, payload);
   else if (asset.name.endsWith('.tar.gz')) {
-    const result = await runOneShot('tar', ['-xzf', archive, '-C', payload], {
-      timeoutMs: 120_000,
-    });
-    if (result.exitCode !== 0) throw new MofoxError('IO_ERROR', `解压失败: ${result.stderr}`);
+    await extractTarGzSecurely(archive, payload, context.signal ? { signal: context.signal } : {});
   } else throw new MofoxError('UNAVAILABLE', `不支持的压缩包格式: ${asset.name}`);
   await rm(archive, { force: true });
 
@@ -122,6 +112,9 @@ export async function fetchReleases(
   signal?: AbortSignal,
   limit = 20,
 ): Promise<Release[]> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Release 查询数量必须在 1-100 之间');
+  }
   return tryEachGithubMirror(
     mirrors,
     signal,
@@ -130,20 +123,16 @@ export async function fetchReleases(
         mirror,
         `https://api.github.com/repos/${repository}/releases?per_page=${limit}`,
       );
-      const response = await githubFetch(
-        'GitHub releases 请求失败',
-        url,
-        {
-          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
-          ...(signal ? { signal } : {}),
-        },
-      );
+      const response = await githubFetch('GitHub releases 请求失败', url, {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
+        ...(signal ? { signal } : {}),
+      });
       if (!response.ok)
         throw new MofoxError(
           'IO_ERROR',
           `GitHub releases 请求失败: HTTP ${response.status}（${describeNetworkError(response.status)}）`,
         );
-      return (await response.json()) as Release[];
+      return parseReleaseList(await response.json());
     },
     `所有镜像均无法获取 ${repository} 发行版列表`,
   );
@@ -175,20 +164,16 @@ async function fetchRelease(
         mirror,
         `https://api.github.com/repos/${repository}/${endpoint}`,
       );
-      const response = await githubFetch(
-        'GitHub release 请求失败',
-        url,
-        {
-          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
-          ...(signal ? { signal } : {}),
-        },
-      );
+      const response = await githubFetch('GitHub release 请求失败', url, {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Neo-MoFox-Launcher' },
+        ...(signal ? { signal } : {}),
+      });
       if (!response.ok)
         throw new MofoxError(
           'IO_ERROR',
           `GitHub release 请求失败: HTTP ${response.status}（${describeNetworkError(response.status)}）`,
         );
-      return (await response.json()) as Release;
+      return parseRelease(await response.json());
     },
     `所有镜像均无法获取 ${repository} 发行版信息`,
   );
@@ -209,12 +194,29 @@ async function downloadAsset(
   destination: string,
   signal?: AbortSignal,
 ): Promise<void> {
+  const expectedDigest = requireSha256Digest(asset);
+  const assetUrl = requireHttpsUrl(asset.browser_download_url, '发行版下载地址');
   return tryEachGithubMirror(
     mirrors,
     signal,
     async (mirror) => {
-      const url = resolveGithubUrl(mirror, asset.browser_download_url);
-      await downloadRange(url, destination, signal ? { signal } : {});
+      const url = resolveGithubUrl(mirror, assetUrl);
+      const allowedRedirectHosts = [
+        new URL(assetUrl).hostname,
+        'github.com',
+        'objects.githubusercontent.com',
+        'release-assets.githubusercontent.com',
+      ];
+      await downloadRange(url, destination, {
+        ...(signal ? { signal } : {}),
+        maxBytes: 4 * 1024 ** 3,
+        allowedRedirectHosts,
+      });
+      const actual = await sha256(destination);
+      if (actual !== expectedDigest) {
+        await rm(destination, { force: true }).catch(() => undefined);
+        throw new MofoxError('IO_ERROR', `${asset.name} SHA-256 校验失败`);
+      }
     },
     `所有镜像均无法下载 ${asset.name}`,
   );
@@ -230,13 +232,42 @@ async function downloadAsset(
  * @param init - 请求选项。
  * @returns fetch 响应；仅在网络层失败时抛出 `IO_ERROR`。
  */
-async function githubFetch(label: string, input: string | URL, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (error) {
-    if (init?.signal?.aborted) throw error;
-    throw new MofoxError('IO_ERROR', `${label}: ${describeNetworkError(error)}`);
+async function githubFetch(
+  label: string,
+  input: string | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  let current = requireHttpsUrl(String(input), 'GitHub 请求地址');
+  const initialHost = new URL(current).hostname.toLowerCase();
+  for (let redirects = 0; redirects <= 5; redirects += 1) {
+    let response: Response;
+    try {
+      response = await fetch(current, { ...init, redirect: 'manual' });
+    } catch (error) {
+      if (init?.signal?.aborted) throw error;
+      throw new MofoxError('IO_ERROR', `${label}: ${describeNetworkError(error)}`);
+    }
+    if (response.status < 300 || response.status >= 400) return response;
+    const location = response.headers.get('location');
+    if (!location || redirects === 5) {
+      throw new MofoxError('IO_ERROR', `${label}: 重定向无效或次数过多`);
+    }
+    const next = new URL(location, current);
+    const hostname = next.hostname.toLowerCase();
+    if (
+      hostname !== initialHost &&
+      hostname !== 'github.com' &&
+      hostname !== 'api.github.com' &&
+      hostname !== 'raw.githubusercontent.com' &&
+      hostname !== 'objects.githubusercontent.com' &&
+      hostname !== 'release-assets.githubusercontent.com' &&
+      !hostname.endsWith('.githubusercontent.com')
+    ) {
+      throw new MofoxError('IO_ERROR', `${label}: 拒绝跳转到未授权主机 ${hostname}`);
+    }
+    current = requireHttpsUrl(next.toString(), 'GitHub 重定向地址');
   }
+  throw new MofoxError('IO_ERROR', `${label}: 重定向次数过多`);
 }
 
 /**
@@ -261,20 +292,24 @@ export async function fetchRepositoryFile(options: {
     async (mirror) => {
       const original = `https://raw.githubusercontent.com/${repository}/${branch}/${path}`;
       const url = resolveGithubUrl(mirror, original);
-      const response = await githubFetch(
-        `拉取 ${path} 失败`,
-        url,
-        {
-          headers: { 'User-Agent': 'Neo-MoFox-Launcher' },
-          ...(signal ? { signal } : {}),
-        },
-      );
+      const response = await githubFetch(`拉取 ${path} 失败`, url, {
+        headers: { 'User-Agent': 'Neo-MoFox-Launcher' },
+        ...(signal ? { signal } : {}),
+      });
       if (!response.ok)
         throw new MofoxError(
           'IO_ERROR',
           `拉取 ${path} 失败: HTTP ${response.status}（${describeNetworkError(response.status)}）`,
         );
-      return { source: mirror.name, content: await response.text() };
+      const declaredSize = Number(response.headers.get('content-length') ?? 0);
+      if (!Number.isFinite(declaredSize) || declaredSize < 0 || declaredSize > 2 * 1024 ** 2) {
+        throw new MofoxError('IO_ERROR', `${path} 的响应大小无效或超过 2 MiB`);
+      }
+      const content = await response.text();
+      if (Buffer.byteLength(content, 'utf8') > 2 * 1024 ** 2) {
+        throw new MofoxError('IO_ERROR', `${path} 的正文超过 2 MiB`);
+      }
+      return { source: mirror.name, content };
     },
     `所有镜像均无法获取 ${repository}/${path}`,
   );
@@ -324,4 +359,79 @@ async function sha256(path: string): Promise<string> {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
   return hash.digest('hex');
+}
+
+function requireSha256Digest(asset: ReleaseAsset): string {
+  if (!asset.digest || !/^sha256:[0-9a-f]{64}$/i.test(asset.digest)) {
+    throw new MofoxError('UNAVAILABLE', `${asset.name} 未提供可验证的 SHA-256 摘要`);
+  }
+  return asset.digest.slice(7).toLowerCase();
+}
+
+function parseReleaseList(value: unknown): Release[] {
+  if (!Array.isArray(value) || value.length > 100) {
+    throw new MofoxError('IO_ERROR', 'GitHub Release 列表结构无效');
+  }
+  return value.map(parseRelease);
+}
+
+function parseRelease(value: unknown): Release {
+  if (!isRecord(value) || typeof value.tag_name !== 'string' || !value.tag_name.trim()) {
+    throw new MofoxError('IO_ERROR', 'GitHub Release 元数据缺少有效版本号');
+  }
+  if (
+    (value.name !== null && typeof value.name !== 'string') ||
+    (value.body !== null && typeof value.body !== 'string') ||
+    (value.published_at !== null && typeof value.published_at !== 'string') ||
+    typeof value.prerelease !== 'boolean' ||
+    !Array.isArray(value.assets) ||
+    value.assets.length > 1_000
+  ) {
+    throw new MofoxError('IO_ERROR', 'GitHub Release 元数据结构无效');
+  }
+  const assets = value.assets.map((asset): ReleaseAsset => {
+    if (
+      !isRecord(asset) ||
+      typeof asset.name !== 'string' ||
+      !asset.name ||
+      asset.name !== basename(asset.name) ||
+      typeof asset.browser_download_url !== 'string'
+    ) {
+      throw new MofoxError('IO_ERROR', 'GitHub Release 资产元数据无效');
+    }
+    const browserDownloadUrl = requireHttpsUrl(asset.browser_download_url, '发行版下载地址');
+    if (asset.digest !== undefined && asset.digest !== null && typeof asset.digest !== 'string') {
+      throw new MofoxError('IO_ERROR', 'GitHub Release 资产摘要格式无效');
+    }
+    return {
+      name: asset.name,
+      browser_download_url: browserDownloadUrl,
+      ...(typeof asset.digest === 'string' ? { digest: asset.digest } : {}),
+    };
+  });
+  return {
+    tag_name: value.tag_name,
+    name: value.name,
+    body: value.body,
+    published_at: value.published_at,
+    prerelease: value.prerelease,
+    assets,
+  };
+}
+
+function requireHttpsUrl(value: string, label: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new MofoxError('IO_ERROR', `${label}无效`);
+  }
+  if (url.protocol !== 'https:' || url.username || url.password) {
+    throw new MofoxError('IO_ERROR', `${label}必须使用无凭据的 HTTPS`);
+  }
+  return url.toString();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

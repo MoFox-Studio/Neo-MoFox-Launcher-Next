@@ -8,9 +8,18 @@ vi.mock('../../../src/main/utils/zip-extractor', () => ({
   extractZipSecurely: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../../src/main/utils/range-downloader', () => ({
-  downloadRange: vi.fn(async () => undefined),
-}));
+vi.mock('../../../src/main/utils/range-downloader', async () => {
+  const { mkdir, writeFile } = await import('node:fs/promises');
+  const { dirname } = await import('node:path');
+  return {
+    downloadRange: vi.fn(async (_url: string, destination: string) => {
+      await mkdir(dirname(destination), { recursive: true });
+      await writeFile(destination, Buffer.alloc(0));
+    }),
+  };
+});
+
+const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
 const MIRRORS: readonly MirrorSource[] = [
   { id: 'gh-direct', type: 'github', name: 'GitHub', baseUrl: 'https://github.com' },
@@ -24,7 +33,13 @@ function releasePayload(tag: string): Record<string, unknown> {
     body: 'release body',
     published_at: '2026-08-01T00:00:00Z',
     prerelease: false,
-    assets: [{ name: `app-${tag}.zip`, browser_download_url: `https://example.com/${tag}.zip` }],
+    assets: [
+      {
+        name: `app-${tag}.zip`,
+        browser_download_url: `https://example.com/${tag}.zip`,
+        digest: `sha256:${EMPTY_SHA256}`,
+      },
+    ],
   };
 }
 
@@ -76,14 +91,16 @@ describe('describeNetworkError', () => {
   });
 
   it('explains aborted requests', () => {
-    expect(describeNetworkError(new DOMException('This operation was aborted', 'AbortError'))).toContain(
-      '取消',
-    );
+    expect(
+      describeNetworkError(new DOMException('This operation was aborted', 'AbortError')),
+    ).toContain('取消');
   });
 
   it('falls back for unknown inputs', () => {
     expect(describeNetworkError(599)).toBe('未知的 HTTP 状态码 599');
-    expect(describeNetworkError(new Error('something unexpected'))).toBe('未知的网络错误（something unexpected）');
+    expect(describeNetworkError(new Error('something unexpected'))).toBe(
+      '未知的网络错误（something unexpected）',
+    );
   });
 });
 
@@ -94,12 +111,12 @@ describe('describeGitError', () => {
         "fatal: unable to access 'https://github.com/x.git/': SSL certificate problem: unable to get local issuer certificate",
       ),
     ).toContain('证书');
-    expect(describeGitError("fatal: Authentication failed for 'https://github.com/x.git/'")).toContain(
-      '认证',
-    );
-    expect(describeGitError("fatal: repository 'https://github.com/foo/bar.git/' not found")).toContain(
-      '仓库不存在',
-    );
+    expect(
+      describeGitError("fatal: Authentication failed for 'https://github.com/x.git/'"),
+    ).toContain('认证');
+    expect(
+      describeGitError("fatal: repository 'https://github.com/foo/bar.git/' not found"),
+    ).toContain('仓库不存在');
   });
 
   it('explains network-level failures reported by git', () => {
@@ -108,17 +125,21 @@ describe('describeGitError', () => {
         "fatal: unable to access 'https://github.com/x.git/': Failed to connect to github.com port 443: Connection refused",
       ),
     ).toContain('连接被拒绝');
-    expect(describeGitError("fatal: unable to access 'https://github.com/x.git/': Could not resolve host: github.com")).toContain(
-      '域名解析',
-    );
+    expect(
+      describeGitError(
+        "fatal: unable to access 'https://github.com/x.git/': Could not resolve host: github.com",
+      ),
+    ).toContain('域名解析');
   });
 
   it('explains local repository problems', () => {
-    expect(describeGitError('fatal: not a git repository (or any of the parent directories)')).toContain(
-      'Git 仓库',
-    );
     expect(
-      describeGitError("fatal: destination path '/x' already exists and is not an empty directory."),
+      describeGitError('fatal: not a git repository (or any of the parent directories)'),
+    ).toContain('Git 仓库');
+    expect(
+      describeGitError(
+        "fatal: destination path '/x' already exists and is not an empty directory.",
+      ),
     ).toContain('已存在');
   });
 
@@ -130,6 +151,18 @@ describe('describeGitError', () => {
 
 describe('fetchReleases', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('rejects malformed release metadata instead of trusting the JSON cast', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => [{ ...releasePayload('v1'), assets: 'not-an-array' }],
+      })),
+    );
+    await expect(fetchReleases(MIRRORS, 'SnowLuma/SnowLuma')).rejects.toThrow();
+  });
 
   it('returns the parsed release list from the first successful mirror', async () => {
     const fetchMock = vi.fn(async (url: string) => {
@@ -184,6 +217,7 @@ describe('installGithubRelease', () => {
       (release) => ({
         name: `${release.tag_name}.zip`,
         browser_download_url: 'https://example.com/x.zip',
+        digest: `sha256:${EMPTY_SHA256}`,
       }),
       async () => true,
     );
@@ -210,6 +244,7 @@ describe('installGithubRelease', () => {
       (release) => ({
         name: `${release.tag_name}.zip`,
         browser_download_url: 'https://example.com/x.zip',
+        digest: `sha256:${EMPTY_SHA256}`,
       }),
       async () => true,
     );

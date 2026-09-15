@@ -42,8 +42,10 @@ const NETWORK_ERROR_EXPLANATIONS: Array<{
       'DEPTH_ZERO_SELF_SIGNED_CERT',
       'ERR_CERT_INVALID',
     ],
-    pattern: /unable to verify the first certificate|self[ -]signed certificate|certificate verify failed/i,
-    explanation: 'TLS 证书校验失败，无法确认服务器身份，可能由中间人代理、未受信任的根证书或系统时间错误导致',
+    pattern:
+      /unable to verify the first certificate|self[ -]signed certificate|certificate verify failed/i,
+    explanation:
+      'TLS 证书校验失败，无法确认服务器身份，可能由中间人代理、未受信任的根证书或系统时间错误导致',
   },
   {
     codes: ['CERT_HAS_EXPIRED', 'CERTIFICATE_EXPIRE'],
@@ -51,7 +53,11 @@ const NETWORK_ERROR_EXPLANATIONS: Array<{
     explanation: 'TLS 证书已过期，请联系镜像源维护者更新证书',
   },
   {
-    codes: ['ERR_TLS_CERT_ALTNAME_INVALID', 'ERR_CERT_COMMON_NAME_INVALID', 'ERR_CERT_HOSTNAME_MISMATCH'],
+    codes: [
+      'ERR_TLS_CERT_ALTNAME_INVALID',
+      'ERR_CERT_COMMON_NAME_INVALID',
+      'ERR_CERT_HOSTNAME_MISMATCH',
+    ],
     pattern: /hostname\/ip does not match certificate|altnames/i,
     explanation: 'TLS 证书与请求域名不匹配，可能遭遇中间人劫持或镜像源配置错误',
   },
@@ -101,7 +107,8 @@ const GIT_ERROR_EXPLANATIONS: Array<{ pattern: RegExp; explanation: string }> = 
   {
     pattern:
       /SSL certificate problem|unable to get local issuer certificate|server certificate verification failed|self[- ]signed certificate|certificate verify failed/i,
-    explanation: 'Git 服务器证书校验失败，无法确认服务器身份，可能由中间人代理、未受信任的根证书或系统时间错误导致',
+    explanation:
+      'Git 服务器证书校验失败，无法确认服务器身份，可能由中间人代理、未受信任的根证书或系统时间错误导致',
   },
   {
     pattern: /Authentication failed|could not read (Username|Password)|access denied/i,

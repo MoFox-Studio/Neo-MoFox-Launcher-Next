@@ -7,7 +7,9 @@ const directories: string[] = [];
 
 // 日志测试使用隔离目录，防止轮转和读取结果污染开发环境中的真实日志。
 afterEach(async () => {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  await Promise.all(
+    directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+  );
 });
 
 describe('logger', () => {

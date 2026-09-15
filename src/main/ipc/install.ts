@@ -1,4 +1,8 @@
-import type { InstallRequest, InstallTargetCheck, LicenseFetchResult } from '../../shared/domain/install';
+import type {
+  InstallRequest,
+  InstallTargetCheck,
+  LicenseFetchResult,
+} from '../../shared/domain/install';
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 

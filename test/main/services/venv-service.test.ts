@@ -60,11 +60,19 @@ function okResult(stdout: string, exitCode = 0): ExecResult {
 /** 在临时目录中构造带 Python 解释器与 pyvenv.cfg 的 venv。 */
 async function createVenv(root: string, name = '.venv'): Promise<string> {
   const venvDir = join(root, name);
-  const binDir = join(venvDir, 'bin');
+  const binDir = join(venvDir, process.platform === 'win32' ? 'Scripts' : 'bin');
   await mkdir(binDir, { recursive: true });
   await writeFile(join(venvDir, 'pyvenv.cfg'), 'home = /usr\n');
-  await writeFile(join(binDir, 'python3'), '#!/bin/sh\n');
+  await writeFile(join(binDir, process.platform === 'win32' ? 'python.exe' : 'python3'), 'python');
   return venvDir;
+}
+
+function expectedPython(venvDir: string): string {
+  return join(
+    venvDir,
+    process.platform === 'win32' ? 'Scripts' : 'bin',
+    process.platform === 'win32' ? 'python.exe' : 'python3',
+  );
 }
 
 function createService(
@@ -136,7 +144,7 @@ describe('VenvService', () => {
       runner: async (command, args) => {
         expect(command).toBe('uv');
         expect(args).toContain('list');
-        expect(args).toContain(join(venvDir, 'bin', 'python3'));
+        expect(args).toContain(expectedPython(venvDir));
         return okResult(
           JSON.stringify([
             { name: 'napcat', version: '4.2.19' },

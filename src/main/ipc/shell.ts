@@ -13,26 +13,26 @@ interface IpcMainRegistrar {
 /**
  * 注册外壳相关 IPC 通道。
  *
- * 在跨进程边界处校验 URL 必须是安全的 http(s) 链接，再委托给适配器调用系统浏览器。
+ * 在跨进程边界处校验 URL 必须是安全的 HTTPS 链接，再委托给适配器调用系统浏览器。
  *
  * @param ipcMain - Electron ipcMain 句柄或其测试替身。
  * @param actions - 暴露给渲染端的外壳动作集合。
  */
 export function registerShellIpc(ipcMain: IpcMainRegistrar, actions: ShellActions): void {
   register(ipcMain, IPC_INVOKE_CHANNELS.openExternal, (url) =>
-    actions.openExternal(requireHttpUrl(url)),
+    actions.openExternal(requireHttpsUrl(url)),
   );
 }
 
 /**
  * 校验来自渲染端的外部链接并归一化为字符串。
  *
- * 只允许 http/https 协议，避免把任意协议交给系统默认处理器。
+ * 只允许无凭据的 HTTPS 协议，避免把任意协议或明文链接交给系统默认处理器。
  *
  * @param value - 未经类型约束的 IPC 参数。
  * @returns 校验通过的链接地址。
  */
-function requireHttpUrl(value: unknown): string {
+function requireHttpsUrl(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) {
     throw new MofoxError('INVALID_ARGUMENT', 'External URL is required');
   }
@@ -42,10 +42,10 @@ function requireHttpUrl(value: unknown): string {
   } catch {
     throw new MofoxError('INVALID_ARGUMENT', 'External URL is invalid');
   }
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new MofoxError('INVALID_ARGUMENT', 'Only http(s) URLs are allowed');
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Only credential-free HTTPS URLs are allowed');
   }
-  return value;
+  return parsed.toString();
 }
 
 /**

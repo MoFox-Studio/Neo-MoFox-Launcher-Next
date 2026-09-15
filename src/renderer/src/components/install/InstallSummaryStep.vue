@@ -44,9 +44,7 @@ const webuiLabel = computed(() => (draft.installWebui ? '是' : '否'));
           <span class="summary-item-value">{{ draft.botQQ || '-' }}</span>
         </div>
         <div class="summary-item">
-          <span class="summary-item-icon"
-            ><span class="msr" aria-hidden="true">badge</span></span
-          >
+          <span class="summary-item-icon"><span class="msr" aria-hidden="true">badge</span></span>
           <span class="summary-item-label">Bot 昵称</span>
           <span class="summary-item-value">{{ draft.botNickname || '-' }}</span>
         </div>

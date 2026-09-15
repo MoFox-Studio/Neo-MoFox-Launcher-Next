@@ -79,27 +79,27 @@ function onDeleted(): void {
     <header class="manage-tabs">
       <div class="manage-tabs__inner">
         <nav class="manage-sidebar__nav" aria-label="实例管理分区">
-        <button
-          v-for="item in NAV_ITEMS"
-          :key="item.id"
-          class="manage-sidebar__item state-layer"
-          :class="{ 'manage-sidebar__item--active': activeTab === item.id }"
-          type="button"
-          :aria-current="activeTab === item.id ? 'page' : undefined"
-          @click="activeTab = item.id"
-        >
-          <span
-            class="msr manage-sidebar__icon"
-            :class="{ 'msr--fill': activeTab === item.id }"
-            aria-hidden="true"
+          <button
+            v-for="item in NAV_ITEMS"
+            :key="item.id"
+            class="manage-sidebar__item state-layer"
+            :class="{ 'manage-sidebar__item--active': activeTab === item.id }"
+            type="button"
+            :aria-current="activeTab === item.id ? 'page' : undefined"
+            @click="activeTab = item.id"
           >
-            {{ item.icon }}
-          </span>
-          <span class="manage-sidebar__text">
-            <span class="manage-sidebar__label">{{ item.label }}</span>
-            <span class="manage-sidebar__description">{{ item.description }}</span>
-          </span>
-        </button>
+            <span
+              class="msr manage-sidebar__icon"
+              :class="{ 'msr--fill': activeTab === item.id }"
+              aria-hidden="true"
+            >
+              {{ item.icon }}
+            </span>
+            <span class="manage-sidebar__text">
+              <span class="manage-sidebar__label">{{ item.label }}</span>
+              <span class="manage-sidebar__description">{{ item.description }}</span>
+            </span>
+          </button>
         </nav>
 
         <button

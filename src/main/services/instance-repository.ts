@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   INSTANCES_VERSION,
@@ -25,7 +25,9 @@ type DiagnosticReporter = (message: string, error: Error) => void;
 export class InstanceRepository {
   private readonly path: string;
   private instances?: Instance[];
+  private loading?: Promise<Instance[]>;
   private writeQueue: Promise<void> = Promise.resolve();
+  private writeBlockedReason?: Error;
 
   constructor(
     dataDirectory: string,
@@ -42,7 +44,7 @@ export class InstanceRepository {
    * @returns 实例对象数组的浅拷贝。
    */
   async list(): Promise<Instance[]> {
-    if (!this.instances) this.instances = await this.load();
+    if (!this.instances) this.instances = await (this.loading ??= this.load());
     return this.instances.map(cloneInstance);
   }
 
@@ -173,6 +175,12 @@ export class InstanceRepository {
     // 所有变更复用同一队列，避免安装、运行时状态更新等并发写丢失记录。
     const operation = this.writeQueue.then(async () => {
       const instances = await this.list();
+      if (this.writeBlockedReason) {
+        throw new MofoxError(
+          'UNAVAILABLE',
+          `实例仓库处于只读保护状态：${this.writeBlockedReason.message}`,
+        );
+      }
       change(instances);
       await writeJsonAtomic(this.path, { version: INSTANCES_VERSION, instances });
       this.instances = instances;
@@ -184,7 +192,17 @@ export class InstanceRepository {
   private async load(): Promise<Instance[]> {
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown;
-      const file = normalizeRepositoryFile(parsed, this.report);
+      this.assertSupportedFile(parsed);
+      let skippedInvalidRecord = false;
+      const file = normalizeRepositoryFile(parsed, (message, error) => {
+        skippedInvalidRecord = true;
+        this.report(message, error);
+      });
+      if (skippedInvalidRecord) {
+        await this.preserveCorruptFile();
+        this.writeBlockedReason = new Error('存在无法解析的实例记录，请先从备份恢复或修复文件');
+        return file.instances;
+      }
       // 版本升级或结构偏离默认 schema 时立即回写，既补齐新增字段也移除已废弃字段。
       if (!isCanonicalRepositoryFile(parsed, file)) {
         await writeJsonAtomic(this.path, file).catch((error) => {
@@ -193,11 +211,50 @@ export class InstanceRepository {
       }
       return file.instances;
     } catch (error) {
-      // 文件不存在和损坏文件都以空集合恢复，且不在读取阶段覆盖用户原文件。
-      if (!isRecord(error) || error.code !== 'ENOENT') {
-        this.report(`Unable to read instance repository ${this.path}`, toError(error));
-      }
+      if (isRecord(error) && error.code === 'ENOENT') return [];
+      const parsedError = toError(error);
+      this.report(`Unable to read instance repository ${this.path}`, parsedError);
+      if (error instanceof MofoxError && /更新版本/.test(error.message)) throw error;
+      await this.preserveCorruptFile();
+      const recovered = await this.recoverBackup();
+      if (recovered) return recovered;
+      this.writeBlockedReason = parsedError;
       return [];
+    }
+  }
+
+  private assertSupportedFile(value: unknown): void {
+    if (!Array.isArray(value) && (!isRecord(value) || !Array.isArray(value.instances))) {
+      throw new MofoxError('INVALID_ARGUMENT', '实例仓库顶层结构无效');
+    }
+    if (isRecord(value) && typeof value.version === 'number' && value.version > INSTANCES_VERSION) {
+      throw new MofoxError(
+        'UNAVAILABLE',
+        `实例仓库来自更新版本（${value.version} > ${INSTANCES_VERSION}），当前程序拒绝降级写入`,
+      );
+    }
+  }
+
+  private async preserveCorruptFile(): Promise<void> {
+    await copyFile(this.path, `${this.path}.corrupt.${Date.now()}`).catch(() => undefined);
+  }
+
+  private async recoverBackup(): Promise<Instance[] | undefined> {
+    const backupPath = `${this.path}.bak`;
+    try {
+      const parsed = JSON.parse(await readFile(backupPath, 'utf8')) as unknown;
+      this.assertSupportedFile(parsed);
+      let invalid = false;
+      const file = normalizeRepositoryFile(parsed, (message, error) => {
+        invalid = true;
+        this.report(message, error);
+      });
+      if (invalid) return undefined;
+      await copyFile(backupPath, this.path);
+      this.report('Recovered instance repository from backup', new Error(backupPath));
+      return file.instances;
+    } catch {
+      return undefined;
     }
   }
 }

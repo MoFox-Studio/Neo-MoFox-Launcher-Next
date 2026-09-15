@@ -43,6 +43,7 @@ export async function installMoFox(ctx: InstallTaskContext): Promise<void> {
     cwd: repoDir,
     timeoutMs: 600_000,
     env: buildSpawnEnv(),
+    signal: ctx.signal,
   });
   if (sync.exitCode !== 0) {
     throw new MofoxError(
@@ -121,6 +122,10 @@ function waitForConfigOrProcessExit(
       if (settled) return;
       settled = true;
       clearInterval(timer);
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', onAbort);
+      child.removeListener('close', onAbort);
+      child.removeListener('error', onAbort);
       resolve(ok);
     };
     const timer = setInterval(() => {
@@ -133,9 +138,13 @@ function waitForConfigOrProcessExit(
       });
     }, 1_500);
     timer.unref?.();
-    child.once('close', () => finish(false));
+    const onAbort = () => finish(false);
+    child.once('close', onAbort);
+    child.once('error', onAbort);
     const timeout = setTimeout(() => finish(false), timeoutMs);
     timeout.unref?.();
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted || child.exitCode !== null || child.signalCode !== null) finish(false);
   });
 }
 

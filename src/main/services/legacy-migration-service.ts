@@ -1,5 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { posix, win32 } from 'node:path';
 import { type Instance } from '../../shared/domain/instance';
 import {
   type LegacyInstancePreview,
@@ -25,7 +25,12 @@ export interface LegacyDataDirResolution {
  */
 export function resolveLegacyLauncherDataDir(resolution: LegacyDataDirResolution): string {
   if (resolution.override && resolution.override.trim()) return resolution.override;
-  return join(resolution.appDataDir, 'Neo-MoFox-Launcher');
+  const pathApi = resolution.appDataDir.includes('\\') ? win32 : posix;
+  return pathApi.join(resolution.appDataDir, 'Neo-MoFox-Launcher');
+}
+
+function pathJoin(root: string, name: string): string {
+  return (root.includes('\\') ? win32 : posix).join(root, name);
 }
 
 type DiagnosticReporter = (message: string, error: Error) => void;
@@ -51,7 +56,7 @@ export class LegacyMigrationService {
 
   /** 探测旧启动器数据目录是否存在 instances.json，并返回其摘要。 */
   async detect(): Promise<LegacyLauncherInfo | null> {
-    const instancesFile = join(this.legacyDataDirectory, 'instances.json');
+    const instancesFile = pathJoin(this.legacyDataDirectory, 'instances.json');
     try {
       const fileStat = await stat(instancesFile);
       const records = await this.readRawRecords(instancesFile);
@@ -74,7 +79,7 @@ export class LegacyMigrationService {
     if (!info) {
       throw new MofoxError('NOT_FOUND', `未在 ${this.legacyDataDirectory} 找到旧启动器数据`);
     }
-    const records = await this.readRawRecords(join(this.legacyDataDirectory, 'instances.json'));
+    const records = await this.readRawRecords(pathJoin(this.legacyDataDirectory, 'instances.json'));
     const existing = await this.repository.list();
     const existingIds = new Set(existing.map((instance) => instance.id));
     const existingPaths = new Set(

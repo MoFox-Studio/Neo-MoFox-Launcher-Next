@@ -1,6 +1,11 @@
 import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { Instance, UpdateInstancePatch } from '../../shared/domain/instance';
+import { randomUUID } from 'node:crypto';
+import type {
+  Instance,
+  InstanceProcessSource,
+  UpdateInstancePatch,
+} from '../../shared/domain/instance';
 import type { BotPlatform, InstallContext } from '../../shared/domain/bot-platform';
 import type { MirrorSource } from '../../shared/domain/mirror';
 import type {
@@ -41,7 +46,14 @@ export class InstanceUpdateService {
     },
     private readonly registry: { get(platformId: string): BotPlatform },
     private readonly mirrors: { list(): MirrorSource[] },
-    private readonly runtime: { stopSource(instanceId: string, source: 'platform'): Promise<void> },
+    private readonly runtime: {
+      withStoppedSources<T>(
+        instanceId: string,
+        sources: readonly InstanceProcessSource[],
+        operation: () => Promise<T>,
+        restore?: boolean,
+      ): Promise<T>;
+    },
     private readonly events: { progress(event: UpdateProgressEvent): void },
     private readonly log: UpdateLogWriter = () => undefined,
   ) {}
@@ -100,6 +112,12 @@ export class InstanceUpdateService {
    * @returns 切换完成后的最新版本信息。
    */
   async switchBranch(instanceId: string, branch: string): Promise<MofoxUpdateInfo> {
+    return this.runtime.withStoppedSources(instanceId, ['mofox'], () =>
+      this.switchBranchUnlocked(instanceId, branch),
+    );
+  }
+
+  private async switchBranchUnlocked(instanceId: string, branch: string): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
     this.log('info', `[${instance.name}] 开始切换分支到 ${branch}`);
     try {
@@ -122,6 +140,15 @@ export class InstanceUpdateService {
    * @returns 回退完成后的最新版本信息。
    */
   async checkoutCommit(instanceId: string, commitHash: string): Promise<MofoxUpdateInfo> {
+    return this.runtime.withStoppedSources(instanceId, ['mofox'], () =>
+      this.checkoutCommitUnlocked(instanceId, commitHash),
+    );
+  }
+
+  private async checkoutCommitUnlocked(
+    instanceId: string,
+    commitHash: string,
+  ): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
     this.log('info', `[${instance.name}] 开始回退到提交 ${commitHash}`);
     try {
@@ -143,6 +170,12 @@ export class InstanceUpdateService {
    * @returns 更新完成后的最新版本信息。
    */
   async updateMofox(instanceId: string): Promise<MofoxUpdateInfo> {
+    return this.runtime.withStoppedSources(instanceId, ['mofox'], () =>
+      this.updateMofoxUnlocked(instanceId),
+    );
+  }
+
+  private async updateMofoxUnlocked(instanceId: string): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
     this.log('info', `[${instance.name}] 开始更新主程序到最新提交`);
     try {
@@ -195,25 +228,33 @@ export class InstanceUpdateService {
    * @throws {MofoxError} 实例未安装平台或更新失败时抛出。
    */
   async updatePlatform(instanceId: string, version: string): Promise<PlatformUpdateInfo> {
+    return this.runtime.withStoppedSources(instanceId, ['platform'], () =>
+      this.updatePlatformUnlocked(instanceId, version),
+    );
+  }
+
+  private async updatePlatformUnlocked(
+    instanceId: string,
+    version: string,
+  ): Promise<PlatformUpdateInfo> {
     const instance = await this.find(instanceId);
     if (!instance.platform?.id || !instance.platform.installDir) {
       throw new MofoxError('NOT_FOUND', '实例未安装平台');
     }
     const platform = this.registry.get(instance.platform.id);
     const installDir = instance.platform.installDir;
-    const cacheDir = join(dirname(instance.mofoxInstallDir), '.update-cache');
+    const cacheDir = join(dirname(installDir), `.update-cache-${randomUUID()}`);
     const backup = join(cacheDir, 'existing');
     const target = version.trim() || 'latest';
 
     this.log('info', `[${instance.name}] 开始更新平台 ${platform.name} 到 ${target}`);
-    this.emit(instanceId, 'update-platform', 0.02, '正在停止平台进程...');
-    await this.runtime.stopSource(instanceId, 'platform');
-
     this.emit(instanceId, 'update-platform', 0.08, '正在把现有平台移动到缓存目录...');
     await rm(cacheDir, { recursive: true, force: true });
     await mkdir(cacheDir, { recursive: true });
     await movePath(installDir, backup);
 
+    let committed = false;
+    let rollbackFailed = false;
     try {
       this.emit(
         instanceId,
@@ -243,18 +284,31 @@ export class InstanceUpdateService {
       await this.repository.update(instanceId, {
         platform: { ...instance.platform, version: result.version },
       });
+      committed = true;
       this.emit(instanceId, 'update-platform', 1, '平台更新完成');
       this.log('info', `[${instance.name}] 平台更新完成: ${result.version}`);
       return this.getPlatformInfo(instanceId);
     } catch (error) {
+      if (committed) throw error;
       const message = describeError(error);
       this.log('error', `[${instance.name}] 平台更新失败: ${message}`);
       this.emit(instanceId, 'update-platform', -1, '更新失败，正在恢复原版本...', message);
       await rm(installDir, { recursive: true, force: true }).catch(() => undefined);
-      if (await pathExists(backup)) await movePath(backup, installDir);
+      if (await pathExists(backup)) {
+        try {
+          await movePath(backup, installDir);
+        } catch (rollbackError) {
+          rollbackFailed = true;
+          throw new MofoxError(
+            'IO_ERROR',
+            `更新失败且自动恢复失败，原文件保留于 ${backup}: ${describeError(rollbackError)}`,
+          );
+        }
+      }
       throw error;
     } finally {
-      await rm(cacheDir, { recursive: true, force: true }).catch(() => undefined);
+      if (!rollbackFailed)
+        await rm(cacheDir, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 

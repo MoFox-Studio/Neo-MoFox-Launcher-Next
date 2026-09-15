@@ -9,11 +9,51 @@ const servers: Server[] = [];
 
 // 每个用例启动独立本地服务并创建临时目录，结束后统一释放网络和文件系统资源。
 afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  await Promise.all(
+    servers
+      .splice(0)
+      .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
+  );
+  await Promise.all(
+    directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+  );
 });
 
 describe('downloadRange', () => {
+  it('rejects plain HTTP by default without contacting the server', async () => {
+    await expect(downloadRange('http://127.0.0.1:1/file', 'unused')).rejects.toThrow('insecure');
+  });
+
+  it('rejects credentials in a download URL', async () => {
+    await expect(downloadRange('https://user:pass@example.invalid/file', 'unused')).rejects.toThrow(
+      'credentials',
+    );
+  });
+
+  it('rejects oversized metadata before creating the destination', async () => {
+    const url = await serve(Buffer.alloc(20), false);
+    const directory = await mkdtemp(join(process.cwd(), '.test-download-'));
+    directories.push(directory);
+    const destination = join(directory, 'file.bin');
+    await expect(
+      downloadRange(url, destination, { allowInsecureHttp: true, maxBytes: 10 }),
+    ).rejects.toThrow('size limit');
+    await expect(readFile(destination)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rejects redirects to an unapproved host', async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(302, { location: 'https://untrusted.invalid/payload' });
+      response.end();
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address() as { port: number };
+    await expect(
+      downloadRange(`http://127.0.0.1:${address.port}/file`, 'unused', { allowInsecureHttp: true }),
+    ).rejects.toThrow('host is not allowed');
+  });
+
   // 覆盖分段并发、服务端不支持 Range 时的降级，以及参数在创建目标文件前的校验。
   it('downloads concurrent ranges and reports throttled progress', async () => {
     const content = Buffer.from('0123456789abcdefghijklmnopqrstuvwxyz');
@@ -23,10 +63,17 @@ describe('downloadRange', () => {
     const destination = join(directory, 'file.bin');
     const progress = vi.fn();
 
-    await downloadRange(url, destination, { concurrency: 3, minChunkBytes: 4 }, progress);
+    await downloadRange(
+      url,
+      destination,
+      { concurrency: 3, minChunkBytes: 4, allowInsecureHttp: true },
+      progress,
+    );
 
     await expect(readFile(destination)).resolves.toEqual(content);
-    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ receivedBytes: content.length }));
+    expect(progress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ receivedBytes: content.length }),
+    );
   });
 
   it('falls back to a single stream when ranges are unsupported', async () => {
@@ -36,13 +83,19 @@ describe('downloadRange', () => {
     directories.push(directory);
     const destination = join(directory, 'file.bin');
 
-    await downloadRange(url, destination, { concurrency: 8, minChunkBytes: 1 });
+    await downloadRange(url, destination, {
+      concurrency: 8,
+      minChunkBytes: 1,
+      allowInsecureHttp: true,
+    });
 
     await expect(readFile(destination)).resolves.toEqual(content);
   });
 
   it('rejects invalid options before creating a destination', async () => {
-    await expect(downloadRange('https://example.invalid', 'file', { concurrency: 0 })).rejects.toMatchObject({
+    await expect(
+      downloadRange('https://example.invalid', 'file', { concurrency: 0 }),
+    ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
     });
   });

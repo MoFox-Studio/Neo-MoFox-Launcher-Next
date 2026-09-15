@@ -340,7 +340,10 @@ onUnmounted(() => {
         <button
           type="button"
           class="btn btn--text state-layer"
-          @click="showSkipDialog = false; installationSkipped = false"
+          @click="
+            showSkipDialog = false;
+            installationSkipped = false;
+          "
         >
           取消
         </button>

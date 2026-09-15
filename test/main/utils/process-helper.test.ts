@@ -109,6 +109,22 @@ function makeOptions(overrides: Partial<Parameters<ProcessHelper['spawn']>[1]> =
 }
 
 describe('ProcessHelper', () => {
+  it('clears natural exits before callbacks and ignores late exits from the replaced process', () => {
+    const first = createPty();
+    const second = createPty();
+    const helper = new ProcessHelper(
+      vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second),
+      FAST_TIMINGS,
+    );
+    helper.spawn('key', makeOptions({ onExit: () => expect(helper.has('key')).toBe(false) }));
+    first.emitExit(0);
+    expect(helper.getStats('key').running).toBe(false);
+    helper.spawn('key', makeOptions());
+    first.emitExit(1);
+    expect(helper.getStats('key').running).toBe(true);
+    expect(() => helper.spawn('key', makeOptions())).toThrow();
+    second.emitExit(0);
+  });
   it('spawns a PTY, forwards data and reports stats', () => {
     const pty = createPty();
     const helper = new ProcessHelper(

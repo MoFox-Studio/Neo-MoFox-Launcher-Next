@@ -3,7 +3,8 @@ export type InstallStepId =
   'install-mofox' | 'install-platform' | 'install-webui' | 'configure' | 'finalize';
 
 /** 可由安装任务发出的终态或进行中状态。 */
-export type InstallTaskStatus = 'pending' | 'running' | 'failed' | 'cancelled' | 'done';
+export type InstallTaskStatus =
+  'pending' | 'running' | 'cancelling' | 'failed' | 'cancelled' | 'done';
 
 /** MoFox 本体仓库的跟踪分支；`main` 为稳定版，`dev` 为开发版。 */
 export type MofoxBranch = 'main' | 'dev';

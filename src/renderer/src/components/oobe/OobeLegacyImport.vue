@@ -2,7 +2,11 @@
 import { onMounted, ref } from 'vue';
 import { mofoxApi } from '@/services/mofox-api';
 import { MofoxError } from '@shared/domain/error';
-import type { LegacyLauncherInfo, MigrationPreview, MigrationResult } from '@shared/domain/migration';
+import type {
+  LegacyLauncherInfo,
+  MigrationPreview,
+  MigrationResult,
+} from '@shared/domain/migration';
 
 const emit = defineEmits<{ (e: 'next'): void; (e: 'skip'): void }>();
 
@@ -67,14 +71,18 @@ onMounted(async () => {
 <template>
   <section class="oobe-step">
     <h2 class="oobe__step-title">导入旧版实例</h2>
-    <p class="oobe__step-desc">如检测到旧版 Neo-MoFox Launcher 数据目录，可以选择导入其中的实例记录</p>
+    <p class="oobe__step-desc">
+      如检测到旧版 Neo-MoFox Launcher 数据目录，可以选择导入其中的实例记录
+    </p>
 
     <div v-if="legacyInfo" class="legacy-info">
       <span class="msr legacy-info__icon" aria-hidden="true">folder</span>
       <div class="legacy-info__body">
         <span class="legacy-info__path">{{ legacyInfo.dataDirectory }}</span>
-        <span class="legacy-info__meta">共 {{ legacyInfo.instanceCount }} 个实例 · 最后修改于
-          {{ new Date(legacyInfo.modifiedAt ?? Date.now()).toLocaleString('zh-CN') }}</span>
+        <span class="legacy-info__meta"
+          >共 {{ legacyInfo.instanceCount }} 个实例 · 最后修改于
+          {{ new Date(legacyInfo.modifiedAt ?? Date.now()).toLocaleString('zh-CN') }}</span
+        >
       </div>
     </div>
 
@@ -86,7 +94,9 @@ onMounted(async () => {
     <template v-if="preview">
       <p class="legacy-hint">
         共 {{ preview.previews.length }} 条记录，其中
-        <span class="legacy-hint--conflict">{{ preview.previews.filter((p) => p.conflict).length }} 条冲突将被跳过</span>
+        <span class="legacy-hint--conflict"
+          >{{ preview.previews.filter((p) => p.conflict).length }} 条冲突将被跳过</span
+        >
       </p>
       <ul class="legacy-list">
         <li
@@ -95,20 +105,32 @@ onMounted(async () => {
           class="legacy-list__item"
           :class="{ 'legacy-list__item--conflict': entry.conflict }"
         >
-          <span class="msr legacy-list__icon" aria-hidden="true">{{ entry.conflict ? 'block' : 'check_circle' }}</span>
+          <span class="msr legacy-list__icon" aria-hidden="true">{{
+            entry.conflict ? 'block' : 'check_circle'
+          }}</span>
           <span class="legacy-list__name">{{ entry.instance.name }}</span>
-          <span class="legacy-list__meta">{{ entry.instance.platform?.id ?? '' }} · {{ entry.instance.mofoxInstallDir }}</span>
+          <span class="legacy-list__meta"
+            >{{ entry.instance.platform?.id ?? '' }} · {{ entry.instance.mofoxInstallDir }}</span
+          >
         </li>
       </ul>
     </template>
 
     <div v-if="result" class="legacy-result">
       <span class="msr legacy-result__icon" aria-hidden="true">check_circle</span>
-      <span>导入 {{ result.imported }} 个，跳过 {{ result.skipped }} 个，共 {{ result.total }} 个实例</span>
+      <span
+        >导入 {{ result.imported }} 个，跳过 {{ result.skipped }} 个，共
+        {{ result.total }} 个实例</span
+      >
     </div>
 
     <div class="legacy-actions">
-      <button type="button" class="btn btn--text state-layer" :disabled="busy" @click="emit('skip')">
+      <button
+        type="button"
+        class="btn btn--text state-layer"
+        :disabled="busy"
+        @click="emit('skip')"
+      >
         跳过导入
       </button>
       <button

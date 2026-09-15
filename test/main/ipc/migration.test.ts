@@ -22,7 +22,10 @@ function createServices() {
   };
 }
 
-function createIpcMain(): { handlers: Map<string, (...args: unknown[]) => unknown>; ipcMain: IpcMainRegistrar } {
+function createIpcMain(): {
+  handlers: Map<string, (...args: unknown[]) => unknown>;
+  ipcMain: IpcMainRegistrar;
+} {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
   const ipcMain: IpcMainRegistrar = {
     handle: (channel, handler) => {

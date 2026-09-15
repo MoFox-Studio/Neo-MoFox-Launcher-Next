@@ -64,18 +64,22 @@ export interface CreateInstanceInput {
   autoStart?: boolean;
 }
 
-/** 更新实例的补丁；所有字段可选，未提供的字段保持原值。 */
-export interface UpdateInstancePatch {
+/** 渲染进程可修改的实例配置；运行状态和时间戳不属于普通配置 API。 */
+export interface EditableInstancePatch {
   name?: string;
   mofoxInstallDir?: string;
   platform?: InstalledPlatform | null;
   /** 虚拟环境目录；未提供时保持原值。 */
   venvDir?: string;
-  status?: InstanceStatus;
-  lastStartedAt?: number | null;
   autoStart?: boolean;
   /** 附加信息字典；未提供时保持原值。 */
   extra?: InstanceExtra;
+}
+
+/** 仓库内部更新补丁；状态与最后启动时间仅供可信主进程服务写入。 */
+export interface UpdateInstancePatch extends EditableInstancePatch {
+  status?: InstanceStatus;
+  lastStartedAt?: number | null;
 }
 
 /** 一个实例最多运行两个进程：MoFox 本体与平台适配器。 */

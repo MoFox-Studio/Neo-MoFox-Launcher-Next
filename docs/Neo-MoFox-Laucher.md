@@ -1,7 +1,6 @@
 # Neo-MoFox Launcher 重构方案
 
 > 保持 Electron，在独立的新工程中以 TypeScript 重写主进程、预加载层、服务层和 Vue 3 渲染层，并沿用 Material Design 3。
-> 
 
 ## 背景与目标
 
@@ -21,26 +20,24 @@
 - 在独立代码目录中完全重写应用，并以旧版本的行为、数据格式和验收流程作为参考。
 
 > **范围边界**
-> 
 
 > Electron、electron-builder、node-pty、现有数据格式和用户可见业务语义继续保留。主进程、preload、服务层和渲染层均在新工程中重新实现；旧 JavaScript 不参与新应用运行，也不作为兼容层。
-> 
 
 ---
 
 ## 技术栈
 
-| 层级 | 选型 | 说明 |
-| --- | --- | --- |
-| 桌面运行时 | Electron | 继续负责窗口、系统能力、IPC 与发布打包。 |
-| 主进程 | Node.js + TypeScript | 负责窗口、IPC 与系统能力；在新工程中重新实现。 |
-| 预加载层 | TypeScript | 编译为本地 preload bundle；继续开启 `contextIsolation: true` 和关闭 `nodeIntegration`，只暴露白名单 API。 |
-| 渲染层 | Vue 3 + TypeScript | 使用 Composition API、单文件组件和 Vue Router。 |
-| 构建工具 | Vite | 负责 renderer 热更新、类型检查前的模块解析和生产资源构建。 |
-| 状态管理 | Pinia | 承载实例、设置、环境检测和安装任务等跨页面状态。 |
-| UI | Material Design 3 | 使用项目已有 `@material/material-color-utilities` 和 `material-symbols`，组件优先选择 Material Web。 |
-| 测试 | Vitest + Vue Test Utils；Playwright（可选） | 前者覆盖组件、store 与 IPC 适配器，后者覆盖关键桌面流程。 |
-| 代码质量 | TypeScript、ESLint、Prettier | 在 CI 中执行类型检查、静态检查和单元测试。 |
+| 层级       | 选型                                        | 说明                                                                                                      |
+| ---------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 桌面运行时 | Electron                                    | 继续负责窗口、系统能力、IPC 与发布打包。                                                                  |
+| 主进程     | Node.js + TypeScript                        | 负责窗口、IPC 与系统能力；在新工程中重新实现。                                                            |
+| 预加载层   | TypeScript                                  | 编译为本地 preload bundle；继续开启 `contextIsolation: true` 和关闭 `nodeIntegration`，只暴露白名单 API。 |
+| 渲染层     | Vue 3 + TypeScript                          | 使用 Composition API、单文件组件和 Vue Router。                                                           |
+| 构建工具   | Vite                                        | 负责 renderer 热更新、类型检查前的模块解析和生产资源构建。                                                |
+| 状态管理   | Pinia                                       | 承载实例、设置、环境检测和安装任务等跨页面状态。                                                          |
+| UI         | Material Design 3                           | 使用项目已有 `@material/material-color-utilities` 和 `material-symbols`，组件优先选择 Material Web。      |
+| 测试       | Vitest + Vue Test Utils；Playwright（可选） | 前者覆盖组件、store 与 IPC 适配器，后者覆盖关键桌面流程。                                                 |
+| 代码质量   | TypeScript、ESLint、Prettier                | 在 CI 中执行类型检查、静态检查和单元测试。                                                                |
 
 建议新增依赖：`vue`、`vue-router`、`pinia`、`vite`、`@vitejs/plugin-vue`、`typescript`、`vue-tsc`、`@material/web`、`vitest`、`@vue/test-utils`、`eslint`、`prettier`。保留 `@material/material-color-utilities`、`material-symbols`、CodeMirror 与 xterm.js。
 
@@ -77,10 +74,8 @@ Vue 页面和组件只依赖 store、composable、类型化 API client 与 UI �
 页面状态按领域拆分：实例、安装、OOBE、环境、设置、日志和版本。短生命周期 UI 状态放在组件内，跨路由或需持久化的状态放入 Pinia store。
 
 > **不可突破的安全约束**
-> 
 
 > 渲染层不得直接访问 Node.js、服务实现或 `ipcRenderer`。所有跨进程能力必须经过 preload 白名单 API；`contextIsolation: true` 和 `nodeIntegration: false` 保持不变。
-> 
 
 ---
 
@@ -184,10 +179,8 @@ export {};
 该契约是重写的第一道质量门：任何新增 IPC 通道必须同时定义参数、返回值与错误语义；任何 Vue 组件不得直接使用字符串形式的 IPC channel。
 
 > **质量门 01**
-> 
 
 > `src/shared/ipc.ts` 是 main、preload 和 renderer 的单一契约来源。没有类型定义的 IPC 通道不得新增；所有事件订阅必须可取消。
-> 
 
 ---
 
@@ -202,6 +195,7 @@ export {};
   - `attachInteractive(cmd, args, opts): PtySession` —— 长生命周期交互终端，内部用 `node-pty`，输出为 TTY 流（含 ANSI 颜色码），通过事件推送 data/exit。
 
   不强行把所有子进程都改成 node-pty：一次性命令（`taskkill`、`apt-get install`、版本检查）保留 spawn 的轻量与分离 stdout/stderr；交互终端（跑 bot 实例）才用 PTY 的真实终端语义。`ExecResult` 与 `PtySession` 类型留 main 内部，不进 `shared/domain/`（renderer 经 IPC 拿到的是已解析过的事件 payload，不直接接触这两个类型）。
+
 - **`platform-helper.ts`** —— OS 多平台便捷调用。**不用**配置表，仅导出系统判断函数与跨系统便捷调用，全部为 module 级函数（无状态部分纯函数，有状态部分显式 memo）。提供：
   - 系统判断：`isWindows()` / `isLinux()` / `isMac()`
   - 系统环境检测：`detectSystemEnv()` 返回 arch/osType/osRelease/hostname/homedir/tmpdir/shell，Linux 下解析 `/etc/os-release` 识别发行版（debian/arch/redhat/suse）与包管理器（apt/pacman/dnf/yum/zypper）
@@ -213,6 +207,7 @@ export {};
   - Windows 下 spawn 自动前置 `chcp 65001` 以保证 UTF-8 输出
 
   **不再包含**：`PLATFORM_CONFIG` 表、`getKillCommand`（并入 `killProcessTree` 内部分支）、`getPackageManagerUpdateCmd`/`getPackageManagerInstallCmd`（包管理器命令生成移到 environment service 等使用方）。
+
 - **`logger.ts`** —— 统一日志服务。文件写入、按日期/大小轮转、gzip 归档、历史读取。配置项（`maxFileSize`/`maxArchiveDays`/`compressArchive`）通过依赖注入的 SettingsService 读取，不再用 `require` 延迟导入打破循环依赖。
 - **`mirror.ts`** —— 镜像源管理。集中维护 GitHub 与 Python FTP 镜像列表，通过 TCP 连接延迟检测选最优镜像；提供统一 URL 获取接口，供安装、许可证加载、版本检查复用。
 - **`range-downloader.ts`** —— HTTP Range 分片并发下载器。纯 Node `http`/`https`/`fs`，默认并发 8、最小分片 32MB、最大重定向 5；进度回调带节流（200ms / 1% 增量），避免淹没 IPC 与渲染进程。
@@ -243,16 +238,15 @@ export {};
 - `download.ts` —— `DownloadProgress`、`RangeDownloadOptions`（renderer 安装进度条）
 
 > **质量门 02**
-> 
 
 > `src/main/utils/` 与 `src/main/platforms/` 中所有模块：
+>
 > - 不再使用 `require` / `module.exports`，统一 ESM `import`/`export` + TypeScript。
 > - 所有 JSDoc `@param`/`@returns` 必须升级为真实 TS 类型；公共返回类型须同步到 `shared/domain/` 供 renderer 复用。
 > - 单例服务（Logger、Mirror 等）改为 module 级函数导出，依赖（如 SettingsService）通过参数注入，不再用延迟 `require` 打破循环依赖。
 > - OS 平台分支必须收敛到 `platform-helper.ts` 内部，禁止散落的 `process.platform === 'win32'` 字面量判断。
 > - 所有子进程调用必须经 `process-service.ts`，禁止直接 `require('child_process')` 或 `require('node-pty')`；一次性命令走 `runOneShot`（spawn），交互终端走 `attachInteractive`（pty）。
 > - bot 平台必须 `extends BaseBotPlatform`，由 `PlatformRegistry` 在注册时按 `BotPlatform` 接口校验；不得绕过基类直接 `implements BotPlatform` 构造字面量对象。
-> 
 
 ---
 
@@ -290,13 +284,12 @@ export {};
 - 已移到最终安装目录的产物不在本规则范围内（删除已安装实例走实例管理流程）。
 
 > **质量门 03**
-> 
+>
 > - 临时目录先行，最终目录原子落地；任何步骤失败不得在最终目录残留半成品。
 > - 不提供续装能力；失败只能重试（同步骤回退重来）或取消（整体删除）。
 > - 退出安装界面一律转后台，不得停止或丢弃进行中的安装任务。
 > - 关闭主窗口在有进行中安装时必须二次确认；确认后取消任务并删除临时内容。
 > - 取消安装直接删除临时目录，不得保留任何残留。
-> 
 
 ---
 
@@ -331,7 +324,7 @@ export {};
 **不允许**：仅有类型定义而无 handler 测试；handler 测试断言 Node 内部实现而非 IPC 契约；preload 测试绕过 `contextBridge` 直接调 `ipcRenderer`。
 
 > **质量门 04**
-> 
+>
 > IPC 三层（shared 类型 / main handlers / preload 桥）必须有对应测试；新增或修改通道未补测试视为不通过，CI 中 IPC 通道测试覆盖率以通道为粒度须达 100%。
 
 ### 面向用户函数的边界用例
@@ -341,5 +334,5 @@ export {};
 其余面向用户函数（启动/停止实例、卸载、版本检查、镜像测速、环境检测）按各自语义对照上述五类逐一补全；CI 以「每个面向用户函数至少 N 个边界用例」为门，N 由 review 决定，下限不少于 8。
 
 > **质量门 05**
-> 
+>
 > 每个面向用户的 IPC 函数必须有边界用例测试，至少覆盖资源/IO 失败、时序竞态、输入异常、进程级中断、契约与状态一致性五类；仅 happy path + 单一错误码的测试不通过。

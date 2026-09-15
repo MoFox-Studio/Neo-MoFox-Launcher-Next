@@ -65,7 +65,12 @@ function createService(
     })),
   };
   const mirrors = { list: vi.fn(() => []) };
-  const runtime = { stopSource: vi.fn(async () => undefined) };
+  const runtime = {
+    withStoppedSources: vi.fn(
+      async <T>(_instanceId: string, _sources: readonly string[], operation: () => Promise<T>) =>
+        operation(),
+    ),
+  };
   const events = { progress: vi.fn() };
   const service = new InstanceUpdateService(
     repository,
@@ -167,7 +172,11 @@ describe('InstanceUpdateService', () => {
     const preserved = await readFile(join(root, 'platform', 'config', 'onebot.json'), 'utf8');
     expect(preserved).toBe('{"enable":true}');
     // 平台进程在替换前停止。
-    expect(runtime.stopSource).toHaveBeenCalledWith('ins-1', 'platform');
+    expect(runtime.withStoppedSources).toHaveBeenCalledWith(
+      'ins-1',
+      ['platform'],
+      expect.any(Function),
+    );
     // 版本号写回持久化层。
     expect(repository.update).toHaveBeenCalledWith('ins-1', {
       platform: expect.objectContaining({ version: 'v2.0.0' }),

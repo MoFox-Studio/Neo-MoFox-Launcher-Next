@@ -1,8 +1,9 @@
 import { constants } from 'node:fs';
-import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
+import { access, cp, mkdir, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import type { CreateInstanceInput } from '../../shared/domain/instance';
+import type { Instance } from '../../shared/domain/instance';
 import type {
   InstallProgressEvent,
   InstallRequest,
@@ -16,6 +17,8 @@ import type { PlatformRegistry } from '../platforms/registry';
 import { generateInstanceId } from '../utils/id-generator';
 import { fetchRepositoryFile } from '../utils/git/github';
 import { inspectInstallTarget } from '../utils/path-inspection';
+import { writeJsonAtomic } from '../utils/atomic-json';
+import { KeyedOperationLock } from '../utils/keyed-operation-lock';
 import {
   configureInstance,
   installMoFox,
@@ -55,7 +58,30 @@ interface TaskRecord {
   resumeIndex?: number;
   /** 平台发行版本号；安装平台任务成功后记录，供注册实例回填。 */
   platformVersion?: string;
+  /** 最近完整落盘并复制好后继快照的步骤索引，供崩溃恢复计算安全断点。 */
+  lastCompletedIndex: number;
+  /** 实例仓库已经接受记录后即进入提交态；此后取消不得删除安装目录。 */
+  committed: boolean;
+  /** 收尾交换开始前记录的原有目录名；用于崩溃后区分用户旧目录与本任务半成品。 */
+  finalizeBackups: string[];
+  finalizePrepared: boolean;
   running: Promise<void>;
+}
+
+interface PersistedTaskRecord {
+  version: 1;
+  id: string;
+  request: InstallRequest;
+  workspace: string;
+  currentStep: InstallStepId;
+  currentIndex: number;
+  lastCompletedIndex: number;
+  resumeIndex?: number;
+  platformVersion?: string;
+  committed: boolean;
+  finalizeBackups: string[];
+  finalizePrepared: boolean;
+  status: InstallProgressEvent['status'];
 }
 
 export interface InstallTaskEvents {
@@ -63,14 +89,20 @@ export interface InstallTaskEvents {
 }
 
 export interface InstallTaskDependencies {
-  repository: { create(input: CreateInstanceInput): Promise<unknown> };
+  repository: {
+    create(input: CreateInstanceInput): Promise<unknown>;
+    list?(): Promise<Instance[]>;
+  };
   mirrors: { list(): MirrorSource[] };
   /** 可选执行器覆盖，供测试注入伪实现；缺省时使用 `utils/install-tasks` 中的真实执行器。 */
   executors?: Partial<Record<InstallStepId, (ctx: InstallTaskContext) => Promise<unknown>>>;
+  /** 安装任务恢复清单目录；生产环境指向 userData，测试可省略。 */
+  stateDirectory?: string;
 }
 
 export class InstallTaskService {
   private readonly tasks = new Map<string, TaskRecord>();
+  private readonly persistence = new KeyedOperationLock();
 
   /**
    * @param registry - 平台注册表，用于按平台 ID 解析平台安装器。
@@ -114,7 +146,6 @@ export class InstallTaskService {
     task.controller = new AbortController();
     task.status = 'running';
     task.failedStep = undefined;
-    task.platformVersion = undefined;
     task.running = this.execute(task);
     await task.running;
   }
@@ -128,12 +159,20 @@ export class InstallTaskService {
    */
   async cancel(taskId: string): Promise<void> {
     const task = this.requireTask(taskId);
-    if (task.status === 'done' || task.status === 'cancelled') return;
+    if (task.status === 'done' || task.status === 'cancelled' || task.committed) return;
+    if (task.status === 'cancelling') {
+      await task.running.catch(() => undefined);
+      return;
+    }
+    task.status = 'cancelling';
     task.controller.abort();
+    await this.persistTask(task);
     await task.running.catch(() => undefined);
+    if (task.committed) return;
     task.status = 'cancelled';
     // 回收整个实例目录（缓存 `.cache` 与其父目录一并删除），不留空文件夹。
     await rm(dirname(task.workspace), { recursive: true, force: true }).catch(() => undefined);
+    await this.removePersistedTask(task.id);
   }
 
   /**
@@ -153,7 +192,7 @@ export class InstallTaskService {
    */
   abortAll(): void {
     for (const task of this.tasks.values()) {
-      if (task.status === 'pending' || task.status === 'running') {
+      if (task.status === 'pending' || task.status === 'running' || task.status === 'cancelling') {
         task.controller.abort();
       }
     }
@@ -166,7 +205,8 @@ export class InstallTaskService {
    */
   hasActiveTasks(): boolean {
     return [...this.tasks.values()].some(
-      (task) => task.status === 'pending' || task.status === 'running',
+      (task) =>
+        task.status === 'pending' || task.status === 'running' || task.status === 'cancelling',
     );
   }
 
@@ -177,6 +217,49 @@ export class InstallTaskService {
    */
   async wait(taskId: string): Promise<void> {
     await this.requireTask(taskId).running;
+  }
+
+  /**
+   * 从 userData 中读取上次异常退出遗留的任务，并从最后一个完整快照自动续跑。
+   * 已越过仓库提交点的任务只清理缓存，不会重复注册实例。
+   */
+  async recover(): Promise<void> {
+    const directory = this.dependencies.stateDirectory;
+    if (!directory) return;
+    let names: string[];
+    try {
+      names = (await readdir(directory)).filter((name) => name.endsWith('.json'));
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      try {
+        const value = JSON.parse(await readFile(join(directory, name), 'utf8')) as unknown;
+        const persisted = parsePersistedTask(value);
+        if (this.tasks.has(persisted.id)) continue;
+        const task = this.restoreTask(persisted);
+        this.tasks.set(task.id, task);
+        if (task.committed || (await this.repositoryContains(task.id))) {
+          task.committed = true;
+          task.status = 'done';
+          await rm(task.workspace, { recursive: true, force: true }).catch(() => undefined);
+          await this.removePersistedTask(task.id);
+          const stepCount = this.buildSteps(task.request).length;
+          this.emit(task, 'finalize', stepCount - 1, stepCount, 1, 'done', '已恢复上次完成的安装');
+          continue;
+        }
+        if (persisted.status === 'cancelled' || persisted.status === 'cancelling') {
+          task.status = 'cancelled';
+          await rm(dirname(task.workspace), { recursive: true, force: true });
+          await this.removePersistedTask(task.id);
+          continue;
+        }
+        task.resumeIndex = Math.max(0, task.lastCompletedIndex + 1);
+        task.running = this.execute(task);
+      } catch {
+        // 单份损坏清单不阻断其余任务；保留原文件供人工诊断。
+      }
+    }
   }
 
   /**
@@ -233,6 +316,30 @@ export class InstallTaskService {
       currentStep: 'install-mofox',
       currentIndex: 0,
       lastFraction: 0,
+      lastCompletedIndex: -1,
+      committed: false,
+      finalizeBackups: [],
+      finalizePrepared: false,
+      running: Promise.resolve(),
+    };
+  }
+
+  private restoreTask(value: PersistedTaskRecord): TaskRecord {
+    return {
+      id: value.id,
+      request: value.request,
+      workspace: value.workspace,
+      controller: new AbortController(),
+      status: 'failed',
+      currentStep: value.currentStep,
+      currentIndex: value.currentIndex,
+      lastFraction: 0,
+      lastCompletedIndex: value.lastCompletedIndex,
+      ...(value.resumeIndex !== undefined ? { resumeIndex: value.resumeIndex } : {}),
+      ...(value.platformVersion ? { platformVersion: value.platformVersion } : {}),
+      committed: value.committed,
+      finalizeBackups: value.finalizeBackups,
+      finalizePrepared: value.finalizePrepared,
       running: Promise.resolve(),
     };
   }
@@ -271,8 +378,8 @@ export class InstallTaskService {
     task.status = 'running';
     // 最近一次成功执行完成（其产物已写入当前 stage）的步骤索引；-1 表示尚无任何完成品。
     let lastCompletedStep = startIndex - 1;
-
     try {
+      await this.persistTask(task);
       let stageDir = await this.restoreStage(workspace, startIndex);
       for (let index = startIndex; index < steps.length; index += 1) {
         this.throwIfCancelled(task);
@@ -280,9 +387,13 @@ export class InstallTaskService {
         task.currentStep = step;
         task.currentIndex = index;
         task.lastFraction = 0;
+        await this.persistTask(task);
         this.emit(task, step, index, steps.length, 0, 'running', `开始${label}`);
         await this.runStep(task, stageDir, steps, index);
+        if (!task.committed) this.throwIfCancelled(task);
         lastCompletedStep = index;
+        task.lastCompletedIndex = index;
+        await this.persistTask(task);
         this.emit(task, step, index, steps.length, 1, 'running', `${label}完成`);
         if (index < steps.length - 1) {
           const nextStage = join(workspace, `stage-${index + 1}`);
@@ -293,7 +404,14 @@ export class InstallTaskService {
       }
       task.status = 'done';
       this.emit(task, 'finalize', steps.length - 1, steps.length, 1, 'done', '安装完成');
+      await this.removePersistedTask(task.id);
     } catch (error) {
+      if (task.committed) {
+        task.status = 'done';
+        this.emit(task, 'finalize', steps.length - 1, steps.length, 1, 'done', '安装完成');
+        await this.removePersistedTask(task.id);
+        return;
+      }
       // 取消不是失败：执行器通过 AbortSignal 尽快停止，任务对外发布取消状态而非错误。
       if (task.controller.signal.aborted) {
         task.status = 'cancelled';
@@ -322,11 +440,13 @@ export class InstallTaskService {
           error instanceof Error ? error.message : String(error),
         );
       }
+      await this.persistTask(task).catch(() => undefined);
     } finally {
       // 失败保留工作区供重试续跑；取消时回收整个实例目录（此时尚未落地产物）。
       // 成功后 finalize 已把 mofox/platform 从缓存 `.cache` 拉出到实例目录，故不再删除。
       if (task.status === 'cancelled') {
         await rm(dirname(workspace), { recursive: true, force: true }).catch(() => undefined);
+        await this.removePersistedTask(task.id);
       }
     }
   }
@@ -447,35 +567,128 @@ export class InstallTaskService {
   private async finalize(task: TaskRecord, stageDir: string): Promise<void> {
     const target = dirname(task.workspace);
     await mkdir(target, { recursive: true });
-    for (const name of ['mofox', 'platform']) {
-      const src = join(stageDir, name);
-      const dst = join(target, name);
-      if (!(await pathExists(src))) continue;
-      await rm(dst, { recursive: true, force: true });
-      try {
-        await rename(src, dst);
-      } catch (error) {
-        if (!isCrossDevice(error)) throw error;
-        await cp(src, dst, { recursive: true, force: true });
-        await rm(src, { recursive: true, force: true }).catch(() => undefined);
-      }
-    }
-    await access(join(target, 'mofox'), constants.F_OK);
-    // 删除整个缓存 `.cache` 目录，仅保留已拉取到实例目录根下的产物。
-    await rm(task.workspace, { recursive: true, force: true }).catch(() => undefined);
+    const incomingRoot = join(target, `.installing-${task.id}`);
+    const backupRoot = join(task.workspace, 'finalize-backup');
+    await rm(incomingRoot, { recursive: true, force: true });
+    await mkdir(incomingRoot, { recursive: true });
 
-    const platformId = task.request.platformId;
-    await this.dependencies.repository.create({
+    const names: string[] = [];
+    for (const name of ['mofox', 'platform']) {
+      const source = join(stageDir, name);
+      if (!(await pathExists(source))) continue;
+      await cp(source, join(incomingRoot, name), { recursive: true, force: true });
+      names.push(name);
+    }
+    await access(join(incomingRoot, 'mofox'), constants.F_OK);
+    this.throwIfCancelled(task);
+
+    if (!task.finalizePrepared) {
+      task.finalizeBackups = [];
+      for (const name of names) {
+        if (await pathExists(join(target, name))) task.finalizeBackups.push(name);
+      }
+      await rm(backupRoot, { recursive: true, force: true });
+      task.finalizePrepared = true;
+      await this.persistTask(task);
+    }
+
+    const touched: string[] = [];
+    try {
+      await mkdir(backupRoot, { recursive: true });
+      for (const name of names) {
+        const destination = join(target, name);
+        const backup = join(backupRoot, name);
+        const hadOriginal = task.finalizeBackups.includes(name);
+        if (hadOriginal && !(await pathExists(backup)) && (await pathExists(destination))) {
+          await movePath(destination, backup);
+        } else {
+          await rm(destination, { recursive: true, force: true });
+        }
+        touched.push(name);
+        await movePath(join(incomingRoot, name), destination);
+      }
+      await access(join(target, 'mofox'), constants.F_OK);
+      this.throwIfCancelled(task);
+
+      if (!(await this.repositoryContains(task.id))) {
+        const platformId = task.request.platformId;
+        await this.dependencies.repository.create({
+          id: task.id,
+          name: task.request.instanceName,
+          mofoxInstallDir: join(target, 'mofox'),
+          platform: platformId
+            ? {
+                id: platformId,
+                installDir: join(target, 'platform'),
+                version: task.platformVersion ?? null,
+              }
+            : { id: null, installDir: null, version: null },
+        });
+      }
+      // 仓库写入是不可逆提交点。先记 committed，再做任何缓存清理或恢复清单写入。
+      task.committed = true;
+      await this.persistTask(task).catch(() => undefined);
+    } catch (error) {
+      let rollbackFailed = false;
+      for (const name of [...touched].reverse()) {
+        const destination = join(target, name);
+        try {
+          await rm(destination, { recursive: true, force: true });
+          if (task.finalizeBackups.includes(name))
+            await movePath(join(backupRoot, name), destination);
+        } catch {
+          rollbackFailed = true;
+        }
+      }
+      await rm(incomingRoot, { recursive: true, force: true }).catch(() => undefined);
+      if (!rollbackFailed) {
+        task.finalizeBackups = [];
+        task.finalizePrepared = false;
+      }
+      await this.persistTask(task).catch(() => undefined);
+      throw error;
+    }
+
+    // 只有文件和仓库记录都提交成功后才删除快照、备份和恢复清单。
+    await rm(incomingRoot, { recursive: true, force: true }).catch(() => undefined);
+    await rm(task.workspace, { recursive: true, force: true }).catch(() => undefined);
+  }
+
+  private async repositoryContains(instanceId: string): Promise<boolean> {
+    return this.dependencies.repository.list
+      ? (await this.dependencies.repository.list()).some((instance) => instance.id === instanceId)
+      : false;
+  }
+
+  private async persistTask(task: TaskRecord): Promise<void> {
+    const directory = this.dependencies.stateDirectory;
+    if (!directory) return;
+    const value: PersistedTaskRecord = {
+      version: 1,
       id: task.id,
-      name: task.request.instanceName,
-      mofoxInstallDir: join(target, 'mofox'),
-      platform: platformId
-        ? {
-            id: platformId,
-            installDir: join(target, 'platform'),
-            version: task.platformVersion ?? null,
-          }
-        : { id: null, installDir: null, version: null },
+      request: task.request,
+      workspace: task.workspace,
+      currentStep: task.currentStep,
+      currentIndex: task.currentIndex,
+      lastCompletedIndex: task.lastCompletedIndex,
+      ...(task.resumeIndex !== undefined ? { resumeIndex: task.resumeIndex } : {}),
+      ...(task.platformVersion ? { platformVersion: task.platformVersion } : {}),
+      committed: task.committed,
+      finalizeBackups: task.finalizeBackups,
+      finalizePrepared: task.finalizePrepared,
+      status: task.status,
+    };
+    await this.persistence.runExclusive(task.id, () =>
+      writeJsonAtomic(join(directory, `${task.id}.json`), value),
+    );
+  }
+
+  private async removePersistedTask(taskId: string): Promise<void> {
+    const directory = this.dependencies.stateDirectory;
+    if (!directory) return;
+    await this.persistence.runExclusive(taskId, async () => {
+      await rm(join(directory, `${taskId}.json`), { force: true }).catch(() => undefined);
+      await rm(join(directory, `${taskId}.json.bak`), { force: true }).catch(() => undefined);
     });
   }
 
@@ -545,6 +758,9 @@ export class InstallTaskService {
  * @throws {MofoxError} 任一字段非法或目标路径非绝对路径时抛出 `INVALID_ARGUMENT`。
  */
 function validateRequest(request: InstallRequest): void {
+  if (!isInstallRequest(request)) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装请求字段格式无效');
+  }
   const name = request.instanceName.trim();
   if (!name) throw new MofoxError('INVALID_ARGUMENT', '实例名称不能为空');
   if (name.length > 32) throw new MofoxError('INVALID_ARGUMENT', '实例名称不能超过 32 个字符');
@@ -575,6 +791,124 @@ function validateRequest(request: InstallRequest): void {
   }
   if (resolve(request.targetDir) === resolve(request.targetDir, '..')) {
     throw new MofoxError('INVALID_ARGUMENT', '安装目标路径不能是文件系统根目录');
+  }
+}
+
+/** 对持久化恢复清单做完整运行时校验，尤其禁止清单把清理范围改到任务目录之外。 */
+function parsePersistedTask(value: unknown): PersistedTaskRecord {
+  if (!isRecord(value) || value.version !== 1) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单版本无效');
+  }
+  if (typeof value.id !== 'string' || !/^mofox-[0-9a-f-]{36}$/i.test(value.id)) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单任务 ID 无效');
+  }
+  if (!isInstallRequest(value.request)) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单请求无效');
+  }
+  validateRequest(value.request);
+  const expectedWorkspace = resolve(value.request.targetDir, value.id, '.cache');
+  if (typeof value.workspace !== 'string' || resolve(value.workspace) !== expectedWorkspace) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单工作目录越界');
+  }
+  const steps: InstallStepId[] = [
+    'install-mofox',
+    'install-platform',
+    'install-webui',
+    'configure',
+    'finalize',
+  ];
+  if (!steps.includes(value.currentStep as InstallStepId)) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单步骤无效');
+  }
+  if (
+    !Number.isInteger(value.currentIndex) ||
+    !Number.isInteger(value.lastCompletedIndex) ||
+    (value.resumeIndex !== undefined && !Number.isInteger(value.resumeIndex))
+  ) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单断点无效');
+  }
+  const currentIndex = value.currentIndex as number;
+  const lastCompletedIndex = value.lastCompletedIndex as number;
+  const resumeIndex = value.resumeIndex as number | undefined;
+  if (
+    currentIndex < 0 ||
+    currentIndex >= steps.length ||
+    lastCompletedIndex < -1 ||
+    lastCompletedIndex >= steps.length ||
+    (resumeIndex !== undefined && (resumeIndex < 0 || resumeIndex >= steps.length))
+  ) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单断点越界');
+  }
+  if (typeof value.committed !== 'boolean') {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单提交状态无效');
+  }
+  if (
+    typeof value.finalizePrepared !== 'boolean' ||
+    !['pending', 'running', 'cancelling', 'failed', 'cancelled', 'done'].includes(
+      String(value.status),
+    )
+  ) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单状态无效');
+  }
+  if (
+    !Array.isArray(value.finalizeBackups) ||
+    value.finalizeBackups.some((name) => name !== 'mofox' && name !== 'platform')
+  ) {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单备份记录无效');
+  }
+  if (value.platformVersion !== undefined && typeof value.platformVersion !== 'string') {
+    throw new MofoxError('INVALID_ARGUMENT', '安装恢复清单平台版本无效');
+  }
+  return {
+    version: 1,
+    id: value.id,
+    request: value.request,
+    workspace: expectedWorkspace,
+    currentStep: value.currentStep as InstallStepId,
+    currentIndex,
+    lastCompletedIndex,
+    ...(resumeIndex !== undefined ? { resumeIndex } : {}),
+    ...(typeof value.platformVersion === 'string'
+      ? { platformVersion: value.platformVersion }
+      : {}),
+    committed: value.committed,
+    finalizeBackups: [...new Set(value.finalizeBackups as string[])],
+    finalizePrepared: value.finalizePrepared,
+    status: value.status as InstallProgressEvent['status'],
+  };
+}
+
+function isInstallRequest(value: unknown): value is InstallRequest {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.instanceName === 'string' &&
+    typeof value.platformId === 'string' &&
+    typeof value.mofoxBranch === 'string' &&
+    typeof value.wsPort === 'number' &&
+    Number.isFinite(value.wsPort) &&
+    typeof value.botQQ === 'string' &&
+    typeof value.botNickname === 'string' &&
+    typeof value.ownerQQ === 'string' &&
+    typeof value.apiKey === 'string' &&
+    typeof value.installWebui === 'boolean' &&
+    typeof value.webuiApiKey === 'string' &&
+    typeof value.targetDir === 'string'
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** 同盘优先原子重命名，跨盘时退化为复制后删除。 */
+async function movePath(source: string, target: string): Promise<void> {
+  await mkdir(dirname(target), { recursive: true });
+  try {
+    await rename(source, target);
+  } catch (error) {
+    if (!isCrossDevice(error)) throw error;
+    await cp(source, target, { recursive: true, force: true });
+    await rm(source, { recursive: true, force: true });
   }
 }
 

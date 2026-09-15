@@ -73,7 +73,10 @@ export const useOobeStore = defineStore('oobe', () => {
       currentMessage.value = '';
       return statuses;
     } catch (error) {
-      installError.value = error instanceof MofoxError ? error : new MofoxError('INTERNAL', error instanceof Error ? error.message : '未知错误');
+      installError.value =
+        error instanceof MofoxError
+          ? error
+          : new MofoxError('INTERNAL', error instanceof Error ? error.message : '未知错误');
       phase.value = 'error';
       throw error;
     }
@@ -98,7 +101,10 @@ export const useOobeStore = defineStore('oobe', () => {
       if (error instanceof MofoxError && error.details?.logs) {
         logs.value = error.details.logs as string[];
       }
-      installError.value = error instanceof MofoxError ? error : new MofoxError('INTERNAL', error instanceof Error ? error.message : '未知错误');
+      installError.value =
+        error instanceof MofoxError
+          ? error
+          : new MofoxError('INTERNAL', error instanceof Error ? error.message : '未知错误');
       throw error;
     } finally {
       installing.value = false;

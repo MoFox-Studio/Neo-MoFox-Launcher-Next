@@ -34,7 +34,7 @@ function runPowershellInstall(context: DependencyInstallContext): Promise<void> 
       '-ExecutionPolicy',
       'Bypass',
       '-Command',
-      "irm https://astral.sh/uv/install.ps1 | iex",
+      'irm https://astral.sh/uv/install.ps1 | iex',
     ];
     const child = spawn('powershell.exe', args, {
       windowsHide: true,
@@ -45,7 +45,9 @@ function runPowershellInstall(context: DependencyInstallContext): Promise<void> 
     child.stderr?.on('data', (chunk: string) => {
       stderr += chunk;
     });
-    child.once('error', (error) => reject(new MofoxError('IO_ERROR', `uv 安装失败: ${error.message}`)));
+    child.once('error', (error) =>
+      reject(new MofoxError('IO_ERROR', `uv 安装失败: ${error.message}`)),
+    );
     child.once('close', (code) => {
       if (code === 0) resolve();
       else reject(new MofoxError('IO_ERROR', `uv 安装失败: ${stderr}`));

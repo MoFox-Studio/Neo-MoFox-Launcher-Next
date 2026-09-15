@@ -58,7 +58,9 @@ defineExpose({ finish });
 
     <ul class="summary-list">
       <li v-for="dep in dependencies" :key="dep.id" class="summary-list__item">
-        <span class="msr summary-list__icon" aria-hidden="true">{{ dep.status === 'failed' ? 'error' : 'check_circle' }}</span>
+        <span class="msr summary-list__icon" aria-hidden="true">{{
+          dep.status === 'failed' ? 'error' : 'check_circle'
+        }}</span>
         <span class="summary-list__name">{{ dep.displayName }}</span>
         <span class="summary-list__value">
           <template v-if="dep.version">{{ dep.version }}</template>

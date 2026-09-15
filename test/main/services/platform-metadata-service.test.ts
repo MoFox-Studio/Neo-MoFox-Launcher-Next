@@ -48,16 +48,13 @@ describe('PlatformMetadataService', () => {
     const service = new PlatformMetadataService(registry as never);
     const result = service.list();
 
-    expect(result.map((p) => p.id)).toEqual(
-      expect.arrayContaining(['napcat', 'snowluma']),
-    );
+    expect(result.map((p) => p.id)).toEqual(expect.arrayContaining(['napcat', 'snowluma']));
     expect(result.find((p) => p.id === 'snowluma')?.description).toBe('snowluma 平台描述');
     expect(result.find((p) => p.id === 'napcat')?.description).toBe('napcat 平台描述');
   });
 
   it('排除了与当前系统不兼容的平台', () => {
-    const incompatiblePlatform =
-      CURRENT_PLATFORM === 'win32' ? 'linux' : 'win32';
+    const incompatiblePlatform = CURRENT_PLATFORM === 'win32' ? 'linux' : 'win32';
     const registry = {
       list: vi.fn(() => [
         createFakePlatform('napcat', [CURRENT_PLATFORM], [CURRENT_ARCH]),

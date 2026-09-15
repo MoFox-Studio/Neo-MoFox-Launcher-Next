@@ -13,7 +13,9 @@ export const useInstallStore = defineStore('install', () => {
   const logLines = ref<string[]>([]);
 
   const isInstalling = computed(
-    () => progress.value !== null && progress.value.status === 'running',
+    () =>
+      progress.value !== null &&
+      (progress.value.status === 'running' || progress.value.status === 'cancelling'),
   );
   const isFailed = computed(() => progress.value?.status === 'failed');
   const isDone = computed(() => progress.value?.status === 'done');

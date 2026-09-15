@@ -69,7 +69,11 @@ async function runWinget(context: DependencyInstallContext): Promise<void> {
 async function downloadAndInstall(context: DependencyInstallContext): Promise<string> {
   const installerPath = join(context.workDir, `python-${PYTHON_VERSION}-amd64.exe`);
   context.onProgress?.(`正在下载 Python ${PYTHON_VERSION}...`, 0.3);
-  await downloadRange(PYTHON_INSTALLER_URL, installerPath, context.signal ? { signal: context.signal } : {});
+  await downloadRange(
+    PYTHON_INSTALLER_URL,
+    installerPath,
+    context.signal ? { signal: context.signal } : {},
+  );
 
   context.onProgress?.(`正在静默安装 Python ${PYTHON_VERSION}...`, 0.8);
   const result = await runOneShot(installerPath, PYTHON_SILENT_ARGS, {

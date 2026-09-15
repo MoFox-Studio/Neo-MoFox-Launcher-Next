@@ -435,217 +435,217 @@ function goBack(): void {
 <template>
   <div class="log-view">
     <section class="log-view__command-surface">
-    <!-- 实例运行状态、运行时长与进程控制；实例名由窗口栏展示 -->
-    <header class="log-view__header">
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="返回"
-        aria-label="返回"
-        @click="goBack"
-      >
-        <span class="msr" aria-hidden="true">arrow_back</span>
-      </button>
-
-      <div class="log-view__meta">
-        <StatusBadge :status="status" />
-        <span class="log-view__uptime" :title="`MoFox 运行时长`">
-          <span class="msr log-view__uptime-icon" aria-hidden="true">schedule</span>
-          {{ uptimes[activeTab] }}
-        </span>
-      </div>
-
-      <div class="log-view__controls">
-        <span class="log-view__controls-label">
-          <span class="msr log-view__controls-icon" aria-hidden="true">all_inclusive</span>
-          全部
-        </span>
+      <!-- 实例运行状态、运行时长与进程控制；实例名由窗口栏展示 -->
+      <header class="log-view__header">
         <button
-          v-if="!allProcessesRunning"
-          class="btn btn--filled state-layer"
+          class="icon-btn state-layer"
           type="button"
-          :disabled="isBusy"
-          @click="onStart"
+          title="返回"
+          aria-label="返回"
+          @click="goBack"
         >
-          <span class="msr btn__icon" aria-hidden="true">play_arrow</span>
-          启动
+          <span class="msr" aria-hidden="true">arrow_back</span>
         </button>
-        <button
-          v-if="anyProcessRunning"
-          class="btn btn--tonal state-layer"
-          type="button"
-          :disabled="isBusy"
-          @click="onRestart"
-        >
-          <span class="msr btn__icon" aria-hidden="true">restart_alt</span>
-          重启
-        </button>
-        <button
-          v-if="anyProcessRunning || status === 'error'"
-          class="btn btn--danger state-layer"
-          type="button"
-          :disabled="isBusy"
-          @click="onStop"
-        >
-          <span class="msr btn__icon" aria-hidden="true">stop</span>
-          停止
-        </button>
-      </div>
-    </header>
 
-    <!-- 平台与主程序的独立进程控制，支持单个来源启停 -->
-    <div class="log-view__process-controls">
-      <div v-for="source in SOURCES" :key="source" class="proc-group">
-        <span class="proc-group__label">
-          <span class="msr proc-group__icon" aria-hidden="true">
-            {{ source === 'mofox' ? 'smart_toy' : 'lan' }}
+        <div class="log-view__meta">
+          <StatusBadge :status="status" />
+          <span class="log-view__uptime" :title="`MoFox 运行时长`">
+            <span class="msr log-view__uptime-icon" aria-hidden="true">schedule</span>
+            {{ uptimes[activeTab] }}
           </span>
-          {{ sourceLabel(source) }}
-        </span>
-        <div class="proc-group__actions">
-          <template v-if="processRunning[source]">
-            <button
-              class="btn btn--sm btn--tonal state-layer"
-              type="button"
-              :disabled="processBusy[source] || isBusy"
-              @click="onRestartSource(source)"
-            >
-              <span class="msr btn__icon" aria-hidden="true">restart_alt</span>
-              重启
-            </button>
-            <button
-              class="btn btn--sm btn--danger state-layer"
-              type="button"
-              :disabled="processBusy[source] || isBusy"
-              @click="onStopSource(source)"
-            >
-              <span class="msr btn__icon" aria-hidden="true">stop</span>
-              停止
-            </button>
-          </template>
+        </div>
+
+        <div class="log-view__controls">
+          <span class="log-view__controls-label">
+            <span class="msr log-view__controls-icon" aria-hidden="true">all_inclusive</span>
+            全部
+          </span>
           <button
-            v-else
-            class="btn btn--sm btn--filled state-layer"
+            v-if="!allProcessesRunning"
+            class="btn btn--filled state-layer"
             type="button"
-            :disabled="processBusy[source] || isBusy || !canStartSource(source)"
-            @click="onStartSource(source)"
+            :disabled="isBusy"
+            @click="onStart"
           >
             <span class="msr btn__icon" aria-hidden="true">play_arrow</span>
             启动
           </button>
+          <button
+            v-if="anyProcessRunning"
+            class="btn btn--tonal state-layer"
+            type="button"
+            :disabled="isBusy"
+            @click="onRestart"
+          >
+            <span class="msr btn__icon" aria-hidden="true">restart_alt</span>
+            重启
+          </button>
+          <button
+            v-if="anyProcessRunning || status === 'error'"
+            class="btn btn--danger state-layer"
+            type="button"
+            :disabled="isBusy"
+            @click="onStop"
+          >
+            <span class="msr btn__icon" aria-hidden="true">stop</span>
+            停止
+          </button>
+        </div>
+      </header>
+
+      <!-- 平台与主程序的独立进程控制，支持单个来源启停 -->
+      <div class="log-view__process-controls">
+        <div v-for="source in SOURCES" :key="source" class="proc-group">
+          <span class="proc-group__label">
+            <span class="msr proc-group__icon" aria-hidden="true">
+              {{ source === 'mofox' ? 'smart_toy' : 'lan' }}
+            </span>
+            {{ sourceLabel(source) }}
+          </span>
+          <div class="proc-group__actions">
+            <template v-if="processRunning[source]">
+              <button
+                class="btn btn--sm btn--tonal state-layer"
+                type="button"
+                :disabled="processBusy[source] || isBusy"
+                @click="onRestartSource(source)"
+              >
+                <span class="msr btn__icon" aria-hidden="true">restart_alt</span>
+                重启
+              </button>
+              <button
+                class="btn btn--sm btn--danger state-layer"
+                type="button"
+                :disabled="processBusy[source] || isBusy"
+                @click="onStopSource(source)"
+              >
+                <span class="msr btn__icon" aria-hidden="true">stop</span>
+                停止
+              </button>
+            </template>
+            <button
+              v-else
+              class="btn btn--sm btn--filled state-layer"
+              type="button"
+              :disabled="processBusy[source] || isBusy || !canStartSource(source)"
+              @click="onStartSource(source)"
+            >
+              <span class="msr btn__icon" aria-hidden="true">play_arrow</span>
+              启动
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- 日志来源标签与搜索、复制、导出等工具栏 -->
-    <div class="log-view__tabs" role="tablist" aria-label="日志来源">
-      <button
-        v-for="source in SOURCES"
-        :key="source"
-        class="log-tab state-layer"
-        type="button"
-        role="tab"
-        :aria-selected="activeTab === source"
-        :class="{ 'log-tab--active': activeTab === source }"
-        @click="activeTab = source"
-      >
-        <span class="msr log-tab__icon" aria-hidden="true">
-          {{ source === 'mofox' ? 'smart_toy' : 'lan' }}
-        </span>
-        {{ source === 'mofox' ? 'MoFox' : platformLabel }}
-        <span v-if="lineCounts[source] > 0" class="log-tab__count">{{ lineCounts[source] }}</span>
-      </button>
+      <!-- 日志来源标签与搜索、复制、导出等工具栏 -->
+      <div class="log-view__tabs" role="tablist" aria-label="日志来源">
+        <button
+          v-for="source in SOURCES"
+          :key="source"
+          class="log-tab state-layer"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === source"
+          :class="{ 'log-tab--active': activeTab === source }"
+          @click="activeTab = source"
+        >
+          <span class="msr log-tab__icon" aria-hidden="true">
+            {{ source === 'mofox' ? 'smart_toy' : 'lan' }}
+          </span>
+          {{ source === 'mofox' ? 'MoFox' : platformLabel }}
+          <span v-if="lineCounts[source] > 0" class="log-tab__count">{{ lineCounts[source] }}</span>
+        </button>
 
-      <span class="log-view__toolbar-spacer"></span>
+        <span class="log-view__toolbar-spacer"></span>
 
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="搜索"
-        aria-label="搜索"
-        :class="{ 'icon-btn--active': searchVisible }"
-        @click="toggleSearch"
-      >
-        <span class="msr" aria-hidden="true">search</span>
-      </button>
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="复制日志"
-        aria-label="复制日志"
-        @click="copyLogs"
-      >
-        <span class="msr" aria-hidden="true">content_copy</span>
-      </button>
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        :title="autoScroll ? '暂停自动滚动' : '恢复自动滚动'"
-        :aria-label="autoScroll ? '暂停自动滚动' : '恢复自动滚动'"
-        :class="{ 'icon-btn--active': autoScroll }"
-        @click="toggleAutoScroll"
-      >
-        <span class="msr" aria-hidden="true">vertical_align_bottom</span>
-      </button>
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="导出当前日志"
-        aria-label="导出当前日志"
-        @click="exportLogs"
-      >
-        <span class="msr" aria-hidden="true">download</span>
-      </button>
-      <button
-        class="icon-btn state-layer"
-        type="button"
-        title="清空当前日志"
-        aria-label="清空当前日志"
-        @click="clearLogs"
-      >
-        <span class="msr" aria-hidden="true">delete_sweep</span>
-      </button>
-    </div>
+        <button
+          class="icon-btn state-layer"
+          type="button"
+          title="搜索"
+          aria-label="搜索"
+          :class="{ 'icon-btn--active': searchVisible }"
+          @click="toggleSearch"
+        >
+          <span class="msr" aria-hidden="true">search</span>
+        </button>
+        <button
+          class="icon-btn state-layer"
+          type="button"
+          title="复制日志"
+          aria-label="复制日志"
+          @click="copyLogs"
+        >
+          <span class="msr" aria-hidden="true">content_copy</span>
+        </button>
+        <button
+          class="icon-btn state-layer"
+          type="button"
+          :title="autoScroll ? '暂停自动滚动' : '恢复自动滚动'"
+          :aria-label="autoScroll ? '暂停自动滚动' : '恢复自动滚动'"
+          :class="{ 'icon-btn--active': autoScroll }"
+          @click="toggleAutoScroll"
+        >
+          <span class="msr" aria-hidden="true">vertical_align_bottom</span>
+        </button>
+        <button
+          class="icon-btn state-layer"
+          type="button"
+          title="导出当前日志"
+          aria-label="导出当前日志"
+          @click="exportLogs"
+        >
+          <span class="msr" aria-hidden="true">download</span>
+        </button>
+        <button
+          class="icon-btn state-layer"
+          type="button"
+          title="清空当前日志"
+          aria-label="清空当前日志"
+          @click="clearLogs"
+        >
+          <span class="msr" aria-hidden="true">delete_sweep</span>
+        </button>
+      </div>
 
-    <!-- 当前终端的增量搜索框 -->
-    <div v-if="searchVisible" class="log-view__search">
-      <span class="msr log-view__search-icon" aria-hidden="true">search</span>
-      <input
-        ref="searchInputRef"
-        v-model="searchQuery"
-        type="text"
-        class="log-view__search-input"
-        placeholder="搜索日志（Enter 下一个，Shift+Enter 上一个）"
-        @keydown="onSearchKeydown"
-      />
-      <button
-        class="icon-btn icon-btn--sm state-layer"
-        type="button"
-        title="上一个"
-        aria-label="上一个"
-        @click="searchPrev"
-      >
-        <span class="msr" aria-hidden="true">keyboard_arrow_up</span>
-      </button>
-      <button
-        class="icon-btn icon-btn--sm state-layer"
-        type="button"
-        title="下一个"
-        aria-label="下一个"
-        @click="searchNext"
-      >
-        <span class="msr" aria-hidden="true">keyboard_arrow_down</span>
-      </button>
-      <button
-        class="icon-btn icon-btn--sm state-layer"
-        type="button"
-        title="关闭搜索"
-        aria-label="关闭搜索"
-        @click="toggleSearch"
-      >
-        <span class="msr" aria-hidden="true">close</span>
-      </button>
-    </div>
+      <!-- 当前终端的增量搜索框 -->
+      <div v-if="searchVisible" class="log-view__search">
+        <span class="msr log-view__search-icon" aria-hidden="true">search</span>
+        <input
+          ref="searchInputRef"
+          v-model="searchQuery"
+          type="text"
+          class="log-view__search-input"
+          placeholder="搜索日志（Enter 下一个，Shift+Enter 上一个）"
+          @keydown="onSearchKeydown"
+        />
+        <button
+          class="icon-btn icon-btn--sm state-layer"
+          type="button"
+          title="上一个"
+          aria-label="上一个"
+          @click="searchPrev"
+        >
+          <span class="msr" aria-hidden="true">keyboard_arrow_up</span>
+        </button>
+        <button
+          class="icon-btn icon-btn--sm state-layer"
+          type="button"
+          title="下一个"
+          aria-label="下一个"
+          @click="searchNext"
+        >
+          <span class="msr" aria-hidden="true">keyboard_arrow_down</span>
+        </button>
+        <button
+          class="icon-btn icon-btn--sm state-layer"
+          type="button"
+          title="关闭搜索"
+          aria-label="关闭搜索"
+          @click="toggleSearch"
+        >
+          <span class="msr" aria-hidden="true">close</span>
+        </button>
+      </div>
     </section>
 
     <!-- 双终端容器保持挂载，以保留非活动来源的滚动缓冲 -->
@@ -668,362 +668,4 @@ function goBack(): void {
   </div>
 </template>
 
-<style scoped>
-/* 日志页框架、标题和进程控制 */
-.log-view {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  padding-left: var(--app-nav-overlay-start-inset);
-  padding-bottom: var(--app-nav-overlay-bottom-inset);
-}
-
-.log-view__command-surface {
-  flex: none;
-  margin: 18px 32px 10px;
-  padding: 8px;
-  border-radius: 24px;
-  background: var(--md-sys-color-surface-container-low);
-}
-
-/* 仅在壁纸背景存在时为日志页整面铺设遮罩驱动的半透明底衬，并保留 82% 下限，
-   遮罩归零时标题、标签与搜索区仍保持可读；无壁纸时沿用外壳表面。 */
-:global(.shell--has-wallpaper .log-view) {
-  background: color-mix(
-    in srgb,
-    var(--md-sys-color-surface) max(calc(var(--app-wallpaper-content-opacity) * 100%), 82%),
-    transparent
-  );
-}
-
-.log-view__header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 12px 10px;
-}
-
-.log-view__meta {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.log-view__uptime {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font: var(--md-sys-typescale-label-medium);
-  font-variant-numeric: tabular-nums;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.log-view__uptime-icon {
-  font-size: 16px;
-}
-
-.log-view__controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.log-view__controls-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 4px;
-  font: var(--md-sys-typescale-label-large);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.log-view__controls-icon {
-  font-size: 16px;
-}
-
-/* 平台与主程序的独立进程控制 */
-.log-view__process-controls {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 12px 10px;
-}
-
-.proc-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border: 0;
-  border-radius: 15px;
-  background: var(--md-sys-color-surface-container);
-}
-
-.proc-group__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding-right: 4px;
-  font: var(--md-sys-typescale-label-large);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.proc-group__icon {
-  font-size: 16px;
-}
-
-.proc-group__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* 来源标签与日志工具栏 */
-.log-view__tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 12px 4px;
-}
-
-.log-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--md-sys-color-surface-container);
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-label-large);
-  cursor: pointer;
-  transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.log-tab:first-child {
-  border-radius: 15px 6px 6px 15px;
-}
-
-.log-tab:nth-of-type(2) {
-  border-radius: 6px 15px 15px 6px;
-}
-
-.log-tab--active {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-}
-
-.log-tab__icon {
-  font-size: 18px;
-}
-
-.log-tab__count {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: color-mix(in srgb, currentColor 14%, transparent);
-  font: var(--md-sys-typescale-label-small);
-  font-variant-numeric: tabular-nums;
-}
-
-.log-view__toolbar-spacer {
-  flex: 1;
-}
-
-/* 搜索输入区与终端显示层 */
-.log-view__search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 12px 4px;
-  height: 44px;
-  padding: 0 12px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-high);
-}
-
-.log-view__search-icon {
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 20px;
-}
-
-.log-view__search-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  font: var(--md-sys-typescale-body-medium);
-}
-
-.log-view__search-input::placeholder {
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.log-view__terminals {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  margin: 0 32px 24px;
-  padding: 5px;
-  border-radius: 24px;
-  background: var(--md-sys-color-surface-container-low);
-}
-
-.log-view__terminal {
-  position: absolute;
-  inset: 5px;
-  padding: 12px;
-  border-radius: 20px;
-  background: #101416;
-  overflow: hidden;
-}
-
-.log-view__terminal--hidden {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.log-view__terminal :deep(.xterm) {
-  height: 100%;
-}
-
-/* 操作反馈提示与过渡动画 */
-.log-view__toast {
-  position: absolute;
-  left: 50%;
-  bottom: 40px;
-  transform: translateX(-50%);
-  max-width: min(560px, calc(100% - 64px));
-  padding: 12px 20px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-inverse-surface);
-  color: var(--md-sys-color-inverse-on-surface);
-  font: var(--md-sys-typescale-body-medium);
-  box-shadow: var(--md-sys-elevation-level3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  z-index: 30;
-}
-
-.toast-enter-active,
-.toast-leave-active {
-  transition:
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(8px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .toast-enter-active,
-  .toast-leave-active {
-    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-  }
-
-  .toast-enter-from,
-  .toast-leave-to {
-    transform: translateX(-50%);
-  }
-}
-
-/* 进程操作按钮与图标按钮 */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 20px;
-  border: none;
-  border-radius: var(--md-sys-shape-corner-full);
-  font: var(--md-sys-typescale-label-large);
-  cursor: pointer;
-}
-
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.38;
-}
-
-.btn__icon {
-  font-size: 18px;
-}
-
-.btn--sm {
-  height: 32px;
-  padding: 0 14px;
-  font: var(--md-sys-typescale-label-medium);
-}
-
-.btn--filled {
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-}
-
-.btn--tonal {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-}
-
-.btn--danger {
-  background: color-mix(in srgb, var(--md-sys-color-error) 12%, transparent);
-  color: var(--md-sys-color-error);
-}
-
-.icon-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-
-.icon-btn--sm {
-  width: 32px;
-  height: 32px;
-}
-
-.icon-btn--active {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-}
-
-@media (max-width: 720px) {
-  .log-view__command-surface {
-    margin: 12px 14px 8px;
-  }
-
-  .log-view__header {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .log-view__controls {
-    width: 100%;
-    overflow-x: auto;
-  }
-
-  .log-view__terminals {
-    margin: 0 14px 14px;
-  }
-}
-</style>
+<style scoped src="./InstanceLogView.css"></style>

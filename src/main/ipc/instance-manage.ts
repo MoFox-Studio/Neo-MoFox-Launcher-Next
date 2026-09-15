@@ -1,12 +1,12 @@
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
-import type { Instance, UpdateInstancePatch } from '../../shared/domain/instance';
+import type { EditableInstancePatch, Instance } from '../../shared/domain/instance';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
 /** 实例管理 IPC 边界：只暴露删除、打开安装目录与更新配置，进程控制留在运行时 IPC。 */
 interface InstanceManageActions {
   remove(instanceId: string): Promise<void>;
   openFolder(instanceId: string): Promise<void>;
-  update(instanceId: string, patch: UpdateInstancePatch): Promise<Instance>;
+  update(instanceId: string, patch: EditableInstancePatch): Promise<Instance>;
 }
 
 interface IpcMainRegistrar {
@@ -54,11 +54,24 @@ function requireId(value: unknown): string {
  * @param value - 未经类型约束的 IPC 参数。
  * @returns 通过校验的实例更新补丁。
  */
-function requirePatch(value: unknown): UpdateInstancePatch {
+function requirePatch(value: unknown): EditableInstancePatch {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new MofoxError('INVALID_ARGUMENT', 'Update patch must be an object');
   }
   const patch = value as Record<string, unknown>;
+  const allowedFields = new Set([
+    'name',
+    'mofoxInstallDir',
+    'venvDir',
+    'platform',
+    'autoStart',
+    'extra',
+  ]);
+  for (const field of Object.keys(patch)) {
+    if (!allowedFields.has(field)) {
+      throw new MofoxError('INVALID_ARGUMENT', `Unknown or protected instance field: ${field}`);
+    }
+  }
   if (patch.name !== undefined && typeof patch.name !== 'string') {
     throw new MofoxError('INVALID_ARGUMENT', 'name must be a string');
   }
@@ -76,16 +89,26 @@ function requirePatch(value: unknown): UpdateInstancePatch {
       throw new MofoxError('INVALID_ARGUMENT', 'extra must be an object');
     }
     const extra = patch.extra as Record<string, unknown>;
+    for (const field of Object.keys(extra)) {
+      if (field !== 'isLike') {
+        throw new MofoxError('INVALID_ARGUMENT', `Unknown instance extra field: ${field}`);
+      }
+    }
     if (extra.isLike !== undefined && typeof extra.isLike !== 'boolean') {
       throw new MofoxError('INVALID_ARGUMENT', 'extra.isLike must be a boolean');
     }
   }
   if (patch.platform !== undefined) {
-    if (patch.platform === null) return patch as UpdateInstancePatch;
+    if (patch.platform === null) return patch as EditableInstancePatch;
     if (typeof patch.platform !== 'object' || Array.isArray(patch.platform)) {
       throw new MofoxError('INVALID_ARGUMENT', 'platform must be an object or null');
     }
     const platform = patch.platform as Record<string, unknown>;
+    for (const field of Object.keys(platform)) {
+      if (field !== 'id' && field !== 'installDir' && field !== 'version') {
+        throw new MofoxError('INVALID_ARGUMENT', `Unknown platform field: ${field}`);
+      }
+    }
     for (const field of ['id', 'installDir', 'version'] as const) {
       if (
         platform[field] !== undefined &&
@@ -96,7 +119,7 @@ function requirePatch(value: unknown): UpdateInstancePatch {
       }
     }
   }
-  return patch as UpdateInstancePatch;
+  return patch as EditableInstancePatch;
 }
 
 /**

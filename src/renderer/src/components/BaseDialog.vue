@@ -79,11 +79,7 @@ onBeforeUnmount(() => {
             <slot name="actions" />
           </div>
           <div v-else-if="showActions" class="dialog__actions">
-            <button
-              class="btn btn--text state-layer"
-              type="button"
-              @click="requestClose"
-            >
+            <button class="btn btn--text state-layer" type="button" @click="requestClose">
               {{ cancelText }}
             </button>
             <button
@@ -177,8 +173,7 @@ onBeforeUnmount(() => {
 /* 弹窗进出：遮罩淡入淡出，内容缩放强调进出感 */
 .dialog-enter-active,
 .dialog-leave-active {
-  transition: opacity var(--md-sys-motion-duration-short4)
-    var(--md-sys-motion-easing-standard);
+  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
 .dialog-enter-active .dialog,
@@ -205,8 +200,7 @@ onBeforeUnmount(() => {
   .dialog-leave-active,
   .dialog-enter-active .dialog,
   .dialog-leave-active .dialog {
-    transition: opacity var(--md-sys-motion-duration-short2)
-      var(--md-sys-motion-easing-standard);
+    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
   }
 
   .dialog-enter-from .dialog,

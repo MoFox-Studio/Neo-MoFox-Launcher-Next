@@ -59,7 +59,8 @@ const resultLabel = computed(() => {
 });
 
 function filterCount(filter: FilterKey): number {
-  return instancesStore.instances.filter((instance) => matchesFilter(instance.status, filter)).length;
+  return instancesStore.instances.filter((instance) => matchesFilter(instance.status, filter))
+    .length;
 }
 
 function onRefresh(): void {
@@ -138,16 +139,27 @@ function onManage(id: string): void {
       </section>
 
       <div v-if="!hasInstances" class="empty-state">
-        <span class="empty-state__mark" aria-hidden="true"><span class="msr">deployed_code</span></span>
+        <span class="empty-state__mark" aria-hidden="true"
+          ><span class="msr">deployed_code</span></span
+        >
         <h2>还没有实例</h2>
         <p>使用主导航中的添加按钮，新鲜安装或导入一个已有实例。</p>
       </div>
 
       <div v-else-if="!hasResults" class="empty-state">
-        <span class="empty-state__mark" aria-hidden="true"><span class="msr">search_off</span></span>
+        <span class="empty-state__mark" aria-hidden="true"
+          ><span class="msr">search_off</span></span
+        >
         <h2>没有匹配结果</h2>
         <p>换一个关键词或状态筛选试试。</p>
-        <button type="button" class="empty-state__action state-layer" @click="keyword = ''; activeFilter = 'all'">
+        <button
+          type="button"
+          class="empty-state__action state-layer"
+          @click="
+            keyword = '';
+            activeFilter = 'all';
+          "
+        >
           清除筛选
         </button>
       </div>

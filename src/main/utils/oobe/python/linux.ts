@@ -42,7 +42,10 @@ async function resolvePackageManager(): Promise<PackageManager | undefined> {
 }
 
 /** 通过 `sudo -S` 执行包管理器命令，密码经 stdin 注入；密码缺失时直接抛出。 */
-async function runSudo(command: readonly string[], context: DependencyInstallContext): Promise<void> {
+async function runSudo(
+  command: readonly string[],
+  context: DependencyInstallContext,
+): Promise<void> {
   if (!context.sudoPassword) {
     throw new MofoxError('INVALID_ARGUMENT', 'Linux 安装依赖需要 sudo 密码');
   }

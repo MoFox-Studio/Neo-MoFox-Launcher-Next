@@ -41,8 +41,5 @@ export function registerWindowIpc(
     getWindow()?.close();
   });
 
-  ipcMain.handle(
-    IPC_INVOKE_CHANNELS.windowIsMaximized,
-    () => getWindow()?.isMaximized() ?? false,
-  );
+  ipcMain.handle(IPC_INVOKE_CHANNELS.windowIsMaximized, () => getWindow()?.isMaximized() ?? false);
 }

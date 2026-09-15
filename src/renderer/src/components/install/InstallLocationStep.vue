@@ -78,10 +78,7 @@ function formatBytes(bytes: number | null): string {
         <p v-else-if="store.validatingTargetDir" class="field__support">
           正在校验目录空间与写入权限…
         </p>
-        <p
-          v-else-if="store.targetDirCheck?.writable"
-          class="field__support"
-        >
+        <p v-else-if="store.targetDirCheck?.writable" class="field__support">
           已确认可写入，剩余空间 {{ formatBytes(store.targetDirCheck.freeSpaceBytes) }}
         </p>
         <p v-else class="field__support">不建议包含中文或空格</p>

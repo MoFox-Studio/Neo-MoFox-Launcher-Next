@@ -68,9 +68,14 @@ describe('mirror utils', () => {
   it('fetchRepositoryFile polls mirrors for the requested file', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.startsWith('https://ghproxy.net/')) {
-        return { ok: true, status: 200, text: async () => 'LICENSE TEXT' };
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          text: async () => 'LICENSE TEXT',
+        };
       }
-      return { ok: false, status: 404, text: async () => '' };
+      return { ok: false, status: 404, headers: new Headers(), text: async () => '' };
     });
     vi.stubGlobal('fetch', fetchMock);
 

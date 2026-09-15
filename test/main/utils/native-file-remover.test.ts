@@ -7,7 +7,9 @@ const directories: string[] = [];
 
 // 测试仅在临时目录内创建文件，清理函数保持幂等以容忍用例已删除目标。
 afterEach(async () => {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  await Promise.all(
+    directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+  );
 });
 
 describe('removePathSafe', () => {
