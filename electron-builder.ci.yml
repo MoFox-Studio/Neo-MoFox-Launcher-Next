@@ -1,0 +1,12 @@
+extends: ./electron-builder.yml
+directories:
+  output: release/ci
+nsis:
+  artifactName: 'Neo-MoFox-Launcher-ci-${env.CI_BUILD_ID}-win-${arch}-setup.${ext}'
+portable:
+  artifactName: 'Neo-MoFox-Launcher-ci-${env.CI_BUILD_ID}-win-${arch}-portable.${ext}'
+linux:
+  target:
+    - AppImage
+    - deb
+  artifactName: 'Neo-MoFox-Launcher-ci-${env.CI_BUILD_ID}-linux-${arch}.${ext}'

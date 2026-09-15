@@ -205,6 +205,8 @@ Vitest 单测覆盖：
 
 ## 打包
 
+普通 CI 在质量检查和原生模块冒烟测试通过后，生成 Windows x64 安装版/便携版，以及 Linux x64 AppImage/deb 测试包。打开对应 GitHub Actions CI 运行页，在 **Artifacts** 下载 `Neo-MoFox-ci-运行编号-重跑次数-Windows-x64`（或 Linux）并解压使用，保留 14 天。可通过 `workflow_dispatch` 手动触发；CI 测试包不发布到 Releases，命名与 nightly 分离。
+
 ```bash
 npm run pack:dir
 ```

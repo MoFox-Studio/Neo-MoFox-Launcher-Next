@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,6 +20,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      CI_BUILD_ID: ${{ github.run_number }}-${{ github.run_attempt }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - name: 检出仓库
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -57,3 +61,41 @@ jobs:
       - name: Electron 与 PTY 冒烟测试 (Windows)
         if: runner.os == 'Windows'
         run: npx electron scripts/native-smoke.cjs
+
+      - name: 安装 Linux 打包依赖
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg fakeroot
+
+      - name: 打包 Windows x64 测试包
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win --x64 --publish never --config electron-builder.ci.yml
+
+      - name: 打包 Linux x64 测试包
+        if: runner.os == 'Linux'
+        run: npx electron-builder --linux --x64 --publish never --config electron-builder.ci.yml
+
+      - name: 检查测试包完整性
+        shell: pwsh
+        run: |
+          $prefix = "release/ci/Neo-MoFox-Launcher-ci-$env:CI_BUILD_ID"
+          $suffixes = if ($IsWindows) { @('-win-x64-setup.exe', '-win-x64-portable.exe') } else { @('-linux-x64.AppImage', '-linux-x64.deb') }
+          foreach ($suffix in $suffixes) {
+            $file = "$prefix$suffix"
+            if (-not (Test-Path -LiteralPath $file) -or (Get-Item -LiteralPath $file).Length -eq 0) {
+              throw "测试包缺失或为空：$file"
+            }
+          }
+
+      - name: 上传可下载的 CI 测试包
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Neo-MoFox-ci-${{ github.run_number }}-${{ github.run_attempt }}-${{ runner.os }}-x64
+          path: |
+            release/ci/*-setup.exe
+            release/ci/*-portable.exe
+            release/ci/*.AppImage
+            release/ci/*.deb
+          if-no-files-found: error
+          retention-days: 14
