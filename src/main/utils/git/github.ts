@@ -2,7 +2,6 @@ import { createReadStream } from 'node:fs';
 import { access, mkdir, readdir, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
-import extractZip from 'extract-zip';
 import type { InstallContext, InstallResult } from '../../../shared/domain/bot-platform';
 import type { MirrorSource } from '../../../shared/domain/mirror';
 import type { GithubRelease, GithubReleaseAsset } from '../../../shared/domain/github';
@@ -11,6 +10,7 @@ import { downloadRange } from '../range-downloader';
 import { runOneShot } from '../process-helper';
 import { resolveGithubUrl, tryEachGithubMirror } from './github-mirror';
 import { describeNetworkError } from '../network-error';
+import { extractZipSecurely } from '../zip-extractor';
 
 // GitHub Release 下载与查询的镜像轮询实现，供平台安装/更新与版本列表复用。
 
@@ -64,7 +64,7 @@ export async function installGithubRelease(
   }
 
   // ZIP 由库在当前进程解压，tar.gz 交给系统 tar 并限制外部进程最长执行时间。
-  if (asset.name.endsWith('.zip')) await extractZip(archive, { dir: payload });
+  if (asset.name.endsWith('.zip')) await extractZipSecurely(archive, payload);
   else if (asset.name.endsWith('.tar.gz')) {
     const result = await runOneShot('tar', ['-xzf', archive, '-C', payload], {
       timeoutMs: 120_000,

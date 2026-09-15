@@ -4,9 +4,8 @@ import { fetchReleases, installGithubRelease } from '../../../src/main/utils/git
 import { describeGitError, describeNetworkError } from '../../../src/main/utils/network-error';
 import type { InstallContext } from '../../../src/shared/domain/bot-platform';
 
-vi.mock('extract-zip', () => ({
-  __esModule: true,
-  default: vi.fn(async () => undefined),
+vi.mock('../../../src/main/utils/zip-extractor', () => ({
+  extractZipSecurely: vi.fn(async () => undefined),
 }));
 
 vi.mock('../../../src/main/utils/range-downloader', () => ({

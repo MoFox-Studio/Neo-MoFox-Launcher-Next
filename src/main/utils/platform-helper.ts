@@ -1,9 +1,9 @@
 import { access, readFile } from 'node:fs/promises';
 import { homedir, hostname, platform, release, tmpdir, type, arch } from 'node:os';
 import { delimiter, join } from 'node:path';
-import extract from 'extract-zip';
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
 import { runOneShot, spawnProcess, type ExecOptions, type ExecResult } from './process-helper';
+import { extractZipSecurely } from './zip-extractor';
 
 // 归集跨平台的系统识别、命令行构造及归档/进程边界操作，供主进程服务复用。
 
@@ -170,7 +170,7 @@ export function execCommand(
  * @param destinationDirectory - 解压目标目录。
  */
 export async function unzip(zipPath: string, destinationDirectory: string): Promise<void> {
-  await extract(zipPath, { dir: destinationDirectory });
+  await extractZipSecurely(zipPath, destinationDirectory);
 }
 
 /**

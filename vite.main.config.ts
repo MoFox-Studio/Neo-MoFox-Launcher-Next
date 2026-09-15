@@ -14,9 +14,9 @@ export default defineConfig({
     rollupOptions: {
       external: [
         'electron',
-        'extract-zip',
         'node-pty',
         'tree-kill',
+        'yauzl',
         ...builtinModules,
         ...builtinModules.map((name) => `node:${name}`),
       ],
