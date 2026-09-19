@@ -60,6 +60,15 @@ export const useInstallStore = defineStore('install', () => {
     activeTaskId.value = null;
     progress.value = null;
     logLines.value = [];
+    cancelRequested.value = false;
+  }
+
+  /** 新建向导只丢弃已经终止的旧任务；失败任务仍保留给用户重试或取消。 */
+  function prepareForNewInstall(): boolean {
+    const status = progress.value?.status;
+    if (status !== 'done' && status !== 'cancelled') return false;
+    reset();
+    return true;
   }
 
   return {
@@ -75,5 +84,6 @@ export const useInstallStore = defineStore('install', () => {
     retry,
     cancel,
     reset,
+    prepareForNewInstall,
   };
 });

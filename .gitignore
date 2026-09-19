@@ -20,3 +20,4 @@ Thumbs.db
 
 coverage/
 .playwright-mcp/
+.kilo/worktrees/

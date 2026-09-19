@@ -300,6 +300,7 @@ watch(
 );
 
 onMounted(() => {
+  if (installStore.prepareForNewInstall()) draftStore.reset();
   if (!installStore.activeTaskId)
     void mofoxApi
       .listInstallTasks()
@@ -344,6 +345,8 @@ async function confirmCancel(): Promise<void> {
 }
 
 function goToInstances(): void {
+  installStore.reset();
+  draftStore.reset();
   emit('complete');
 }
 </script>
