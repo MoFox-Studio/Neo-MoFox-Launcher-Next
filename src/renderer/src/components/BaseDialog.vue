@@ -103,6 +103,8 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   background: color-mix(in srgb, var(--md-sys-color-scrim) 32%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: grid;
   place-items: center;
   z-index: 1000;

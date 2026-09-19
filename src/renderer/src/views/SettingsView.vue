@@ -138,37 +138,36 @@ onMounted(() => {
 
 <template>
   <div class="settings-view">
-    <header class="settings-tabs">
-      <div class="settings-tabs__inner">
-        <nav class="settings-sidebar__nav" aria-label="设置分类">
-          <button
-            v-for="category in settingCategories"
-            :key="category.id"
-            class="settings-sidebar__item state-layer"
-            :class="{ 'settings-sidebar__item--active': activeCategory === category.id }"
-            type="button"
-            :aria-current="activeCategory === category.id ? 'page' : undefined"
-            @click="activeCategory = category.id"
+    <aside class="settings-sidebar" aria-label="设置侧栏">
+      <h2 class="settings-sidebar__heading">设置</h2>
+      <nav class="settings-sidebar__nav" aria-label="设置分类">
+        <button
+          v-for="category in settingCategories"
+          :key="category.id"
+          class="settings-sidebar__item state-layer"
+          :class="{ 'settings-sidebar__item--active': activeCategory === category.id }"
+          type="button"
+          :aria-current="activeCategory === category.id ? 'page' : undefined"
+          @click="activeCategory = category.id"
+        >
+          <span
+            class="msr settings-sidebar__icon"
+            :class="{ 'msr--fill': activeCategory === category.id }"
+            aria-hidden="true"
           >
-            <span
-              class="msr settings-sidebar__icon"
-              :class="{ 'msr--fill': activeCategory === category.id }"
-              aria-hidden="true"
-            >
-              {{ category.icon }}
-            </span>
-            <span class="settings-sidebar__text">
-              <span class="settings-sidebar__label">{{ category.label }}</span>
-              <span class="settings-sidebar__description">{{ category.description }}</span>
-            </span>
-          </button>
-        </nav>
-        <div class="settings-sidebar__status">
-          <span class="msr settings-sidebar__status-icon" aria-hidden="true">cloud_done</span>
-          <span>自动保存</span>
-        </div>
+            {{ category.icon }}
+          </span>
+          <span class="settings-sidebar__text">
+            <span class="settings-sidebar__label">{{ category.label }}</span>
+            <span class="settings-sidebar__description">{{ category.description }}</span>
+          </span>
+        </button>
+      </nav>
+      <div class="settings-sidebar__status">
+        <span class="msr settings-sidebar__status-icon" aria-hidden="true">cloud_done</span>
+        <span>自动保存</span>
       </div>
-    </header>
+    </aside>
 
     <main class="settings-view__content">
       <!-- 外观、通用、网络、日志与版本信息分组 -->

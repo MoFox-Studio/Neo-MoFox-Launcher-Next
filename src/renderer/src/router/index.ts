@@ -11,6 +11,7 @@ export const router = createRouter({
     {
       path: '/instances/:id/manage',
       name: 'instance-manage',
+      meta: { splitGlass: true },
       component: () => import('@/views/InstanceManageView.vue'),
     },
     {
@@ -32,6 +33,7 @@ export const router = createRouter({
     {
       path: '/settings',
       name: 'settings',
+      meta: { splitGlass: true },
       component: () => import('@/views/SettingsView.vue'),
     },
   ],

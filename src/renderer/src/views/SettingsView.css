@@ -30,6 +30,7 @@
 
 /* 贴边导航抽屉使用较轻的内嵌玻璃层。 */
 .settings-sidebar {
+  overflow-y: auto;
   grid-row: 1 / -1;
   display: flex;
   flex-direction: column;
@@ -40,6 +41,17 @@
   background: var(--app-subrail-surface);
   backdrop-filter: var(--app-subrail-filter);
   -webkit-backdrop-filter: var(--app-subrail-filter);
+}
+
+.settings-sidebar__heading {
+  margin: 0 16px 20px;
+  font: var(--md-sys-typescale-title-large);
+  color: var(--md-sys-color-on-surface);
+}
+
+.settings-sidebar__item:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
 }
 
 .settings-sidebar__nav {
@@ -387,7 +399,7 @@
 
 @media (max-width: 900px) {
   .settings-view {
-    --settings-sidebar-width: 200px;
+    --settings-sidebar-width: calc(200px + var(--app-nav-overlay-start-inset));
   }
 
   .settings-sidebar__description {
@@ -409,14 +421,17 @@
 
   .settings-view__content {
     flex: 1;
-    padding: 16px 20px 40px;
+    min-height: 0;
+    padding: 16px 20px calc(32px + var(--app-nav-overlay-bottom-inset))
+      calc(20px + var(--app-nav-overlay-start-inset));
   }
 
   .settings-sidebar {
     z-index: 2;
     width: 100%;
     min-height: 0;
-    padding: 8px;
+    flex: none;
+    padding: 8px 8px 8px calc(8px + var(--app-nav-overlay-start-inset));
     border-right: 0;
     border-bottom: 1px solid var(--app-glass-border);
   }
@@ -443,6 +458,7 @@
   }
 
   .settings-sidebar__description,
+  .settings-sidebar__heading,
   .settings-sidebar__status {
     display: none;
   }
@@ -458,98 +474,6 @@
   .settings-item__body {
     min-width: calc(100% - 48px);
   }
-}
-
-/* InstallerX-style content navigation: one app navigation plus a compact connected selector. */
-.settings-view {
-  --settings-sidebar-width: 0px;
-
-  display: flex;
-  flex-direction: column;
-  background: transparent;
-}
-
-.settings-view::before {
-  display: none;
-}
-
-.settings-tabs {
-  position: relative;
-  z-index: 2;
-  flex: none;
-  padding: 18px 32px 10px calc(32px + var(--app-nav-overlay-start-inset));
-}
-
-.settings-tabs__inner {
-  width: min(100%, 920px);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 8px;
-  border-radius: 22px;
-  background: var(--md-sys-color-surface-container-low);
-}
-
-.settings-sidebar__nav {
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  gap: 3px;
-}
-
-.settings-sidebar__item {
-  min-width: 0;
-  min-height: 46px;
-  flex: 1;
-  justify-content: center;
-  gap: 7px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--md-sys-color-surface-container);
-  text-align: center;
-}
-
-.settings-sidebar__item:first-child {
-  border-radius: 16px 6px 6px 16px;
-}
-
-.settings-sidebar__item:last-child {
-  border-radius: 6px 16px 16px 6px;
-}
-
-.settings-sidebar__item--active {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-}
-
-.settings-sidebar__icon {
-  font-size: 20px;
-}
-
-.settings-sidebar__text {
-  display: block;
-}
-
-.settings-sidebar__description {
-  display: none;
-}
-
-.settings-sidebar__status {
-  flex: none;
-  margin: 0;
-  padding: 0 10px;
-  white-space: nowrap;
-}
-
-.settings-view__content {
-  width: 100%;
-  min-height: 0;
-  display: block;
-  flex: 1;
-  padding: 8px 32px calc(40px + var(--app-nav-overlay-bottom-inset))
-    calc(32px + var(--app-nav-overlay-start-inset));
 }
 
 .settings-group {
@@ -602,34 +526,4 @@
   margin-top: 3px;
   border-radius: 16px;
   background: var(--md-sys-color-surface-container-low);
-}
-
-@media (max-width: 760px) {
-  .settings-tabs {
-    padding: 12px 14px 8px calc(14px + var(--app-nav-overlay-start-inset));
-  }
-
-  .settings-tabs__inner {
-    align-items: stretch;
-    padding: 6px;
-  }
-
-  .settings-sidebar__nav {
-    overflow-x: auto;
-  }
-
-  .settings-sidebar__item {
-    width: auto;
-    min-width: 102px;
-    flex: 0 0 auto;
-  }
-
-  .settings-sidebar__status {
-    display: none;
-  }
-
-  .settings-view__content {
-    padding: 8px 18px calc(28px + var(--app-nav-overlay-bottom-inset))
-      calc(18px + var(--app-nav-overlay-start-inset));
-  }
 }

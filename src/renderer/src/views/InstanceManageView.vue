@@ -76,43 +76,45 @@ function onDeleted(): void {
 
 <template>
   <div class="manage-view">
-    <header class="manage-tabs">
-      <div class="manage-tabs__inner">
-        <nav class="manage-sidebar__nav" aria-label="实例管理分区">
-          <button
-            v-for="item in NAV_ITEMS"
-            :key="item.id"
-            class="manage-sidebar__item state-layer"
-            :class="{ 'manage-sidebar__item--active': activeTab === item.id }"
-            type="button"
-            :aria-current="activeTab === item.id ? 'page' : undefined"
-            @click="activeTab = item.id"
-          >
-            <span
-              class="msr manage-sidebar__icon"
-              :class="{ 'msr--fill': activeTab === item.id }"
-              aria-hidden="true"
-            >
-              {{ item.icon }}
-            </span>
-            <span class="manage-sidebar__text">
-              <span class="manage-sidebar__label">{{ item.label }}</span>
-              <span class="manage-sidebar__description">{{ item.description }}</span>
-            </span>
-          </button>
-        </nav>
-
+    <aside class="manage-sidebar" aria-label="实例管理侧栏">
+      <h2 class="manage-sidebar__heading" :title="instance?.name">
+        {{ instance?.name || '实例管理' }}
+      </h2>
+      <nav class="manage-sidebar__nav" aria-label="实例管理分区">
         <button
-          class="manage-sidebar__action state-layer"
+          v-for="item in NAV_ITEMS"
+          :key="item.id"
+          class="manage-sidebar__item state-layer"
+          :class="{ 'manage-sidebar__item--active': activeTab === item.id }"
           type="button"
-          title="查看运行日志"
-          aria-label="查看运行日志"
-          @click="openLogs"
+          :aria-current="activeTab === item.id ? 'page' : undefined"
+          @click="activeTab = item.id"
         >
-          <span class="msr" aria-hidden="true">terminal</span>
+          <span
+            class="msr manage-sidebar__icon"
+            :class="{ 'msr--fill': activeTab === item.id }"
+            aria-hidden="true"
+          >
+            {{ item.icon }}
+          </span>
+          <span class="manage-sidebar__text">
+            <span class="manage-sidebar__label">{{ item.label }}</span>
+            <span class="manage-sidebar__description">{{ item.description }}</span>
+          </span>
         </button>
-      </div>
-    </header>
+      </nav>
+
+      <button
+        class="manage-sidebar__action state-layer"
+        type="button"
+        title="查看运行日志"
+        aria-label="查看运行日志"
+        @click="openLogs"
+      >
+        <span class="msr" aria-hidden="true">terminal</span>
+        <span>运行日志</span>
+      </button>
+    </aside>
 
     <!-- 内容画布：按选中分区渲染对应独立面板 -->
     <main class="manage-content">
@@ -180,6 +182,7 @@ function onDeleted(): void {
 
 /* 贴边导航抽屉使用较轻的内嵌玻璃层，与设置页侧栏一致。 */
 .manage-sidebar {
+  overflow-y: auto;
   grid-row: 1 / -1;
   display: flex;
   flex-direction: column;
@@ -196,6 +199,26 @@ function onDeleted(): void {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.manage-sidebar__heading {
+  overflow: hidden;
+  margin: 0 16px 20px;
+  font: var(--md-sys-typescale-title-large);
+  color: var(--md-sys-color-on-surface);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manage-sidebar__action {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.manage-sidebar__item:focus-visible,
+.manage-sidebar__action:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
 }
 
 .manage-sidebar__item,
@@ -258,6 +281,7 @@ function onDeleted(): void {
 }
 
 .manage-content {
+  min-height: 0;
   grid-column: 2;
   width: 100%;
   min-width: 0;
@@ -315,129 +339,62 @@ function onDeleted(): void {
   }
 }
 
-/* Management is one task canvas; subsection navigation lives inside the canvas header. */
-.manage-view {
-  --manage-sidebar-width: 0px;
-
-  display: flex;
-  flex-direction: column;
-  background: transparent;
-}
-
-.manage-view::before {
-  display: none;
-}
-
-.manage-tabs {
-  position: relative;
-  z-index: 2;
-  flex: none;
-  padding: 18px 32px 10px calc(32px + var(--app-nav-overlay-start-inset));
-}
-
-.manage-tabs__inner {
-  width: min(100%, 1120px);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 auto;
-  padding: 8px;
-  border-radius: 22px;
-  background: var(--md-sys-color-surface-container-low);
-}
-
-.manage-sidebar__nav {
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  gap: 3px;
-}
-
-.manage-sidebar__item {
-  min-width: 0;
-  min-height: 46px;
-  flex: 1;
-  justify-content: center;
-  gap: 7px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--md-sys-color-surface-container);
-  text-align: center;
-}
-
-.manage-sidebar__item:first-child {
-  border-radius: 16px 6px 6px 16px;
-}
-
-.manage-sidebar__item:last-child {
-  border-radius: 6px 16px 16px 6px;
-}
-
-.manage-sidebar__item--active {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-}
-
-.manage-sidebar__icon {
-  font-size: 20px;
-}
-
-.manage-sidebar__text {
-  display: block;
-}
-
-.manage-sidebar__description {
-  display: none;
-}
-
-.manage-sidebar__action {
-  width: 46px;
-  min-height: 46px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-}
-
-.manage-sidebar__action .msr {
-  font-size: 21px;
-}
-
-.manage-content {
-  width: 100%;
-  min-height: 0;
-  flex: 1;
-  grid-column: auto;
-  padding: 8px 32px calc(40px + var(--app-nav-overlay-bottom-inset))
-    calc(32px + var(--app-nav-overlay-start-inset));
-}
-
-@media (max-width: 720px) {
-  .manage-tabs {
-    padding: 12px 14px 8px calc(14px + var(--app-nav-overlay-start-inset));
+@media (max-width: 900px) {
+  .manage-view {
+    --manage-sidebar-width: calc(200px + var(--app-nav-overlay-start-inset));
   }
-
-  .manage-tabs__inner {
-    padding: 6px;
+  .manage-sidebar__description {
+    display: none;
   }
+}
 
+@media (max-width: 680px) {
+  .manage-view {
+    --manage-sidebar-width: 0px;
+    display: flex;
+    flex-direction: column;
+  }
+  .manage-view::before {
+    top: 61px;
+  }
+  .manage-sidebar {
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 8px 8px calc(8px + var(--app-nav-overlay-start-inset));
+    border-right: 0;
+    border-bottom: 1px solid var(--app-glass-border);
+  }
+  .manage-sidebar__heading {
+    display: none;
+  }
   .manage-sidebar__nav {
+    min-width: 0;
+    flex: 1;
+    flex-direction: row;
     overflow-x: auto;
   }
-
   .manage-sidebar__item {
     width: auto;
-    min-width: 112px;
-    flex: 0 0 auto;
+    flex: none;
+    min-height: 44px;
+    padding: 6px 12px;
   }
-
+  .manage-sidebar__action {
+    width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 0;
+    margin-top: 0;
+  }
+  .manage-sidebar__action > span:last-child {
+    display: none;
+  }
   .manage-content {
-    padding: 8px 18px calc(28px + var(--app-nav-overlay-bottom-inset))
-      calc(18px + var(--app-nav-overlay-start-inset));
+    flex: 1;
+    padding: 16px 20px calc(32px + var(--app-nav-overlay-bottom-inset))
+      calc(20px + var(--app-nav-overlay-start-inset));
   }
 }
 </style>
