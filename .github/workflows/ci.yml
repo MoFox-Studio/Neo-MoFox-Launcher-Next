@@ -80,7 +80,11 @@ jobs:
         shell: pwsh
         run: |
           $prefix = "release/ci/Neo-MoFox-Launcher-ci-$env:CI_BUILD_ID"
-          $suffixes = if ($IsWindows) { @('-win-x64-setup.exe', '-win-x64-portable.exe') } else { @('-linux-x64.AppImage', '-linux-x64.deb') }
+          Get-ChildItem -LiteralPath release/ci -File | ForEach-Object {
+            Write-Host "打包产物：$($_.Name) ($($_.Length) bytes)"
+          }
+          # electron-builder 按 Linux 包格式展开 ${arch}：AppImage 使用 x86_64，Debian 使用 amd64。
+          $suffixes = if ($IsWindows) { @('-win-x64-setup.exe', '-win-x64-portable.exe') } else { @('-linux-x86_64.AppImage', '-linux-amd64.deb') }
           foreach ($suffix in $suffixes) {
             $file = "$prefix$suffix"
             if (-not (Test-Path -LiteralPath $file) -or (Get-Item -LiteralPath $file).Length -eq 0) {
