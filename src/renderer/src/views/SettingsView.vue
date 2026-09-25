@@ -100,20 +100,14 @@ function handleInstallDirInput(event: Event): void {
 
 // ─── 数据文件 ───────────────────────────────────────────────────────────
 // 通过主进程按符号名打开启动器源数据文件；渲染端不传递任意路径。
-const dataFileBusy = ref<DataFileKind | null>(null);
+// 点击后按钮立即复位，不等待打开结果；仅在打开失败时于提示位报错。
 const dataFileError = ref<string | null>(null);
 
-async function openDataFile(kind: DataFileKind): Promise<void> {
-  if (dataFileBusy.value) return;
-  dataFileBusy.value = kind;
+function openDataFile(kind: DataFileKind): void {
   dataFileError.value = null;
-  try {
-    await mofoxApi.openDataFile(kind);
-  } catch (error) {
+  mofoxApi.openDataFile(kind).catch((error: unknown) => {
     dataFileError.value = describeError(error);
-  } finally {
-    dataFileBusy.value = null;
-  }
+  });
 }
 
 async function detectLegacy(): Promise<void> {
@@ -293,7 +287,6 @@ onMounted(() => {
               </div>
               <button
                 class="text-button state-layer"
-                :disabled="dataFileBusy !== null"
                 @click="openDataFile('settings')"
               >
                 打开
@@ -308,7 +301,6 @@ onMounted(() => {
               </div>
               <button
                 class="text-button state-layer"
-                :disabled="dataFileBusy !== null"
                 @click="openDataFile('instances')"
               >
                 打开
