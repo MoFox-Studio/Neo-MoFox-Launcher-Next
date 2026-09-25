@@ -65,17 +65,14 @@ const installedVersionOfSearched = computed(() => {
   return packages.value.find((p) => p.name.toLowerCase() === name.toLowerCase())?.version ?? null;
 });
 
-const venvBadgeText = computed(() => {
-  if (loading.value) return '加载中…';
-  if (!venvValid.value) return pythonExists.value ? '环境不完整' : '虚拟环境未创建';
-  return `已安装 ${packages.value.length} 个依赖`;
-});
+// 概览指标：加载中与不可用环境分别给出占位展示，避免加载期间误报“未找到”。
+const pythonText = computed(() => (loading.value ? '…' : pythonExists.value ? '已找到' : '未找到'));
+const pythonWarn = computed(() => !loading.value && !pythonExists.value);
 
-const venvBadgeClass = computed(() => {
-  if (loading.value) return '';
-  return venvValid.value ? 'update-head__badge--ok' : 'update-head__badge--warn';
+const installedCountText = computed(() => {
+  if (loading.value) return '…';
+  return venvValid.value ? `${packages.value.length} 个` : '—';
 });
-
 // 未升级的包视为可升级目标；升级按钮仅对存在可用新版（upgrades）的包可点击。
 const upgradableNames = computed(() => new Set(upgrades.value.map((u) => u.name.toLowerCase())));
 
@@ -314,20 +311,16 @@ function openDescriptionLink(event: MouseEvent): void {
 </script>
 
 <template>
-  <div class="venv-view">
-    <!-- 顶部工具条：虚拟环境摘要 + 刷新 / 安装依赖 / 升级全部 -->
-    <div class="update-toolbar venv-toolbar">
-      <div class="update-head">
-        <div class="update-head__info">
-          <span class="msr update-head__icon" aria-hidden="true">science</span>
-          <div class="venv-head__text">
-            <h2 class="update-head__title">虚拟环境</h2>
-            <span v-if="!loading" class="update-head__badge" :class="venvBadgeClass">
-              {{ venvBadgeText }}
-            </span>
-          </div>
+  <section class="manage-group">
+    <div class="manage-group__card">
+      <!-- 卡片头部：分区图标 + 标题描述 + 刷新 / 安装依赖 -->
+      <div class="manage-group__heading">
+        <span class="msr" aria-hidden="true">science</span>
+        <div>
+          <h2>虚拟环境</h2>
+          <p>Python 环境与依赖包管理</p>
         </div>
-        <div class="venv-head__actions">
+        <div class="venv-heading__actions">
           <button
             class="btn btn--tonal state-layer"
             type="button"
@@ -348,118 +341,142 @@ function openDescriptionLink(event: MouseEvent): void {
           </button>
         </div>
       </div>
-      <div class="venv-overview">
-        <div class="update-item">
-          <span class="update-item__label">环境路径</span>
-          <span class="update-value update-value--mono">{{ instance.venvDir || '—' }}</span>
+
+      <div class="manage-group__body">
+        <!-- 环境概览：与信息查看面板 info-grid 同构的迷你指标块 -->
+        <div class="venv-overview">
+          <div class="venv-overview__item">
+            <span class="venv-overview__label">环境路径</span>
+            <span
+              class="venv-overview__value venv-overview__value--mono"
+              :title="instance.venvDir || '—'"
+              >{{ instance.venvDir || '—' }}</span
+            >
+          </div>
+          <div class="venv-overview__item">
+            <span class="venv-overview__label">Python 解释器</span>
+            <span
+              class="venv-overview__value"
+              :class="{ 'venv-overview__value--warn': pythonWarn }"
+            >
+              {{ pythonText }}
+            </span>
+          </div>
+          <div class="venv-overview__item">
+            <span class="venv-overview__label">已安装依赖</span>
+            <span class="venv-overview__value">{{ installedCountText }}</span>
+          </div>
+          <div class="venv-overview__item">
+            <span class="venv-overview__label">可升级依赖</span>
+            <span
+              class="venv-overview__value"
+              :class="{ 'venv-overview__value--accent': hasUpgrades }"
+            >
+              {{ upgrades.length }} 个
+            </span>
+          </div>
         </div>
-        <div class="update-item">
-          <span class="update-item__label">Python 解释器</span>
-          <span class="update-value">{{ pythonExists ? '已找到' : '未找到' }}</span>
+
+        <!-- 已安装包列表 -->
+        <div class="venv-list-card">
+          <div class="update-card__head-row">
+            <h3 class="update-card__title">
+              <span class="msr" aria-hidden="true">inventory_2</span>
+              已安装依赖
+            </h3>
+            <button
+              v-if="hasUpgrades"
+              class="btn btn--filled state-layer"
+              type="button"
+              :disabled="upgradingAll"
+              @click="upgradeAll"
+            >
+              <span class="msr btn__icon" aria-hidden="true">system_update</span>
+              {{ upgradingAll ? '升级中…' : `升级全部 (${upgrades.length})` }}
+            </button>
+          </div>
+
+          <div v-if="loading" class="venv-placeholder">
+            <span class="msr venv-placeholder__icon spinning" aria-hidden="true"
+              >progress_activity</span
+            >
+            <span>加载虚拟环境信息...</span>
+          </div>
+
+          <div v-else-if="!venvValid" class="venv-empty">
+            <span class="msr venv-empty__icon" aria-hidden="true">warning</span>
+            <h3 class="venv-empty__title">虚拟环境尚未创建</h3>
+            <p class="venv-empty__desc">
+              未找到虚拟环境中的 Python 解释器。请先启动主程序或运行
+              <code>uv sync</code> 同步依赖后再管理包。
+            </p>
+          </div>
+
+          <div v-else-if="packages.length === 0" class="venv-empty">
+            <span class="msr venv-empty__icon" aria-hidden="true">inbox</span>
+            <h3 class="venv-empty__title">虚拟环境为空</h3>
+            <p class="venv-empty__desc">环境中尚未安装任何包，点击「安装依赖」添加。</p>
+          </div>
+
+          <div v-else class="venv-scroll">
+            <ul class="version-list">
+              <li
+                v-for="pkg in packages"
+                :key="pkg.name"
+                class="version-item"
+                :class="{ 'version-item--upgradable': isUpgradable(pkg.name) }"
+              >
+                <div class="version-item__info">
+                  <span class="version-item__tag">
+                    {{ packageLabel(pkg.name) }}
+                    <span v-if="isUpgradable(pkg.name)" class="version-item__prerelease"
+                      >可升级</span
+                    >
+                  </span>
+                  <span class="venv-package__meta">
+                    <code class="venv-package__version">v{{ pkg.version }}</code>
+                    <span v-if="isUpgradable(pkg.name)" class="venv-package__latest">
+                      → {{ latestOf(pkg.name) }}
+                    </span>
+                  </span>
+                </div>
+                <div class="venv-package__actions">
+                  <button
+                    class="btn btn--tonal btn--small state-layer"
+                    type="button"
+                    title="查看包信息"
+                    :disabled="refreshing"
+                    @click="showPackageInfo(pkg.name)"
+                  >
+                    <span class="msr btn__icon" aria-hidden="true">info</span>
+                    信息
+                  </button>
+                  <button
+                    class="btn btn--tonal btn--small state-layer"
+                    type="button"
+                    :disabled="!isUpgradable(pkg.name) || upgrading !== null || refreshing"
+                    :title="
+                      isUpgradable(pkg.name) ? `升级到 ${latestOf(pkg.name)}` : '当前已是最新版本'
+                    "
+                    @click="upgrade(pkg.name)"
+                  >
+                    <span class="msr btn__icon" aria-hidden="true">system_update</span>
+                    {{ upgrading === pkg.name ? '升级中…' : '升级' }}
+                  </button>
+                  <button
+                    class="btn btn--danger btn--small state-layer"
+                    type="button"
+                    :disabled="uninstalling !== null || refreshing"
+                    @click="uninstall(pkg.name)"
+                  >
+                    <span class="msr btn__icon" aria-hidden="true">delete</span>
+                    {{ uninstalling === pkg.name ? '卸载中…' : '卸载' }}
+                  </button>
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
-        <div class="update-item">
-          <span class="update-item__label">可升级依赖</span>
-          <span class="update-value">{{ hasUpgrades ? upgrades.length : 0 }} 个</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 已安装包列表 -->
-    <div class="update-card venv-card">
-      <div class="update-card__head-row">
-        <h3 class="update-card__title" style="margin: 0">
-          <span class="msr" aria-hidden="true">inventory_2</span>
-          已安装依赖
-        </h3>
-        <button
-          v-if="hasUpgrades"
-          class="btn btn--filled state-layer"
-          type="button"
-          :disabled="upgradingAll"
-          @click="upgradeAll"
-        >
-          <span class="msr btn__icon" aria-hidden="true">system_update</span>
-          {{ upgradingAll ? '升级中…' : `升级全部 (${upgrades.length})` }}
-        </button>
-      </div>
-
-      <div v-if="loading" class="venv-placeholder">
-        <span class="msr venv-placeholder__icon spinning" aria-hidden="true"
-          >progress_activity</span
-        >
-        <span>加载虚拟环境信息...</span>
-      </div>
-
-      <div v-else-if="!venvValid" class="venv-empty">
-        <span class="msr venv-empty__icon" aria-hidden="true">warning</span>
-        <h3 class="venv-empty__title">虚拟环境尚未创建</h3>
-        <p class="venv-empty__desc">
-          未找到虚拟环境中的 Python 解释器。请先启动主程序或运行
-          <code>uv sync</code> 同步依赖后再管理包。
-        </p>
-      </div>
-
-      <div v-else-if="packages.length === 0" class="venv-empty">
-        <span class="msr venv-empty__icon" aria-hidden="true">inbox</span>
-        <h3 class="venv-empty__title">虚拟环境为空</h3>
-        <p class="venv-empty__desc">环境中尚未安装任何包，点击「安装依赖」添加。</p>
-      </div>
-
-      <div v-else class="venv-scroll">
-        <ul class="version-list">
-          <li
-            v-for="pkg in packages"
-            :key="pkg.name"
-            class="version-item"
-            :class="{ 'version-item--upgradable': isUpgradable(pkg.name) }"
-          >
-            <div class="version-item__info">
-              <span class="version-item__tag">
-                {{ packageLabel(pkg.name) }}
-                <span v-if="isUpgradable(pkg.name)" class="version-item__prerelease">可升级</span>
-              </span>
-              <span class="venv-package__meta">
-                <code class="venv-package__version">v{{ pkg.version }}</code>
-                <span v-if="isUpgradable(pkg.name)" class="venv-package__latest">
-                  → {{ latestOf(pkg.name) }}
-                </span>
-              </span>
-            </div>
-            <div class="venv-package__actions">
-              <button
-                class="btn btn--tonal btn--small state-layer"
-                type="button"
-                title="查看包信息"
-                :disabled="refreshing"
-                @click="showPackageInfo(pkg.name)"
-              >
-                <span class="msr btn__icon" aria-hidden="true">info</span>
-                信息
-              </button>
-              <button
-                class="btn btn--tonal btn--small state-layer"
-                type="button"
-                :disabled="!isUpgradable(pkg.name) || upgrading !== null || refreshing"
-                :title="
-                  isUpgradable(pkg.name) ? `升级到 ${latestOf(pkg.name)}` : '当前已是最新版本'
-                "
-                @click="upgrade(pkg.name)"
-              >
-                <span class="msr btn__icon" aria-hidden="true">system_update</span>
-                {{ upgrading === pkg.name ? '升级中…' : '升级' }}
-              </button>
-              <button
-                class="btn btn--danger btn--small state-layer"
-                type="button"
-                :disabled="uninstalling !== null || refreshing"
-                @click="uninstall(pkg.name)"
-              >
-                <span class="msr btn__icon" aria-hidden="true">delete</span>
-                {{ uninstalling === pkg.name ? '卸载中…' : '卸载' }}
-              </button>
-            </div>
-          </li>
-        </ul>
       </div>
     </div>
 
@@ -680,7 +697,7 @@ function openDescriptionLink(event: MouseEvent): void {
       :description="errorDialog?.description ?? '操作失败，请稍后重试'"
       @close="errorDialog = null"
     />
-  </div>
+  </section>
 </template>
 
 <style scoped src="./InstanceVenvPanel.css"></style>

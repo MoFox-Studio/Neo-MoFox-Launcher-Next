@@ -1,86 +1,73 @@
-/* 页面跟随管理画布连续滚动，避免多列各自维护滚动位置。 */
-.update-view {
+/* 更新面板：与设置页 / 更多面板同构的分组卡片；页面跟随管理画布连续滚动。 */
+.manage-group {
   width: 100%;
-  max-width: 1120px;
   min-height: 100%;
   box-sizing: border-box;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  position: relative;
 }
 
-/* 顶部工具条：身份与目标切换始终共用一个稳定表面。 */
-.update-toolbar {
+.manage-group__card {
+  flex: 1 0 auto;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 16px 20px;
-  border: 0;
-  border-radius: 24px;
+  flex-direction: column;
+  border-radius: var(--md-sys-shape-corner-extra-large);
   background: var(--md-sys-color-surface-container-low);
-  box-shadow: none;
 }
 
-.update-head {
+/* 卡片头部：分区图标 + 标题描述 + 目标切换与刷新 */
+.manage-group__heading {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 22px 14px;
 }
 
-.update-head__info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.update-head__icon {
-  font-size: 32px;
+.manage-group__heading > .msr {
+  flex: 0 0 auto;
   color: var(--md-sys-color-primary);
+  font-size: 26px;
 }
 
-.update-head__title {
+.manage-group__heading h2 {
   margin: 0;
   font: var(--md-sys-typescale-title-large);
   color: var(--md-sys-color-on-surface);
 }
 
-.update-head__badge {
-  display: inline-block;
-  max-width: 260px;
-  margin-top: 2px;
-  padding: 2px 12px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-  font: var(--md-sys-typescale-label-medium);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.manage-group__heading p {
+  margin: 4px 0 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.update-heading__actions {
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
 }
 
 /* 顶部切换：Neo-MoFox / 平台 */
 .update-targets {
   display: inline-flex;
   gap: 4px;
-  flex: none;
   padding: 4px;
   border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-full);
-  /* 嵌套在玻璃工具条内使用半透明内嵌面，避免重复模糊造成堆叠。 */
   background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 72%, transparent);
 }
 
 .update-target {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  height: 40px;
-  padding: 0 20px;
+  height: 34px;
+  padding: 0 16px;
   border: none;
   border-radius: var(--md-sys-shape-corner-full);
   background: transparent;
@@ -92,46 +79,82 @@
     color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
+.update-target .msr {
+  font-size: 18px;
+}
+
 .update-target--active {
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
 }
 
-/* 主程序：双栏只是信息分组，滚动仍由外层画布统一负责。 */
+.icon-btn {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+/* 主体：跟随外层卡片拉伸，为双列等高提供高度来源 */
+.manage-group__body {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px 10px;
+}
+
+/* 主程序：双列信息分组；网格拉伸 + 末卡弹性填充保证两列等高 */
 .update-two-col {
+  flex: 1 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  align-items: start;
-  gap: 16px;
+  gap: 12px;
+  align-items: stretch;
 }
 
 .update-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 3px;
+  min-width: 0;
 }
 
-.update-panel--left {
-  overflow: visible;
-}
-
-.update-panel--right {
-  overflow: visible;
-}
-
-/* 平台页同样进入外层连续滚动。 */
+/* 平台视图：单列堆叠 */
 .update-platform {
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 3px;
+  min-width: 0;
 }
 
+/* 列内子卡片：表面与设置页选项行同源，首尾放大圆角呼应外层卡片轮廓 */
 .update-card {
-  padding: 20px 24px;
-  border: 0;
-  border-radius: 20px;
-  background: var(--md-sys-color-surface-container-low);
-  box-shadow: none;
+  padding: 16px 18px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+}
+
+.update-panel > .update-card:first-child,
+.update-platform > .update-card:first-child {
+  border-radius: 18px 18px 7px 7px;
+}
+
+/* 末位卡片弹性填充，是双列等高的关键 */
+.update-panel > .update-card:last-child,
+.update-platform > .update-card:last-child {
+  flex: 1 1 0px;
+  border-radius: 7px 7px 18px 18px;
+}
+
+.update-panel > .update-card:only-child,
+.update-platform > .update-card:only-child {
+  border-radius: 18px;
 }
 
 /* 版本信息卡片：内部双栏（当前版本信息 | 提交信息） */
@@ -153,10 +176,18 @@
   border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
-/* 长列表有明确上限；其余卡片不再制造第二、第三条滚动轨道。 */
-.update-scroll-card {
+.update-card__title {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font: var(--md-sys-typescale-title-medium);
+  color: var(--md-sys-color-on-surface);
+}
+
+.update-card__title .msr {
+  font-size: 20px;
+  color: var(--md-sys-color-primary);
 }
 
 .update-card__head-row {
@@ -164,20 +195,22 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
-.update-card__title {
+.update-card__head-row .update-card__title {
+  margin: 0;
+}
+
+/* 长列表滚动区：flex-basis 0px 让列表只在剩余空间内滚动，不撑高所在列 */
+.update-scroll-card {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 14px;
-  font: var(--md-sys-typescale-title-medium);
-  color: var(--md-sys-color-on-surface);
+  flex-direction: column;
 }
 
 .update-scroll {
-  max-height: 420px;
+  flex: 1 1 0px;
+  min-height: 240px;
   overflow-y: auto;
 }
 
@@ -266,7 +299,7 @@
   font: var(--md-sys-typescale-body-small);
 }
 
-/* 仓库状态保持紧凑，仓库入口收在卡片末尾。 */
+/* 仓库状态卡片拉伸后，仓库入口固定在卡片末尾 */
 .update-fill-card {
   display: flex;
   flex-direction: column;
@@ -353,9 +386,11 @@
 }
 
 .update-placeholder {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   padding: 32px 0;
   color: var(--md-sys-color-on-surface-variant);
@@ -452,8 +487,8 @@
 }
 
 .update-empty {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 0px;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -498,7 +533,7 @@
   gap: 14px;
   width: min(420px, calc(100% - 64px));
   padding: 28px 32px;
-  border-radius: 24px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
   background: var(--md-sys-color-surface-container-high);
   box-shadow: var(--md-sys-elevation-level3);
   color: var(--md-sys-color-on-surface);
@@ -588,18 +623,6 @@
   color: var(--md-sys-color-on-secondary-container);
 }
 
-.icon-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .spinning {
     animation: none;
@@ -607,19 +630,22 @@
 }
 
 @media (max-width: 820px) {
-  .update-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 14px;
+  .manage-group__heading {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  .update-heading__actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .update-targets {
-    align-self: stretch;
+    flex: 1;
   }
 
   .update-target {
     flex: 1;
-    justify-content: center;
   }
 
   .update-two-col {

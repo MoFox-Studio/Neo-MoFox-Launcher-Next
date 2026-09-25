@@ -1,115 +1,97 @@
-.venv-view {
-  max-width: 1120px;
+/* 虚拟环境面板：与设置页 / 更多面板同构的分组卡片，填满内容画布高度。 */
+.manage-group {
+  width: 100%;
   height: 100%;
   box-sizing: border-box;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  position: relative;
 }
 
-.update-toolbar,
-.update-card {
-  padding: 20px 24px;
-  border: 0;
-  border-radius: 22px;
+.manage-group__card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--md-sys-shape-corner-extra-large);
   background: var(--md-sys-color-surface-container-low);
-  box-shadow: none;
 }
 
-.update-toolbar {
+/* 卡片头部：分区图标 + 标题描述 + 刷新 / 安装依赖 */
+.manage-group__heading {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 22px 14px;
 }
 
-.update-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.update-head__info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.venv-head__text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.update-head__icon {
-  font-size: 32px;
+.manage-group__heading > .msr {
+  flex: 0 0 auto;
   color: var(--md-sys-color-primary);
+  font-size: 26px;
 }
 
-.update-head__title {
+.manage-group__heading h2 {
   margin: 0;
   font: var(--md-sys-typescale-title-large);
   color: var(--md-sys-color-on-surface);
 }
 
-.update-head__badge {
-  display: inline-block;
-  max-width: 320px;
-  padding: 2px 12px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-  font: var(--md-sys-typescale-label-medium);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.manage-group__heading p {
+  margin: 4px 0 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
 }
 
-.update-head__badge--ok {
-  background: var(--md-sys-color-tertiary-container);
-  color: var(--md-sys-color-on-tertiary-container);
-}
-
-.update-head__badge--warn {
-  background: var(--md-sys-color-error-container);
-  color: var(--md-sys-color-on-error-container);
-}
-
-.venv-head__actions {
+.venv-heading__actions {
+  margin-left: auto;
+  align-self: center;
   display: flex;
   align-items: center;
   gap: 8px;
   flex: none;
 }
 
-.venv-overview {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-}
-
-.update-item {
+/* 主体：概览指标 + 依赖列表，列表在剩余空间内滚动 */
+.manage-group__body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  padding: 0 10px 10px;
+}
+
+/* 环境概览：与信息查看面板 info-grid 同构的迷你指标块 */
+.venv-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 3px;
+}
+
+.venv-overview__item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 4px;
   min-width: 0;
+  min-height: 70px;
+  padding: 11px 14px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
 }
 
-.update-item__label {
-  color: var(--md-sys-color-on-surface-variant);
+.venv-overview__label {
   font: var(--md-sys-typescale-label-medium);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
-.update-value {
-  color: var(--md-sys-color-on-surface);
+.venv-overview__value {
   font: var(--md-sys-typescale-body-medium);
+  color: var(--md-sys-color-on-surface);
 }
 
-.update-value--mono {
+.venv-overview__value--mono {
   font-family: var(--md-ref-typeface-mono);
   font-size: 12px;
   overflow: hidden;
@@ -117,12 +99,25 @@
   white-space: nowrap;
 }
 
-.venv-card {
+.venv-overview__value--warn {
+  color: var(--md-sys-color-error);
+}
+
+.venv-overview__value--accent {
+  color: var(--md-sys-color-tertiary);
+  font-weight: 600;
+}
+
+/* 已安装依赖列表卡片：末位元素放大底部圆角呼应外层卡片轮廓 */
+.venv-list-card {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 16px 18px;
+  border-radius: 7px 7px 18px 18px;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
 }
 
 .update-card__head-row {
@@ -341,6 +336,7 @@
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   height: 40px;
   padding: 0 20px;
@@ -362,7 +358,7 @@
 .btn--small {
   height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font: var(--md-sys-typescale-label-medium);
 }
 
 .btn--filled {
@@ -602,7 +598,7 @@
   gap: 14px;
   width: min(420px, calc(100% - 64px));
   padding: 28px 32px;
-  border-radius: 24px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
   background: var(--md-sys-color-surface-container-high);
   box-shadow: var(--md-sys-elevation-level3);
   color: var(--md-sys-color-on-surface);
@@ -646,5 +642,16 @@
 @media (prefers-reduced-motion: reduce) {
   .spinning {
     animation: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .manage-group__heading {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  .venv-heading__actions {
+    width: 100%;
   }
 }
