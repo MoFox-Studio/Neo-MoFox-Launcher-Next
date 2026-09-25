@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useInstallDraftStore } from '@/stores/install-draft';
 import { evaluateKeyStrength, generateSecureKey } from '@/utils/install-validation';
 
@@ -13,6 +13,22 @@ const keyType = computed(() => (showKey.value ? 'text' : 'password'));
 const keyIcon = computed(() => (showKey.value ? 'visibility_off' : 'visibility'));
 const strength = computed(() => evaluateKeyStrength(draft.webuiApiKey));
 
+// 随机生成后的轻提示；沿用实例管理页的 toast 样式。
+const toast = ref('');
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showToast(message: string): void {
+  toast.value = message;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.value = '';
+  }, 2600);
+}
+
+onBeforeUnmount(() => {
+  if (toastTimer) clearTimeout(toastTimer);
+});
+
 function toggleWebui(checked: boolean): void {
   store.set('installWebui', checked);
   store.touch('installWebui');
@@ -23,7 +39,10 @@ function generate(): void {
   store.set('webuiApiKey', key);
   store.touch('webuiApiKey');
   justGenerated.value = true;
-  void navigator.clipboard?.writeText(key).catch(() => undefined);
+  void navigator.clipboard
+    ?.writeText(key)
+    .then(() => showToast('访问密钥已生成并复制到剪贴板'))
+    .catch(() => showToast('访问密钥已生成，但复制到剪贴板失败'));
 }
 
 // 生成后短暂展示明文，方便用户确认并保存。
@@ -125,5 +144,55 @@ watch(justGenerated, (value) => {
         </div>
       </template>
     </form>
+
+    <transition name="toast">
+      <div v-if="toast" class="webui-step__toast" role="status">{{ toast }}</div>
+    </transition>
   </section>
 </template>
+
+<style scoped>
+/* 与实例管理页一致的轻提示：底部居中悬浮，自动消失。 */
+.webui-step__toast {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100% - 64px));
+  padding: 12px 20px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-inverse-surface);
+  color: var(--md-sys-color-inverse-on-surface);
+  font: var(--md-sys-typescale-body-medium);
+  box-shadow: var(--md-sys-elevation-level3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 30;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition:
+    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active,
+  .toast-leave-active {
+    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  }
+
+  .toast-enter-from,
+  .toast-leave-to {
+    transform: translateX(-50%);
+  }
+}
+</style>

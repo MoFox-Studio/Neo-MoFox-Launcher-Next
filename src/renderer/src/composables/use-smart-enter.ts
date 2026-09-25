@@ -23,15 +23,38 @@ export interface SmartEnterOptions {
 const SELF_MANAGED_SELECT_SELECTOR = 'md-outlined-select, md-filled-select';
 
 export function useSmartEnter(options: SmartEnterOptions): void {
+  // 记录“刚用 Enter 打开了下拉菜单”：在菜单里选定后自动衔接回车链路。
+  let enterOpenedSelect = false;
+
+  const FOCUSABLE_SELECTOR = [
+    'input:not([type="checkbox"]):not([type="hidden"]):not([type="radio"])',
+    'select',
+    SELF_MANAGED_SELECT_SELECTOR,
+  ].join(', ');
+
   function collectFocusables(root: HTMLElement): Array<HTMLInputElement | HTMLSelectElement> {
     return Array.from(
-      root.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
-        'input:not([type="checkbox"]):not([type="hidden"]):not([type="radio"]), select',
-      ),
+      root.querySelectorAll<HTMLInputElement | HTMLSelectElement>(FOCUSABLE_SELECTOR),
     ).filter((element) => {
-      if (element.disabled || element.offsetParent === null) return false;
+      // md-select 没有 disabled 问题时返回 undefined，视为可用。
+      if ((element as HTMLSelectElement).disabled || element.offsetParent === null) return false;
       return options.isVisible ? options.isVisible(element) : true;
     });
+  }
+
+  function advanceFrom(current: Element, event?: KeyboardEvent): void {
+    const root = options.target.value;
+    if (!root) return;
+    const focusables = collectFocusables(root);
+    const index = focusables.indexOf(current as HTMLInputElement | HTMLSelectElement);
+    if (index >= 0 && index < focusables.length - 1) {
+      event?.preventDefault();
+      focusables[index + 1]?.focus();
+      return;
+    }
+    // 已是最后一个输入框，或焦点不在输入框上：执行主操作。
+    event?.preventDefault();
+    options.onPrimary();
   }
 
   function handleKeydown(event: KeyboardEvent): void {
@@ -45,7 +68,11 @@ export function useSmartEnter(options: SmartEnterOptions): void {
     if (!(active instanceof HTMLElement)) return;
     // 按钮与链接保持原生行为：Enter 触发点击。
     if (active.tagName === 'BUTTON' || active.tagName === 'A') return;
-    if (active.closest(SELF_MANAGED_SELECT_SELECTOR)) return;
+    if (active.closest(SELF_MANAGED_SELECT_SELECTOR)) {
+      // 下拉框用 Enter 打开菜单；记录状态，等选定后自动衔接回车链路。
+      enterOpenedSelect = true;
+      return;
+    }
     // 多行文本框保留换行语义；checkbox/radio 交给原生按键行为。
     if (active.tagName === 'TEXTAREA') return;
     if (active.tagName === 'INPUT') {
@@ -53,18 +80,39 @@ export function useSmartEnter(options: SmartEnterOptions): void {
       if (type === 'checkbox' || type === 'radio' || type === 'hidden') return;
     }
 
-    const focusables = collectFocusables(root);
-    const index = focusables.indexOf(active as HTMLInputElement | HTMLSelectElement);
-    if (index >= 0 && index < focusables.length - 1) {
-      event.preventDefault();
-      focusables[index + 1]?.focus();
-      return;
-    }
-    // 已是最后一个输入框，或焦点不在输入框上：执行主操作。
-    event.preventDefault();
-    options.onPrimary();
+    advanceFrom(active, event);
   }
 
-  onMounted(() => window.addEventListener('keydown', handleKeydown));
-  onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown));
+  // 下拉框选定后 change 会冒泡到 document；若菜单是刚用 Enter 打开的，继续回车链路。
+  function handleSelectChange(event: Event): void {
+    if (!enterOpenedSelect) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (!target.closest(SELF_MANAGED_SELECT_SELECTOR)) return;
+    if (!options.target.value?.contains(target)) return;
+    if (!options.enabled()) return;
+    enterOpenedSelect = false;
+    // Tab 可能进入折叠区块里的下拉框：不可见的下拉框选定后不做跳转。
+    const focusables = collectFocusables(options.target.value);
+    if (!focusables.includes(target as HTMLInputElement | HTMLSelectElement)) return;
+    advanceFrom(target);
+  }
+
+  // 菜单未产生选定就关闭（Esc、点击外部）时清除状态，避免之后的 change 误触发跳转。
+  // select 重新派发的 closed 事件不冒泡，但捕获阶段仍会经过 document。
+  function handleMenuClosed(): void {
+    enterOpenedSelect = false;
+  }
+
+  onMounted(() => {
+    window.addEventListener('keydown', handleKeydown);
+    document.addEventListener('change', handleSelectChange);
+    document.addEventListener('closed', handleMenuClosed, true);
+  });
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('keydown', handleKeydown);
+    document.removeEventListener('change', handleSelectChange);
+    document.removeEventListener('closed', handleMenuClosed, true);
+  });
 }
