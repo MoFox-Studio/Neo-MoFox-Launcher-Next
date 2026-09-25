@@ -44,21 +44,41 @@ onMounted(load);
 </script>
 
 <template>
-  <section class="step">
+  <section class="step step--license">
     <div class="step-header">
       <h1>许可协议</h1>
       <p>请仔细阅读 Neo-MoFox 的最终用户许可协议与隐私政策，同意后才能继续安装。</p>
     </div>
 
-    <div v-if="loading" class="license-content-wrapper">
-      <div class="license-loading">
+    <!-- 切换标签始终展示，加载与错误状态都发生在下方的正文区域内。 -->
+    <div class="license-tabs">
+      <button
+        type="button"
+        class="license-tab"
+        :class="{ 'license-tab--active': activeTab === 'eula' }"
+        @click="activeTab = 'eula'"
+      >
+        <span class="msr" aria-hidden="true">gavel</span>
+        最终用户许可协议
+      </button>
+      <button
+        type="button"
+        class="license-tab"
+        :class="{ 'license-tab--active': activeTab === 'privacy' }"
+        @click="activeTab = 'privacy'"
+      >
+        <span class="msr" aria-hidden="true">privacy_tip</span>
+        隐私政策
+      </button>
+    </div>
+
+    <div class="license-content-wrapper">
+      <div v-if="loading" class="license-loading">
         <span class="msr rotating" aria-hidden="true">progress_activity</span>
         <span>正在加载许可协议…</span>
       </div>
-    </div>
 
-    <div v-else-if="error" class="license-content-wrapper">
-      <div class="license-error">
+      <div v-else-if="error" class="license-error">
         <span class="msr" aria-hidden="true">error</span>
         <span class="error-text">加载失败：{{ error }}</span>
         <button type="button" class="btn btn--tonal state-layer" @click="load">
@@ -66,31 +86,8 @@ onMounted(load);
           重新加载
         </button>
       </div>
-    </div>
 
-    <template v-else>
-      <div class="license-tabs">
-        <button
-          type="button"
-          class="license-tab"
-          :class="{ 'license-tab--active': activeTab === 'eula' }"
-          @click="activeTab = 'eula'"
-        >
-          <span class="msr" aria-hidden="true">gavel</span>
-          最终用户许可协议
-        </button>
-        <button
-          type="button"
-          class="license-tab"
-          :class="{ 'license-tab--active': activeTab === 'privacy' }"
-          @click="activeTab = 'privacy'"
-        >
-          <span class="msr" aria-hidden="true">privacy_tip</span>
-          隐私政策
-        </button>
-      </div>
-
-      <div class="license-content-wrapper">
+      <template v-else>
         <!-- 远程正文已禁用原始 HTML、过滤标签，并把链接限制为 HTTPS。 -->
         <!-- eslint-disable vue/no-v-html -->
         <div
@@ -100,14 +97,14 @@ onMounted(load);
           @click="openLicenseLink"
         ></div>
         <!-- eslint-enable vue/no-v-html -->
-      </div>
+      </template>
+    </div>
 
-      <div class="license-agreement">
-        <label class="checkbox-group">
-          <input v-model="agreed" type="checkbox" />
-          <span class="checkbox-label">我已阅读并同意以上条款（包括 EULA 和隐私政策）</span>
-        </label>
-      </div>
-    </template>
+    <div v-if="!loading && !error" class="license-agreement">
+      <label class="checkbox-group">
+        <input v-model="agreed" type="checkbox" />
+        <span class="checkbox-label">我已阅读并同意以上条款（包括 EULA 和隐私政策）</span>
+      </label>
+    </div>
   </section>
 </template>

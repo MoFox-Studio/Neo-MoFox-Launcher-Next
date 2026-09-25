@@ -4,20 +4,19 @@ import { mofoxApi } from '@/services/mofox-api';
 import { useSettingsStore } from '@/stores/settings';
 import { useInstallDraftStore } from '@/stores/install-draft';
 
-// 安装位置步骤：选择实例的安装目录，默认基于设置中的默认安装目录拼接实例名。
+// 安装位置步骤：选择实例的安装目录，默认预填设置中的默认安装目录。
 const store = useInstallDraftStore();
 const draft = store.draft;
 const settingsStore = useSettingsStore();
 
-// 仅当用户尚未手动编辑过目录时，跟随实例名称与默认目录自动填充。
+// 仅当用户尚未手动编辑过目录时，跟随默认安装目录预填；
+// 不再按实例名自动拼接下一层子目录——安装器最终会在所选目录下
+// 创建以实例 ID 命名的子文件夹，用户选择的路径本身即安装根目录。
 watch(
-  [() => draft.instanceName, () => settingsStore.settings.defaultInstallDir],
+  () => settingsStore.settings.defaultInstallDir,
   () => {
-    const base = settingsStore.settings.defaultInstallDir;
-    const name = draft.instanceName.trim();
-    if (!base || !name) return;
-    const sep = base.endsWith('\\') || base.endsWith('/') ? '' : base.includes('\\') ? '\\' : '/';
-    draft.targetDir = `${base}${sep}${name}`;
+    if (store.isTouched('targetDir')) return;
+    draft.targetDir = settingsStore.settings.defaultInstallDir;
   },
   { immediate: true },
 );

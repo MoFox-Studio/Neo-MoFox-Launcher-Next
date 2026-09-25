@@ -528,7 +528,9 @@ function goToInstances(): void {
 }
 
 .wizard__content {
-  min-height: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .wizard__content :deep(.step-header) {
