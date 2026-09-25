@@ -104,6 +104,11 @@ describe('git repository helpers', () => {
       behindCount: 3,
       aheadCount: 0,
     });
+    expect(execCommand).toHaveBeenCalledWith(
+      GIT,
+      ['fetch', 'origin', '+refs/heads/main:refs/remotes/origin/main'],
+      { cwd: '/repo', timeoutMs: 120_000 },
+    );
   });
 
   it('checkUpdateStatus tolerates fetch failure and reports zero', async () => {
@@ -134,6 +139,9 @@ describe('git mutation helpers', () => {
     const progress: string[] = [];
     execCommand
       .mockResolvedValueOnce(result('true')) // isGitRepository
+      .mockResolvedValueOnce(
+        result('+refs/heads/*:refs/remotes/origin/*'),
+      ) // refspec 已含通配
       .mockResolvedValueOnce(result('')) // fetch origin dev
       .mockResolvedValueOnce(result(' M main.py')) // status dirty
       .mockResolvedValueOnce(result('')) // stash
@@ -146,13 +154,60 @@ describe('git mutation helpers', () => {
       .map((call) => call[1]);
     expect(gitCalls).toEqual([
       ['rev-parse', '--is-inside-work-tree'],
-      ['fetch', 'origin', 'dev'],
+      ['config', '--get-all', 'remote.origin.fetch'],
+      ['fetch', 'origin', '+refs/heads/dev:refs/remotes/origin/dev'],
       ['status', '--porcelain'],
       ['stash'],
       ['checkout', 'dev'],
       ['pull', 'origin', 'dev'],
     ]);
     expect(progress.some((message) => message.includes('暂存本地更改'))).toBe(true);
+  });
+
+  it('switchBranch adds a wildcard refspec for --single-branch clones before checkout', async () => {
+    execCommand
+      .mockResolvedValueOnce(result('true')) // isGitRepository
+      .mockResolvedValueOnce(result('+refs/heads/main:refs/remotes/origin/main')) // 仅含克隆分支
+      .mockResolvedValueOnce(result('')) // config --add 通配 refspec
+      .mockResolvedValueOnce(result('')) // fetch origin dev
+      .mockResolvedValueOnce(result('')) // status clean
+      .mockResolvedValueOnce(result('')) // checkout dev
+      .mockResolvedValueOnce(result('')) // pull
+      .mockResolvedValueOnce(result('')); // uv sync
+    await switchBranch('/repo', 'dev');
+    const gitCalls = execCommand.mock.calls
+      .filter((call) => call[0] === GIT)
+      .map((call) => call[1]);
+    expect(gitCalls).toEqual([
+      ['rev-parse', '--is-inside-work-tree'],
+      ['config', '--get-all', 'remote.origin.fetch'],
+      ['config', '--add', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'],
+      ['fetch', 'origin', '+refs/heads/dev:refs/remotes/origin/dev'],
+      ['status', '--porcelain'],
+      ['checkout', 'dev'],
+      ['pull', 'origin', 'dev'],
+    ]);
+  });
+
+  it('switchBranch skips the refspec fix when origin is unconfigured', async () => {
+    execCommand
+      .mockResolvedValueOnce(result('true')) // isGitRepository
+      .mockResolvedValueOnce(result('', 1)) // config --get-all 失败（无 origin）
+      .mockResolvedValueOnce(result('')) // fetch
+      .mockResolvedValueOnce(result('')) // status clean
+      .mockResolvedValueOnce(result('')) // checkout dev
+      .mockResolvedValueOnce(result('')) // pull
+      .mockResolvedValueOnce(result('')); // uv sync
+    await switchBranch('/repo', 'dev');
+    const gitCalls = execCommand.mock.calls
+      .filter((call) => call[0] === GIT)
+      .map((call) => call[1]);
+    expect(gitCalls).not.toContainEqual([
+      'config',
+      '--add',
+      'remote.origin.fetch',
+      '+refs/heads/*:refs/remotes/origin/*',
+    ]);
   });
 
   it('switchBranch throws for non-repository directories', async () => {

@@ -159,10 +159,12 @@ export async function checkUpdateStatus(
   }
   const branch = await getCurrentBranch(directory);
   if (!branch) return { hasUpdate: false, behindCount: 0, aheadCount: 0 };
-  await execCommand('git', ['fetch', 'origin'], {
-    cwd: directory,
-    timeoutMs: 120_000,
-  }).catch(() => undefined);
+  // 显式 refspec 更新 origin/<branch>，避免 --single-branch 克隆下检测不到非克隆分支的更新。
+  await execCommand(
+    'git',
+    ['fetch', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`],
+    { cwd: directory, timeoutMs: 120_000 },
+  ).catch(() => undefined);
   const result = await execCommand(
     'git',
     ['rev-list', '--left-right', '--count', `HEAD...origin/${branch}`],
@@ -194,7 +196,19 @@ export async function switchBranch(
   if (!(await isGitRepository(directory))) {
     throw new MofoxError('INVALID_ARGUMENT', '安装目录不是有效的 Git 仓库');
   }
-  await runGit(directory, ['fetch', 'origin', branch], 120_000, onProgress, '正在获取远程分支...');
+  // 克隆使用了 --single-branch，有两个坑：
+  // 1) 裸分支名 fetch 不会创建远程跟踪引用，需显式 refspec 确保 origin/<branch> 存在；
+  // 2) 裸分支名 checkout 的 DWIM（自动建立本地分支）依据 remote.origin.fetch 的
+  //    refspec 反向匹配远程分支，而非磁盘上已有的引用，因此还需补上通配 refspec，
+  //    否则即使 origin/<branch> 已存在，checkout 仍会报"路径规格未匹配"。
+  await ensureWildcardFetchRefspec(directory);
+  await runGit(
+    directory,
+    ['fetch', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`],
+    120_000,
+    onProgress,
+    '正在获取远程分支...',
+  );
   await stashIfDirty(directory, onProgress);
   onProgress?.('正在切换分支...');
   await runGit(directory, ['checkout', branch], 60_000);
@@ -359,6 +373,33 @@ async function runGit(
       describeGitError(result.stderr?.trim() || `git ${args[0]} 失败`),
     );
   }
+}
+
+/**
+ * 确保远程 `origin` 的 fetch refspec 覆盖所有分支。
+ *
+ * `--single-branch` 克隆的 refspec 仅包含克隆分支，而裸分支名 checkout 的
+ * DWIM 依据 refspec 反向匹配远程分支，缺失时即使 origin/<branch> 已存在，
+ * `git checkout <branch>` 仍会失败。已存在通配 refspec 时跳过，避免重复追加；
+ * 读取失败（如未配置 origin 远程）时静默跳过，交由后续 git 命令抛出可读错误。
+ *
+ * @param directory - 仓库目录绝对路径。
+ */
+async function ensureWildcardFetchRefspec(directory: string): Promise<void> {
+  const result = await execCommand('git', ['config', '--get-all', 'remote.origin.fetch'], {
+    cwd: directory,
+    timeoutMs: 15_000,
+  });
+  if (result.exitCode !== 0) return;
+  const hasWildcard = result.stdout
+    .split(/\r?\n/)
+    .some((line) => line.trim().replace(/^\+/, '') === 'refs/heads/*:refs/remotes/origin/*');
+  if (hasWildcard) return;
+  await execCommand(
+    'git',
+    ['config', '--add', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'],
+    { cwd: directory, timeoutMs: 15_000 },
+  );
 }
 
 /**
