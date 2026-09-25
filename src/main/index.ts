@@ -24,7 +24,6 @@ import { registerInstallIpc } from './ipc/install';
 import { registerMigrationIpc } from './ipc/migration';
 import { registerManualImportIpc } from './ipc/manual-import';
 import { registerOobeIpc } from './ipc/oobe';
-import { registerShellIpc } from './ipc/shell';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerInstanceManageIpc } from './ipc/instance-manage';
 import { registerIntegrityIpc } from './ipc/integrity';
@@ -43,6 +42,7 @@ import { InstanceUpdateService } from './services/instance-update-service';
 import {
   inspectImportPath,
   inspectPlatformPath,
+  openExternalUrl,
   openFile,
   pickDirectory,
   pickFile,
@@ -219,10 +219,22 @@ function createMainWindow(): BrowserWindow {
   window.webContents.on('will-navigate', (event, url) => {
     if (url !== window.webContents.getURL()) event.preventDefault();
   });
-  // F12 切换 DevTools，便于运行时调试渲染进程。
+  // 鼠标侧键（后退/前进）会触发 Chromium 历史导航，在 hash 路由下表现为页面
+  // 意外回退；在事件派发进页面前直接吞掉，即可完全阻断导航且页面无感知。
+  window.webContents.on('before-mouse-event', (event, mouse) => {
+    // 官方类型只声明了 left/middle/right，运行时侧键实际取值为 back/forward。
+    const button = mouse.button as string | undefined;
+    if (button === 'back' || button === 'forward') event.preventDefault();
+  });
+  // F12 切换 DevTools，便于运行时调试渲染进程；Alt+←/→ 同样触发历史导航，一并禁用。
   window.webContents.on('before-input-event', (event, input) => {
-    if (input.key === 'F12' && input.type === 'keyDown') {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F12') {
       window.webContents.toggleDevTools();
+      event.preventDefault();
+      return;
+    }
+    if (input.alt && (input.key === 'ArrowLeft' || input.key === 'ArrowRight')) {
       event.preventDefault();
     }
   });
@@ -339,12 +351,13 @@ if (!hasSingleInstanceLock) {
     const instances = new InstanceRepository(dataDirectory, report);
     const platforms = new PlatformRegistry();
     const mirrors = new MirrorService();
-    // 通用服务（对话框 + 目录校验）依赖平台注册表，因此在 ready 后随其余 IPC 一并注册。
+    // 通用服务（对话框 + 目录校验 + 打开外部链接）依赖平台注册表，因此在 ready 后随其余 IPC 一并注册。
     registerCommonIpc(ipcMain, {
       pickFile: (options) => pickFile(() => mainWindow, options),
       pickDirectory: (options) => pickDirectory(() => mainWindow, options),
       inspectImportPath: (value) => inspectImportPath(value),
       inspectPlatformPath: (platformId, value) => inspectPlatformPath(platforms, platformId, value),
+      openExternal: (url) => openExternalUrl(shell.openExternal, url),
     });
     logger = createLogger({
       directory: join(dataDirectory, 'logs'),
@@ -591,11 +604,6 @@ if (!hasSingleInstanceLock) {
       },
     );
     registerInstallIpc(ipcMain, installTasks);
-    registerShellIpc(ipcMain, {
-      openExternal: async (url) => {
-        await shell.openExternal(url);
-      },
-    });
     registerManualImportIpc(ipcMain, new ManualImportService(instances, platforms));
     const venvs = new VenvService(
       { list: () => instances.list(), mirrors },

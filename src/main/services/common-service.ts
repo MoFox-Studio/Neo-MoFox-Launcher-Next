@@ -100,6 +100,27 @@ export async function openFile(
 }
 
 /**
+ * 用系统默认浏览器打开外部链接，供「打开项目主页」「日志链接」等能力复用。
+ *
+ * 链接已在 IPC 边界完成 HTTPS 安全校验；这里将系统外壳的调用失败归一化为领域错误，
+ * 避免向渲染端暴露 Electron 原始异常对象。
+ *
+ * @param openExternal - 调用系统外壳打开 URL 的适配器。
+ * @param url - 已通过边界校验的外部链接地址。
+ * @throws {MofoxError} 系统外壳打开失败时抛出 `IO_ERROR`。
+ */
+export async function openExternalUrl(
+  openExternal: (url: string) => Promise<void>,
+  url: string,
+): Promise<void> {
+  try {
+    await openExternal(url);
+  } catch (error) {
+    throw new MofoxError('IO_ERROR', error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
  * 探测 Neo-MoFox 目录的状态，供用户输入目录时立即反馈。
  *
  * @param value - 用户在输入框内填写的路径。

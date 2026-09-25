@@ -130,7 +130,10 @@ function createBundle(source: InstanceProcessSource): TerminalBundle | undefined
   terminal.loadAddon(
     new WebLinksAddon((event, uri) => {
       event.preventDefault();
-      window.open(uri, '_blank');
+      // 链接统一交给系统浏览器打开，被安全策略拒绝时提示原因。
+      mofoxApi.openExternal(uri).catch((error: unknown) => {
+        showToast(`无法打开链接: ${error instanceof Error ? error.message : String(error)}`);
+      });
     }),
   );
   terminal.open(container);

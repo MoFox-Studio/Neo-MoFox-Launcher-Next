@@ -9,7 +9,7 @@ import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
 /**
- * 通用服务动作：渲染进程需要的选择文件/文件夹与目录校验能力。
+ * 通用服务动作：渲染进程需要的选择文件/文件夹、目录校验与打开外部链接能力。
  * 所有具体窗口句柄与 Electron API 在适配器中实现，便于单元测试。
  */
 export interface CommonActions {
@@ -17,6 +17,7 @@ export interface CommonActions {
   pickDirectory(options: DirectoryPickerOptions | undefined): Promise<DirectoryPickerResult>;
   inspectImportPath(value: string): Promise<PathInspection>;
   inspectPlatformPath(platformId: string, value: string): Promise<PlatformPathInspection>;
+  openExternal(url: string): Promise<void>;
 }
 
 export interface IpcMainRegistrar {
@@ -26,7 +27,7 @@ export interface IpcMainRegistrar {
 /**
  * 注册通用服务 IPC 通道。
  *
- * 在跨进程边界处校验载荷形状，再委托给服务层调用 Electron `dialog` 或目录探测。
+ * 在跨进程边界处校验载荷形状，再委托给服务层调用 Electron `dialog`、目录探测或系统浏览器。
  *
  * @param ipcMain - Electron ipcMain 句柄或其测试替身。
  * @param actions - 暴露给渲染端的通用服务动作集合。
@@ -46,6 +47,9 @@ export function registerCommonIpc(ipcMain: IpcMainRegistrar, actions: CommonActi
       requireString(platformId, 'Platform ID'),
       requireString(value, 'Platform import path'),
     ),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.openExternal, (url) =>
+    actions.openExternal(requireExternalUrl(url)),
   );
 }
 
@@ -125,6 +129,55 @@ function requireString(value: unknown, label: string): string {
     throw new MofoxError('INVALID_ARGUMENT', `${label} must be a string`);
   }
   return value;
+}
+
+/**
+ * 校验来自渲染端的外部链接并归一化为字符串。
+ *
+ * 默认只允许无凭据的 HTTPS 协议，避免把任意协议或明文链接交给系统默认处理器；
+ * 本机回环地址例外放行明文 HTTP，以便打开本地服务（如平台 WebUI）的链接。
+ * 无论是否本机，携带凭据的 URL 一律拒绝。
+ *
+ * @param value - 未经类型约束的 IPC 参数。
+ * @returns 校验通过的链接地址。
+ */
+function requireExternalUrl(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new MofoxError('INVALID_ARGUMENT', 'External URL is required');
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new MofoxError('INVALID_ARGUMENT', 'External URL is invalid');
+  }
+  const isLocalHttp = parsed.protocol === 'http:' && isLoopbackHost(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !isLocalHttp) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Only HTTPS URLs (or local HTTP) are allowed');
+  }
+  if (parsed.username || parsed.password) {
+    throw new MofoxError('INVALID_ARGUMENT', 'Credential-bearing URLs are not allowed');
+  }
+  return parsed.toString();
+}
+
+/**
+ * 判断主机名是否指向本机回环地址。
+ *
+ * 覆盖 `localhost`、IPv4 回环段（127.0.0.0/8）、IPv6 回环 `::1` 与全零地址 `0.0.0.0`
+ * （日志中常以绑定地址形式出现，如本地 WebUI 的监听地址）。
+ *
+ * @param hostname - `URL.hostname` 解析出的主机名（IPv6 保留方括号）。
+ * @returns 是否为本机回环地址。
+ */
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
+  if (host === 'localhost' || host === '::1' || host === '0.0.0.0') return true;
+  if (!host.startsWith('127.')) return false;
+  const octets = host.split('.');
+  return (
+    octets.length === 4 && octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255)
+  );
 }
 
 interface FilePickerFilter {

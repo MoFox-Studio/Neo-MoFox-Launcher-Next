@@ -36,11 +36,12 @@ function createActions() {
       isDirectory: true,
       valid: true,
     })),
+    openExternal: vi.fn(async () => undefined),
   };
 }
 
 describe('registerCommonIpc', () => {
-  it('registers the four service channels', () => {
+  it('registers the five service channels', () => {
     const { handlers, ipcMain } = createIpcMain();
     registerCommonIpc(ipcMain, createActions());
 
@@ -49,6 +50,7 @@ describe('registerCommonIpc', () => {
       IPC_INVOKE_CHANNELS.pickDirectory,
       IPC_INVOKE_CHANNELS.inspectImportPath,
       IPC_INVOKE_CHANNELS.inspectPlatformImportPath,
+      IPC_INVOKE_CHANNELS.openExternal,
     ]);
   });
 
@@ -112,6 +114,73 @@ describe('registerCommonIpc', () => {
     ).rejects.toThrow('MOFOX_ERROR:');
     expect(actions.inspectImportPath).not.toHaveBeenCalled();
     expect(actions.inspectPlatformPath).not.toHaveBeenCalled();
+  });
+
+  it('forwards validated https urls to the open external action', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = createActions();
+    registerCommonIpc(ipcMain, actions);
+
+    await handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.(
+      {},
+      'https://github.com/example/repo?tab=readme',
+    );
+
+    expect(actions.openExternal).toHaveBeenCalledWith('https://github.com/example/repo?tab=readme');
+  });
+
+  it('allows plain http urls pointing at loopback hosts', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = createActions();
+    registerCommonIpc(ipcMain, actions);
+
+    for (const url of [
+      'http://localhost:6099/webui',
+      'http://127.0.0.1:6099',
+      'http://127.10.20.30:8080/',
+      'http://[::1]:6099',
+      'http://0.0.0.0:6099/webui',
+    ]) {
+      await handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, url);
+    }
+
+    expect(actions.openExternal).toHaveBeenNthCalledWith(1, 'http://localhost:6099/webui');
+    expect(actions.openExternal).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:6099/');
+    expect(actions.openExternal).toHaveBeenNthCalledWith(3, 'http://127.10.20.30:8080/');
+    expect(actions.openExternal).toHaveBeenNthCalledWith(4, 'http://[::1]:6099/');
+    expect(actions.openExternal).toHaveBeenNthCalledWith(5, 'http://0.0.0.0:6099/webui');
+  });
+
+  it('rejects unsafe external urls before calling the open external action', async () => {
+    const { handlers, ipcMain } = createIpcMain();
+    const actions = createActions();
+    registerCommonIpc(ipcMain, actions);
+
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, '')).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'not a url')).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'http://example.com'),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'ftp://localhost')).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'http://192.168.1.10:6099'),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'https://user:pass@example.com'),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'http://user:pass@localhost'),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 42)).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
+    expect(actions.openExternal).not.toHaveBeenCalled();
   });
 
   it('rejects non-object file picker options', async () => {

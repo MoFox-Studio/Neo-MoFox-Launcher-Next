@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { inspectPlatformPath, openFile } from '../../../src/main/services/common-service';
+import { inspectPlatformPath, openExternalUrl, openFile } from '../../../src/main/services/common-service';
 import type { BotPlatform } from '../../../src/shared/domain/bot-platform';
 
 /** 覆盖从手动导入迁移到通用服务后的目录校验。 */
@@ -137,5 +137,30 @@ describe('openFile', () => {
     await expect(
       openFile(async () => 'Failed to open path', join(root, 'missing.json')),
     ).rejects.toMatchObject({ code: 'IO_ERROR', message: 'Failed to open path' });
+  });
+});
+
+describe('openExternalUrl', () => {
+  it('forwards the validated url to the shell adapter', async () => {
+    const opened: string[] = [];
+    const openExternal = async (url: string) => {
+      opened.push(url);
+    };
+
+    await expect(
+      openExternalUrl(openExternal, 'https://github.com/example/repo'),
+    ).resolves.toBeUndefined();
+    expect(opened).toEqual(['https://github.com/example/repo']);
+  });
+
+  it('converts shell failures into an IO_ERROR domain error', async () => {
+    await expect(
+      openExternalUrl(async () => {
+        throw new Error('No application associated with the URL');
+      }, 'https://github.com/example/repo'),
+    ).rejects.toMatchObject({
+      code: 'IO_ERROR',
+      message: 'No application associated with the URL',
+    });
   });
 });
