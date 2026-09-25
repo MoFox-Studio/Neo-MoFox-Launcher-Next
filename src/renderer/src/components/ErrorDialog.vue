@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import BaseDialog from './BaseDialog.vue';
 
 // 错误弹窗：在通用弹窗之上提供错误图标、描述以及可展开的堆栈日志框。
@@ -33,31 +33,22 @@ const emit = defineEmits<{
 
 // 日志框默认折叠，避免长堆栈抢占弹窗视觉重心。
 const expanded = ref(false);
-const logboxExpanded = ref(false);
 
 const collapsedLogHeight = computed(() => Math.max(0, props.collapsedHeight));
 const expandedLogHeight = computed(() => Math.max(collapsedLogHeight.value, props.expandedHeight));
-const logRevealDistance = computed(() => expandedLogHeight.value - collapsedLogHeight.value);
 
-// 每次打开时复位语义状态和布局状态，保证多次复用时的初始体验一致。
+// 每次打开时复位折叠状态，保证多次复用时的初始体验一致。
 watch(
   () => props.open,
   (open) => {
-    if (open) {
-      expanded.value = false;
-      logboxExpanded.value = false;
-    }
+    if (open) expanded.value = false;
   },
 );
 
+// 折叠/展开只切换 viewport 高度，展开动画由 CSS height 过渡完成。
 const logboxStyle = computed(() => ({
-  height: `${logboxExpanded.value ? expandedLogHeight.value : collapsedLogHeight.value}px`,
-  '--error-log-reveal-distance': `${logRevealDistance.value}px`,
+  height: `${expanded.value ? expandedLogHeight.value : collapsedLogHeight.value}px`,
 }));
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 // 同步复制堆栈文本到剪贴板，失败时静默忽略以保证流程不中断。
 async function copyStack(): Promise<void> {
@@ -69,35 +60,8 @@ async function copyStack(): Promise<void> {
   }
 }
 
-async function toggleExpanded(): Promise<void> {
-  if (prefersReducedMotion()) {
-    expanded.value = !expanded.value;
-    logboxExpanded.value = expanded.value;
-    return;
-  }
-
-  if (expanded.value) {
-    expanded.value = false;
-    return;
-  }
-
-  if (logboxExpanded.value) {
-    // 收起动画尚未结束时反向展开；CSS transition 从当前裁剪位置继续。
-    expanded.value = true;
-    return;
-  }
-
-  // 先离散同步布局高度，再等浏览器提交一帧，避免高度变化吞掉 reveal 起点。
-  logboxExpanded.value = true;
-  await nextTick();
-  requestAnimationFrame(() => {
-    if (logboxExpanded.value) expanded.value = true;
-  });
-}
-
-function onLogboxTransitionEnd(event: globalThis.TransitionEvent): void {
-  if (event.target !== event.currentTarget || event.propertyName !== 'clip-path') return;
-  if (!expanded.value) logboxExpanded.value = false;
+function toggleExpanded(): void {
+  expanded.value = !expanded.value;
 }
 
 function onClose(): void {
@@ -138,15 +102,7 @@ function onClose(): void {
           <span>复制</span>
         </button>
       </div>
-      <div
-        class="error-dialog__log-viewport"
-        :class="{
-          'error-dialog__log-viewport--layout-expanded': logboxExpanded,
-          'error-dialog__log-viewport--revealed': expanded,
-        }"
-        :style="logboxStyle"
-        @transitionend="onLogboxTransitionEnd"
-      >
+      <div class="error-dialog__log-viewport" :style="logboxStyle">
         <pre
           class="error-dialog__logbox"
           :class="{ 'error-dialog__logbox--collapsed': !expanded }"
@@ -186,7 +142,7 @@ function onClose(): void {
   white-space: pre-wrap;
 }
 
-/* 日志框容器：低层级表面与圆角，与正文形成视觉分层 */
+/* 日志框容器：与弹窗表面形成层次分明的圆角日志区 */
 .error-dialog__log-wrap {
   display: flex;
   flex-direction: column;
@@ -228,17 +184,12 @@ function onClose(): void {
   font-size: 16px;
 }
 
-/* viewport 离散同步布局高度；可见揭示只动画 clip-path。 */
+/* viewport 通过高度过渡折叠/展开，overflow 裁剪超出的日志内容。 */
 .error-dialog__log-viewport {
   min-height: 0;
   overflow: hidden;
   border-radius: var(--md-sys-shape-corner-medium);
-  clip-path: inset(0 0 var(--error-log-reveal-distance) 0 round var(--md-sys-shape-corner-medium));
-  transition: clip-path 200ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.error-dialog__log-viewport--revealed {
-  clip-path: inset(0 0 0 0 round var(--md-sys-shape-corner-medium));
+  transition: height 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .error-dialog__logbox {
@@ -247,7 +198,7 @@ function onClose(): void {
   margin: 0;
   padding: 12px 16px;
   border-radius: inherit;
-  background: var(--md-sys-color-surface-container);
+  background: var(--md-sys-color-surface-container-highest);
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
   font-family: var(--md-ref-typeface-mono);
@@ -255,6 +206,10 @@ function onClose(): void {
   word-break: break-word;
   overflow: auto;
   position: relative;
+}
+
+.error-dialog__logbox--collapsed {
+  overflow: hidden;
 }
 
 .error-dialog__logbox--collapsed::after {
@@ -266,7 +221,11 @@ function onClose(): void {
   height: 24px;
   border-bottom-left-radius: var(--md-sys-shape-corner-medium);
   border-bottom-right-radius: var(--md-sys-shape-corner-medium);
-  background: linear-gradient(to bottom, transparent, var(--md-sys-color-surface-container));
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--md-sys-color-surface-container-highest)
+  );
   pointer-events: none;
 }
 
@@ -289,7 +248,6 @@ function onClose(): void {
 @media (prefers-reduced-motion: reduce) {
   .error-dialog__log-viewport {
     transition: none;
-    clip-path: none;
   }
 }
 </style>
