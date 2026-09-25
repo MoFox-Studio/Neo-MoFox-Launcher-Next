@@ -313,11 +313,15 @@ watch(
 
 <template>
   <section class="manage-group">
-    <div class="manage-group__head">
-      <h2 class="manage-group__title">更多</h2>
-    </div>
-    <div class="manage-group__body">
-      <div class="action-list">
+    <div class="manage-group__card">
+      <div class="manage-group__heading">
+        <span class="msr">more_horiz</span>
+        <div>
+          <h2>更多</h2>
+          <p>实例配置与文件操作</p>
+        </div>
+      </div>
+      <div class="manage-group__body">
         <div class="settings-item">
           <span class="msr settings-item__icon" aria-hidden="true">tune</span>
           <div class="settings-item__body">
@@ -328,8 +332,6 @@ watch(
             修改
           </button>
         </div>
-
-        <div class="settings-divider"></div>
 
         <div class="settings-item">
           <span class="msr settings-item__icon" aria-hidden="true">favorite</span>
@@ -348,8 +350,6 @@ watch(
           </div>
         </div>
 
-        <div class="settings-divider"></div>
-
         <div class="settings-item">
           <span class="msr settings-item__icon" aria-hidden="true">folder_open</span>
           <div class="settings-item__body">
@@ -360,8 +360,6 @@ watch(
             打开文件夹
           </button>
         </div>
-
-        <div class="settings-divider"></div>
 
         <div class="settings-item">
           <span class="msr settings-item__icon settings-item__icon--danger" aria-hidden="true"
@@ -375,8 +373,6 @@ watch(
             删除
           </button>
         </div>
-
-        <div class="settings-divider"></div>
 
         <div v-if="false" class="settings-item">
           <span class="msr settings-item__icon" aria-hidden="true">power</span>
@@ -601,57 +597,75 @@ watch(
   max-width: 824px;
   box-sizing: border-box;
   margin: 0 auto;
+}
+
+/* 卡片结构与设置页 settings-group 同构：卡片承载标题与选项行。 */
+.manage-group__card {
   overflow: hidden;
-  border: 0;
-  border-radius: 24px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
   background: var(--md-sys-color-surface-container-low);
-  box-shadow: none;
 }
 
-.manage-group__head {
+.manage-group__heading {
   display: flex;
-  align-items: center;
-  padding: 16px 24px 0;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 22px 14px;
 }
 
-.manage-group__title {
+.manage-group__heading > .msr {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-primary);
+  font-size: 26px;
+}
+
+.manage-group__heading h2 {
   margin: 0;
   font: var(--md-sys-typescale-title-large);
   color: var(--md-sys-color-on-surface);
 }
 
-.manage-group__body {
-  padding: 24px;
+.manage-group__heading p {
+  margin: 4px 0 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
 }
 
-.action-list {
-  display: flex;
-  flex-direction: column;
+.manage-group__body {
+  display: grid;
   gap: 3px;
+  padding: 0 10px 10px;
 }
 
 .settings-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
-  padding: 12px 14px;
+  min-height: var(--app-density-row-min-height);
+  padding: var(--app-density-row-padding-block) 18px;
   border-radius: 7px;
-  background: var(--md-sys-color-surface-container);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  transition: background-color var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
 }
 
-.action-list > .settings-item:first-child {
+.manage-group__body > :first-child {
   border-radius: 18px 18px 7px 7px;
 }
 
-.action-list > .settings-item:last-child {
+.manage-group__body > :last-child {
   border-radius: 7px 7px 18px 18px;
+}
+
+.manage-group__body > :only-child {
+  border-radius: 18px;
 }
 
 .settings-item__icon {
   flex: none;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .settings-item__icon--danger {
@@ -674,10 +688,6 @@ watch(
 .settings-item__desc {
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
-}
-
-.settings-divider {
-  display: none;
 }
 
 .md-switch {

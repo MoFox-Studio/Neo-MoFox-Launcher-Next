@@ -94,7 +94,7 @@ function formatDate(value: number | null): string {
   margin: 0 auto;
   overflow: hidden;
   border: 0;
-  border-radius: 24px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
   background: var(--md-sys-color-surface-container-low);
   box-shadow: none;
 }
