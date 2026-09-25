@@ -165,9 +165,9 @@ describe('registerCommonIpc', () => {
     await expect(
       handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'http://example.com'),
     ).rejects.toThrow('MOFOX_ERROR:');
-    await expect(handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'ftp://localhost')).rejects.toThrow(
-      'MOFOX_ERROR:',
-    );
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'ftp://localhost'),
+    ).rejects.toThrow('MOFOX_ERROR:');
     await expect(
       handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'http://192.168.1.10:6099'),
     ).rejects.toThrow('MOFOX_ERROR:');

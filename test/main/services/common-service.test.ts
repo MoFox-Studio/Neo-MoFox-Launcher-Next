@@ -1,7 +1,11 @@
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { inspectPlatformPath, openExternalUrl, openFile } from '../../../src/main/services/common-service';
+import {
+  inspectPlatformPath,
+  openExternalUrl,
+  openFile,
+} from '../../../src/main/services/common-service';
 import type { BotPlatform } from '../../../src/shared/domain/bot-platform';
 
 /** 覆盖从手动导入迁移到通用服务后的目录校验。 */
