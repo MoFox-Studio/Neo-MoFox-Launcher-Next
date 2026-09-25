@@ -1,10 +1,14 @@
 import { MofoxError, serializeIpcError } from '../../shared/domain/error';
-import type { EditableInstancePatch, Instance } from '../../shared/domain/instance';
+import type {
+  EditableInstancePatch,
+  Instance,
+  InstanceRemovalMode,
+} from '../../shared/domain/instance';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
 /** 实例管理 IPC 边界：只暴露删除、打开安装目录与更新配置，进程控制留在运行时 IPC。 */
 interface InstanceManageActions {
-  remove(instanceId: string): Promise<void>;
+  remove(instanceId: string, mode: InstanceRemovalMode): Promise<void>;
   openFolder(instanceId: string): Promise<void>;
   update(instanceId: string, patch: EditableInstancePatch): Promise<Instance>;
 }
@@ -26,7 +30,9 @@ export function registerInstanceManageIpc(
   ipcMain: IpcMainRegistrar,
   actions: InstanceManageActions,
 ): void {
-  register(ipcMain, IPC_INVOKE_CHANNELS.removeInstance, (id) => actions.remove(requireId(id)));
+  register(ipcMain, IPC_INVOKE_CHANNELS.removeInstance, (id, mode) =>
+    actions.remove(requireId(id), requireRemovalMode(mode)),
+  );
   register(ipcMain, IPC_INVOKE_CHANNELS.openInstanceFolder, (id) =>
     actions.openFolder(requireId(id)),
   );
@@ -44,6 +50,19 @@ export function registerInstanceManageIpc(
 function requireId(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) {
     throw new MofoxError('INVALID_ARGUMENT', 'Instance ID is required');
+  }
+  return value;
+}
+
+/**
+ * 校验删除模式取值，防止任意字符串穿透到服务层。
+ *
+ * @param value - 未经类型约束的 IPC 参数。
+ * @returns 通过校验的删除模式。
+ */
+function requireRemovalMode(value: unknown): InstanceRemovalMode {
+  if (value !== 'record' && value !== 'files') {
+    throw new MofoxError('INVALID_ARGUMENT', 'Removal mode must be "record" or "files"');
   }
   return value;
 }

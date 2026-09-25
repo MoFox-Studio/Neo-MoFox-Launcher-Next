@@ -40,6 +40,7 @@ import { InstanceUpdateService } from './services/instance-update-service';
 import {
   inspectImportPath,
   inspectPlatformPath,
+  openFile,
   pickDirectory,
   pickFile,
 } from './services/common-service';
@@ -300,6 +301,14 @@ if (!hasSingleInstanceLock) {
         },
       },
       appearance: { getSystemAccentColor },
+      dataFiles: {
+        open: (kind) =>
+          openFile(
+            shell.openPath,
+            kind === 'settings' ? settings.filePath : instances.filePath,
+            dataDirectory,
+          ),
+      },
     });
     registerWallpaperIpc(ipcMain, {
       selectAndStage: async () => {
@@ -390,7 +399,7 @@ if (!hasSingleInstanceLock) {
       exportLogs: (instanceId, source) => runtime.exportLogs(instanceId, source),
     });
     registerInstanceManageIpc(ipcMain, {
-      remove: (instanceId) => manage.remove(instanceId),
+      remove: (instanceId, mode) => manage.remove(instanceId, mode),
       openFolder: (instanceId) => manage.openFolder(instanceId),
       update: (instanceId, patch) => manage.update(instanceId, patch),
     });

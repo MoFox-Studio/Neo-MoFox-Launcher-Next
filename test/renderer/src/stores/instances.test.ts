@@ -2,8 +2,9 @@ import { createPinia, setActivePinia } from 'pinia';
 import { effectScope } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { listInstances, listeners } = vi.hoisted(() => ({
+const { listInstances, removeInstance, listeners } = vi.hoisted(() => ({
   listInstances: vi.fn(),
+  removeInstance: vi.fn(),
   listeners: new Map<string, (payload: unknown) => void>(),
 }));
 vi.mock('@/services/mofox-api', () => ({
@@ -15,7 +16,7 @@ vi.mock('@/services/mofox-api', () => ({
     startInstanceProcess: vi.fn(),
     stopInstanceProcess: vi.fn(),
     restartInstanceProcess: vi.fn(),
-    removeInstance: vi.fn(),
+    removeInstance,
     updateInstance: vi.fn(),
     on: vi.fn((event: string, listener: (payload: unknown) => void) => {
       listeners.set(event, listener);
@@ -68,5 +69,18 @@ describe('instances store', () => {
     scope.stop();
     expect(listeners.has('instance-status-changed')).toBe(false);
     expect(listeners.has('instance-pty-data')).toBe(false);
+  });
+
+  // 删除模式必须原样转发到 IPC：record 保留文件，files 连文件一起删。
+  it('forwards the removal mode when deleting an instance', async () => {
+    const scope = effectScope();
+    const store = scope.run(() => useInstancesStore());
+    if (!store) throw new Error('Store scope was not created');
+
+    await store.refresh();
+    await store.remove('instance-1', 'record');
+
+    expect(removeInstance).toHaveBeenCalledWith('instance-1', 'record');
+    scope.stop();
   });
 });

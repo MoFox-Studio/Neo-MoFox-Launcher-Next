@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, shell } from 'electron';
+import { BrowserWindow, dialog } from 'electron';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type {

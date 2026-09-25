@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref } from 'vue';
-import type { EditableInstancePatch, Instance } from '@shared/domain/instance';
+import type { EditableInstancePatch, Instance, InstanceRemovalMode } from '@shared/domain/instance';
 import { mofoxApi } from '@/services/mofox-api';
 
 // 实例仓库集中管理列表、进程状态事件和截断后的实时日志缓存。
@@ -76,8 +76,8 @@ export const useInstancesStore = defineStore('instances', () => {
     await refresh();
   }
 
-  async function remove(id: string): Promise<void> {
-    await mofoxApi.removeInstance(id);
+  async function remove(id: string, mode: InstanceRemovalMode): Promise<void> {
+    await mofoxApi.removeInstance(id, mode);
     delete logs.value[`${id}:mofox`];
     delete logs.value[`${id}:platform`];
     await refresh();

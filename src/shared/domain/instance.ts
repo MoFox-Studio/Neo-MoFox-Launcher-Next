@@ -85,6 +85,12 @@ export interface UpdateInstancePatch extends EditableInstancePatch {
 /** 一个实例最多运行两个进程：MoFox 本体与平台适配器。 */
 export type InstanceProcessSource = 'mofox' | 'platform';
 
+/**
+ * 实例删除模式：`record` 仅从启动器移除记录（保留全部磁盘文件），
+ * `files` 连磁盘文件一起删除（含外部 venv 与清空的安装文件夹）。
+ */
+export type InstanceRemovalMode = 'record' | 'files';
+
 /** 单个实例子进程的运行统计。 */
 export interface ProcessStats {
   running: boolean;

@@ -43,7 +43,8 @@ export const useIntegrityStore = defineStore('integrity', () => {
     pending.value = new Set(pending.value).add(instanceId);
     try {
       if (deleteIt) {
-        await useInstancesStore().remove(instanceId);
+        // 完整性弹窗里的文件本就缺失，删除时连剩余文件一起清理。
+        await useInstancesStore().remove(instanceId, 'files');
       }
       resolved.value = new Map(resolved.value).set(instanceId, deleteIt);
     } finally {

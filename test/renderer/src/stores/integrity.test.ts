@@ -63,8 +63,8 @@ describe('integrity store', () => {
 
     await store.resolve('one', true);
 
-    // 删除走实例仓库的移除动作，最终落到被 mock 的 removeInstance。
-    expect(removeInstance).toHaveBeenCalledWith('one');
+    // 删除走实例仓库的移除动作（文件模式），最终落到被 mock 的 removeInstance。
+    expect(removeInstance).toHaveBeenCalledWith('one', 'files');
     // 处理后先保留在列表中供确认特效展示，由 finishResolve 移出。
     expect(store.resolved.get('one')).toBe(true);
     expect(store.issues).toHaveLength(2);

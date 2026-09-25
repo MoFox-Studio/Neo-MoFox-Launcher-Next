@@ -8,6 +8,7 @@ import type {
   InstanceIntegrityIssue,
   InstanceProcessSource,
   InstanceStats,
+  InstanceRemovalMode,
   InstanceStatus,
   EditableInstancePatch,
 } from './domain/instance';

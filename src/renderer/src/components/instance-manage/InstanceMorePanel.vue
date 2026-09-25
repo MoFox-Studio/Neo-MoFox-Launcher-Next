@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
-import type { Instance, InstalledPlatform } from '@shared/domain/instance';
+import type { Instance, InstalledPlatform, InstanceRemovalMode } from '@shared/domain/instance';
 import { mofoxApi } from '@/services/mofox-api';
 import { useInstancesStore } from '@/stores/instances';
 import BaseDialog from '@/components/BaseDialog.vue';
@@ -28,6 +28,15 @@ const autoStart = ref(false);
 const saving = ref(false);
 const validating = ref(false);
 const pendingRemove = ref(false);
+
+/** 外部 venv 路径：仅在 venv 位于主程序目录之外时于删除弹窗展示（内部 venv 随主程序一起删除）。 */
+const externalVenvDir = computed(() => {
+  const venv = props.instance.venvDir?.trim() ?? '';
+  const mofox = props.instance.mofoxInstallDir?.trim() ?? '';
+  if (!venv || !mofox) return '';
+  const normalize = (value: string) => value.replace(/[\\/]+$/, '').toLowerCase();
+  return normalize(venv).startsWith(normalize(mofox)) ? '' : venv;
+});
 
 const mofoxDirError = ref('');
 const venvDirError = ref('');
@@ -242,8 +251,16 @@ function cancelRemove(): void {
   pendingRemove.value = false;
 }
 
-async function confirmRemove(): Promise<void> {
-  await instancesStore.remove(props.instance.id);
+// 弹窗打开时把焦点放在“仅移除记录”上：回车盲按只会移除记录，文件仍在磁盘可再处理。
+const keepRecordButton = ref<HTMLButtonElement | null>(null);
+
+watch(pendingRemove, (open) => {
+  if (!open) return;
+  void nextTick(() => keepRecordButton.value?.focus());
+});
+
+async function confirmRemove(mode: InstanceRemovalMode): Promise<void> {
+  await instancesStore.remove(props.instance.id, mode);
   pendingRemove.value = false;
   emit('deleted');
 }
@@ -352,7 +369,7 @@ watch(
           >
           <div class="settings-item__body">
             <span class="settings-item__label">删除实例</span>
-            <span class="settings-item__desc">停止进程并删除实例文件夹，此操作无法撤销</span>
+            <span class="settings-item__desc">停止进程并移除实例，可选择是否连文件一起删除</span>
           </div>
           <button class="btn btn--danger state-layer" type="button" @click="requestRemove">
             删除
@@ -536,22 +553,31 @@ watch(
     </template>
   </BaseDialog>
 
-  <!-- 删除必须二次确认；删除前会先停止进程并清理目录与记录 -->
-  <BaseDialog :open="pendingRemove" title="删除实例" :width="320" @close="cancelRemove">
-    <p class="remove-dialog__body">
-      确定要删除实例「{{
-        instance.name
-      }}」吗？将停止进程并删除以下独占目录，无法撤销。与其他实例共用或重叠的目录会保留。
-    </p>
-    <p v-if="instance.mofoxInstallDir" class="remove-dialog__body">
-      主程序：{{ instance.mofoxInstallDir }}
-    </p>
-    <p v-if="instance.platform.installDir" class="remove-dialog__body">
-      平台：{{ instance.platform.installDir }}
-    </p>
+  <!-- 删除必须二次确认；提供“仅移除记录”与“连文件一起删除”两种模式 -->
+  <BaseDialog :open="pendingRemove" title="删除实例" :width="420" @close="cancelRemove">
+    <div class="remove-dialog__body">
+      <p>确定要删除实例「{{ instance.name }}」吗？将先停止其进程，此操作无法撤销。</p>
+      <p v-if="instance.mofoxInstallDir">主程序：{{ instance.mofoxInstallDir }}</p>
+      <p v-if="instance.platform.installDir">平台：{{ instance.platform.installDir }}</p>
+      <p v-if="externalVenvDir">虚拟环境：{{ externalVenvDir }}</p>
+      <p class="remove-dialog__hint">
+        连文件一起删除时，仅包含本实例文件的安装文件夹会被一并清理；
+        与其他实例共用或重叠的目录始终保留。
+      </p>
+    </div>
     <template #actions>
       <button class="btn btn--text state-layer" type="button" @click="cancelRemove">取消</button>
-      <button class="btn btn--error state-layer" type="button" @click="confirmRemove">删除</button>
+      <button
+        ref="keepRecordButton"
+        class="btn btn--tonal state-layer"
+        type="button"
+        @click="confirmRemove('record')"
+      >
+        仅移除记录
+      </button>
+      <button class="btn btn--error state-layer" type="button" @click="confirmRemove('files')">
+        删除文件
+      </button>
     </template>
   </BaseDialog>
 </template>
@@ -730,8 +756,20 @@ watch(
   height: 40px;
 }
 
-.remove-dialog__body {
-  margin: 0;
+.remove-dialog__body p {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.remove-dialog__body p:last-child {
+  margin-bottom: 0;
+}
+
+.remove-dialog__hint {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .field-error-enter-active,

@@ -351,7 +351,7 @@ export const mockApi: MofoxApi = {
     await mockApi.stopInstanceProcess(id, source);
     await mockApi.startInstanceProcess(id, source);
   },
-  async removeInstance(id) {
+  async removeInstance(id, _mode) {
     for (const source of MOCK_SOURCES) stopMockLogStream(id, source);
     for (const source of MOCK_SOURCES) logBuffers.delete(`${id}:${source}`);
     const idx = instances.findIndex((i) => i.id === id);
@@ -618,6 +618,7 @@ export const mockApi: MofoxApi = {
   async getSystemAccentColor() {
     return '#0078D4';
   },
+  async openDataFile() {},
 
   // 旧启动器迁移：演示构建中模拟一次成功的导入，便于在浏览器中预览界面。
   async detectLegacyLauncher(): Promise<LegacyLauncherInfo | null> {

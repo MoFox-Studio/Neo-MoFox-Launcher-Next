@@ -48,7 +48,8 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
       invoke(IPC_INVOKE_CHANNELS.stopInstanceProcess, instanceId, source),
     restartInstanceProcess: (instanceId, source) =>
       invoke(IPC_INVOKE_CHANNELS.restartInstanceProcess, instanceId, source),
-    removeInstance: (instanceId) => invoke(IPC_INVOKE_CHANNELS.removeInstance, instanceId),
+    removeInstance: (instanceId, mode) =>
+      invoke(IPC_INVOKE_CHANNELS.removeInstance, instanceId, mode),
     openInstanceFolder: (instanceId) => invoke(IPC_INVOKE_CHANNELS.openInstanceFolder, instanceId),
     updateInstance: (instanceId, patch) =>
       invoke(IPC_INVOKE_CHANNELS.updateInstance, instanceId, patch),
@@ -80,6 +81,7 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     listBotPlatforms: () => invoke(IPC_INVOKE_CHANNELS.listBotPlatforms),
     getSettings: () => invoke(IPC_INVOKE_CHANNELS.getSettings),
     updateSettings: (patch) => invoke(IPC_INVOKE_CHANNELS.updateSettings, patch),
+    openDataFile: (kind) => invoke(IPC_INVOKE_CHANNELS.openDataFile, kind),
     getSystemAccentColor: () => invoke(IPC_INVOKE_CHANNELS.getSystemAccentColor),
     detectLegacyLauncher: () => invoke(IPC_INVOKE_CHANNELS.detectLegacyLauncher),
     previewLegacyMigration: () => invoke(IPC_INVOKE_CHANNELS.previewLegacyMigration),
