@@ -1,15 +1,77 @@
 <script setup lang="ts">
+import { nextTick, ref } from 'vue';
 import type { Instance } from '@shared/domain/instance';
 import StatusBadge from '@/components/StatusBadge.vue';
+import { useInstancesStore } from '@/stores/instances';
 
-// 信息查看面板：实例名称、运行状态与只读元数据集中展示。
-defineProps<{
+// 信息查看面板：实例名称、运行状态与只读元数据集中展示；名称支持标题旁内联重命名。
+const props = defineProps<{
   instance: Instance;
 }>();
 
 const emit = defineEmits<{
   back: [];
+  toast: [message: string];
 }>();
+
+const instancesStore = useInstancesStore();
+
+const MAX_NAME_LENGTH = 32;
+
+const editingName = ref(false);
+const draftName = ref('');
+const nameError = ref('');
+const savingName = ref(false);
+const nameInput = ref<HTMLInputElement | null>(null);
+
+async function startRename(): Promise<void> {
+  draftName.value = props.instance.name;
+  nameError.value = '';
+  editingName.value = true;
+  await nextTick();
+  nameInput.value?.focus();
+  nameInput.value?.select();
+}
+
+function cancelRename(): void {
+  if (savingName.value) return;
+  editingName.value = false;
+  nameError.value = '';
+}
+
+function onDraftNameInput(): void {
+  nameError.value = '';
+}
+
+async function confirmRename(): Promise<void> {
+  if (savingName.value) return;
+  const name = draftName.value.trim();
+  if (!name) {
+    nameError.value = '实例名称不能为空';
+    return;
+  }
+  if (name.length > MAX_NAME_LENGTH) {
+    nameError.value = '实例名称不能超过 32 个字符';
+    return;
+  }
+  // 与原名称相同视为放弃编辑，不发起请求。
+  if (name === props.instance.name) {
+    editingName.value = false;
+    nameError.value = '';
+    return;
+  }
+  savingName.value = true;
+  try {
+    await instancesStore.update(props.instance.id, { name });
+    editingName.value = false;
+    nameError.value = '';
+    emit('toast', '实例名称已更新');
+  } catch (error) {
+    nameError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    savingName.value = false;
+  }
+}
 
 function formatDate(value: number | null): string {
   if (!value) return '—';
@@ -29,9 +91,65 @@ function formatDate(value: number | null): string {
       >
         <span class="msr" aria-hidden="true">arrow_back</span>
       </button>
-      <div class="manage-info__title">
+      <div v-if="!editingName" class="manage-info__title">
         <h2 class="manage-info__name">{{ instance.name }}</h2>
         <StatusBadge :status="instance.status" />
+        <button
+          class="icon-btn state-layer manage-info__rename-trigger"
+          type="button"
+          title="重命名"
+          aria-label="重命名实例"
+          @click="startRename"
+        >
+          <span class="msr" aria-hidden="true">edit</span>
+        </button>
+      </div>
+      <div v-else class="manage-info__rename">
+        <div class="manage-info__rename-row">
+          <label class="field manage-info__rename-field" :class="{ 'field--error': nameError }">
+            <input
+              ref="nameInput"
+              v-model="draftName"
+              class="field__input"
+              type="text"
+              maxlength="32"
+              placeholder=" "
+              :disabled="savingName"
+              @input="onDraftNameInput"
+              @keydown.enter.prevent="confirmRename"
+              @keydown.esc.prevent="cancelRename"
+            />
+            <span class="field__label">实例名称</span>
+          </label>
+          <button
+            class="icon-btn state-layer"
+            type="button"
+            title="保存"
+            aria-label="保存名称"
+            :disabled="savingName"
+            @click="confirmRename"
+          >
+            <span class="msr" aria-hidden="true">check</span>
+          </button>
+          <button
+            class="icon-btn state-layer"
+            type="button"
+            title="取消"
+            aria-label="取消重命名"
+            :disabled="savingName"
+            @click="cancelRename"
+          >
+            <span class="msr" aria-hidden="true">close</span>
+          </button>
+        </div>
+        <Transition name="field-error" mode="out-in">
+          <p
+            v-if="nameError"
+            class="field__support field__support--error manage-info__rename-error"
+          >
+            {{ nameError }}
+          </p>
+        </Transition>
       </div>
     </div>
 
@@ -121,6 +239,77 @@ function formatDate(value: number | null): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.manage-info__rename-trigger {
+  flex: none;
+}
+
+/* 标题行内联重命名：复用全局 field 组件，标签底色需与卡片头同色才能形成镂空效果。 */
+.manage-info__rename {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.manage-info__rename-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.manage-info__rename-field {
+  --field-label-background: var(--md-sys-color-surface-container-low);
+
+  flex: 0 1 auto;
+  width: min(360px, 100%);
+  min-width: 0;
+}
+
+.manage-info__rename-row .icon-btn {
+  flex: none;
+}
+
+.manage-info__rename-row .icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.manage-info__rename-error {
+  margin: 0;
+}
+
+.field-error-enter-active,
+.field-error-leave-active {
+  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
+}
+
+.field-error-enter-from,
+.field-error-leave-to {
+  opacity: 0;
+}
+
+.field-error-enter-active.field__support--error {
+  animation: field-error-shake var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-emphasized);
+}
+
+@keyframes field-error-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
 }
 
 .manage-group__body {

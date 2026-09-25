@@ -122,6 +122,7 @@ function onDeleted(): void {
         v-if="instance && activeTab === 'info'"
         :instance="instance"
         @back="goBack"
+        @toast="showToast"
       />
       <InstanceMorePanel
         v-else-if="instance && activeTab === 'more'"
