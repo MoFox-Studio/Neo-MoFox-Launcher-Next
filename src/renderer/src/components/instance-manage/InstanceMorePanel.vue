@@ -5,6 +5,7 @@ import type { Instance, InstalledPlatform, InstanceRemovalMode } from '@shared/d
 import { mofoxApi } from '@/services/mofox-api';
 import { useInstancesStore } from '@/stores/instances';
 import BaseDialog from '@/components/BaseDialog.vue';
+import ErrorDialog from '@/components/ErrorDialog.vue';
 
 // 更多面板：文件系统操作、自动启动开关与实例信息修改入口。
 const props = defineProps<{
@@ -15,6 +16,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toast: [message: string];
   deleted: [];
+  home: [];
 }>();
 
 const instancesStore = useInstancesStore();
@@ -28,6 +30,13 @@ const autoStart = ref(false);
 const saving = ref(false);
 const validating = ref(false);
 const pendingRemove = ref(false);
+const removing = ref(false);
+// 删除失败弹窗：携带可读描述、堆栈日志与所选模式，支持原地重试或返回主页面。
+const removeError = ref<{
+  description: string;
+  stack?: string;
+  mode: InstanceRemovalMode;
+} | null>(null);
 
 /** 外部 venv 路径：仅在 venv 位于主程序目录之外时于删除弹窗展示（内部 venv 随主程序一起删除）。 */
 const externalVenvDir = computed(() => {
@@ -260,9 +269,39 @@ watch(pendingRemove, (open) => {
 });
 
 async function confirmRemove(mode: InstanceRemovalMode): Promise<void> {
-  await instancesStore.remove(props.instance.id, mode);
+  if (removing.value) return;
+  removing.value = true;
+  try {
+    await instancesStore.remove(props.instance.id, mode);
+  } catch (error) {
+    // 失败时关闭确认弹窗，改用带日志的错误弹窗；记录所选模式供「重试」复用。
+    pendingRemove.value = false;
+    removeError.value = {
+      description: error instanceof Error ? error.message : String(error),
+      ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
+      mode,
+    };
+    return;
+  } finally {
+    removing.value = false;
+  }
   pendingRemove.value = false;
   emit('deleted');
+}
+
+// 重新打开确认弹窗并以忙碌态重试上一次失败的模式。
+function retryRemove(): void {
+  const mode = removeError.value?.mode;
+  if (!mode || removing.value) return;
+  removeError.value = null;
+  pendingRemove.value = true;
+  void confirmRemove(mode);
+}
+
+// 放弃重试，送回主页面。
+function goHomeAfterError(): void {
+  removeError.value = null;
+  emit('home');
 }
 
 async function save(): Promise<void> {
@@ -554,7 +593,13 @@ watch(
   </BaseDialog>
 
   <!-- 删除必须二次确认；提供“仅移除记录”与“连文件一起删除”两种模式 -->
-  <BaseDialog :open="pendingRemove" title="删除实例" :width="420" @close="cancelRemove">
+  <BaseDialog
+    :open="pendingRemove"
+    title="删除实例"
+    :width="420"
+    :dismissible="!removing"
+    @close="cancelRemove"
+  >
     <div class="remove-dialog__body">
       <p>确定要删除实例「{{ instance.name }}」吗？将先停止其进程，此操作无法撤销。</p>
       <p v-if="instance.mofoxInstallDir">主程序：{{ instance.mofoxInstallDir }}</p>
@@ -566,20 +611,57 @@ watch(
       </p>
     </div>
     <template #actions>
-      <button class="btn btn--text state-layer" type="button" @click="cancelRemove">取消</button>
+      <button
+        class="btn btn--text state-layer"
+        type="button"
+        :disabled="removing"
+        @click="cancelRemove"
+      >
+        取消
+      </button>
       <button
         ref="keepRecordButton"
         class="btn btn--tonal state-layer"
         type="button"
+        :disabled="removing"
         @click="confirmRemove('record')"
       >
-        仅移除记录
+        {{ removing ? '删除中…' : '仅移除记录' }}
       </button>
-      <button class="btn btn--error state-layer" type="button" @click="confirmRemove('files')">
+      <button
+        class="btn btn--error state-layer"
+        type="button"
+        :disabled="removing"
+        @click="confirmRemove('files')"
+      >
         删除文件
       </button>
     </template>
   </BaseDialog>
+
+  <!-- 删除失败：带堆栈日志的错误弹窗，支持原地重试或回到主菜单 -->
+  <ErrorDialog
+    :open="removeError !== null"
+    title="删除实例失败"
+    :description="removeError?.description"
+    :stack="removeError?.stack"
+    @close="removeError = null"
+  >
+    <template #actions>
+      <button class="btn btn--text state-layer" type="button" @click="goHomeAfterError">
+        回到主菜单
+      </button>
+      <button
+        class="btn btn--filled state-layer"
+        type="button"
+        :disabled="removing"
+        @click="retryRemove"
+      >
+        <span class="msr btn__icon" aria-hidden="true">refresh</span>
+        重试
+      </button>
+    </template>
+  </ErrorDialog>
 </template>
 
 <style scoped>

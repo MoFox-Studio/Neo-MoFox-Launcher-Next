@@ -143,6 +143,7 @@ function returnToDashboard(): void {
         :platforms="platforms"
         @toast="showToast"
         @deleted="returnToDashboard"
+        @home="returnToDashboard"
       />
       <InstanceVenvPanel
         v-else-if="instance && activeTab === 'venv'"
