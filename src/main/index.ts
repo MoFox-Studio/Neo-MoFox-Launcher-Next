@@ -1,13 +1,4 @@
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  protocol,
-  safeStorage,
-  shell,
-  systemPreferences,
-} from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell, systemPreferences } from 'electron';
 import { setUnverifiedDownloadConfirmation } from './utils/git/download-consent';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -431,21 +422,6 @@ if (!hasSingleInstanceLock) {
       {
         repository: instances,
         mirrors,
-        stateDirectory: join(dataDirectory, 'install-tasks'),
-        secrets: {
-          encrypt(value) {
-            if (
-              !safeStorage.isEncryptionAvailable() ||
-              (process.platform === 'linux' &&
-                safeStorage.getSelectedStorageBackend() === 'basic_text')
-            )
-              throw new Error('系统安全密钥存储不可用，安装已停止');
-            return safeStorage.encryptString(value).toString('base64');
-          },
-          decrypt(value) {
-            return safeStorage.decryptString(Buffer.from(value, 'base64'));
-          },
-        },
       },
       { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
     );
@@ -487,19 +463,11 @@ if (!hasSingleInstanceLock) {
       },
     );
     registerOobeIpc(ipcMain, oobeService);
-    await installTasks
-      .recover()
-      .catch((error: unknown) =>
-        report(
-          '恢复未完成的安装任务失败',
-          error instanceof Error ? error : new Error(String(error)),
-        ),
-      );
     // 窗口显示前读取一次材质开关，避免启动瞬间闪现已关闭的系统模糊。
     backdropEnabled = (await settings.get()).systemBackdrop;
     mainWindow = createMainWindow();
 
-    // 正常关闭先持久化关闭标记并等待任务取消；等待期间重复关闭也不能绕过收尾。
+    // 正常关闭先等待安装任务取消并清理现场；等待期间重复关闭也不能绕过收尾。
     let installCloseDispatched = false;
     let installCloseReady = false;
     mainWindow.on('close', (event) => {

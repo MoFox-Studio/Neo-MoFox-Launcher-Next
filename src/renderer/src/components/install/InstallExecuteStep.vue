@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { useInstallStore } from '@/stores/install';
 import WavyLinearProgress from '@/components/WavyLinearProgress.vue';
+import ErrorDialog from '@/components/ErrorDialog.vue';
 import type { InstallStepId } from '@shared/domain/install';
 
 const props = defineProps<{
@@ -45,6 +46,26 @@ const currentStep = computed(() => STEPS.find((step) => step.id === progress.val
 const currentStepLabel = computed(() => currentStep.value?.label ?? '准备安装');
 const latestMessage = computed(
   () => progress.value?.message || installStore.logLines.at(-1) || '正在创建安装任务…',
+);
+// 失败原因优先取后端失败事件的 message，退而求其次用最后一条日志。
+const failureReason = computed(
+  () => progress.value?.message || installStore.logLines.at(-1) || '未知错误',
+);
+const failureLogText = computed(() => installStore.logLines.join('\n'));
+
+// 检测到安装失败时自动弹出带原因与日志的错误弹窗；
+// 从恢复入口进入的已失败任务不重复打扰（其状态没有经过运行态）。
+const errorDialogOpen = ref(false);
+watch(
+  () => installStore.progress?.status,
+  (status, previous) => {
+    if (
+      status === 'failed' &&
+      (previous === 'pending' || previous === 'running' || previous === 'cancelling')
+    ) {
+      errorDialogOpen.value = true;
+    }
+  },
 );
 
 const overallPercent = computed(() => {
@@ -139,7 +160,7 @@ async function retry(): Promise<void> {
         <span class="msr" aria-hidden="true">report</span>
         <div>
           <strong>失败原因</strong>
-          <p>{{ latestMessage }}</p>
+          <p>{{ failureReason }}</p>
         </div>
       </div>
 
@@ -256,6 +277,14 @@ async function retry(): Promise<void> {
         </div>
       </div>
     </div>
+
+    <ErrorDialog
+      :open="errorDialogOpen"
+      title="安装失败"
+      :description="failureReason"
+      :stack="failureLogText"
+      @close="errorDialogOpen = false"
+    />
   </section>
 </template>
 

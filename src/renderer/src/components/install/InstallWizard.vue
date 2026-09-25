@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
 import BaseDialog from '@/components/BaseDialog.vue';
+import ErrorDialog from '@/components/ErrorDialog.vue';
 import { useInstallDraftStore } from '@/stores/install-draft';
 import { useInstallStore } from '@/stores/install';
 import type { InstallRequest } from '@shared/domain/install';
@@ -14,8 +15,6 @@ import InstallLocationStep from './InstallLocationStep.vue';
 import InstallSummaryStep from './InstallSummaryStep.vue';
 import InstallExecuteStep from './InstallExecuteStep.vue';
 import '@/components/install/install-wizard.css';
-import { mofoxApi } from '@/services/mofox-api';
-import type { InstallTaskSnapshot } from '@shared/domain/install';
 
 type PhaseId = 'license' | 'configure' | 'review' | 'execute';
 type ConfigSectionId = 'identity' | 'model' | 'network' | 'components' | 'location';
@@ -75,20 +74,6 @@ const CONFIG_SECTIONS: ConfigSection[] = [
 
 const draftStore = useInstallDraftStore();
 const installStore = useInstallStore();
-const recoveredTasks = ref<InstallTaskSnapshot[]>([]);
-const recoveryError = ref('');
-async function selectRecovered(task: InstallTaskSnapshot): Promise<void> {
-  try {
-    const fresh = await mofoxApi.getInstallTask(task.progress.taskId);
-    Object.assign(draftStore.draft, fresh.request, { apiKey: '', webuiApiKey: '' });
-    installStore.activeTaskId = fresh.progress.taskId;
-    installStore.progress = fresh.progress;
-    currentPhase.value = 'execute';
-    recoveredTasks.value = [];
-  } catch (error) {
-    recoveryError.value = String(error);
-  }
-}
 
 const emit = defineEmits<{
   close: [];
@@ -101,6 +86,8 @@ const licenseAgreed = ref(false);
 const contentRef = ref<HTMLElement | null>(null);
 const confirmingCancel = ref(false);
 const cancelling = ref(false);
+// 启动安装（请求校验、后台建任务）失败的弹窗信息；失败时留在确认页可再次尝试。
+const startError = ref('');
 
 const phaseIndex = computed(() => PHASES.findIndex((phase) => phase.id === currentPhase.value));
 
@@ -244,8 +231,13 @@ function selectPhase(id: string): void {
 
 async function startInstall(): Promise<void> {
   const request: InstallRequest = { ...draftStore.draft };
+  try {
+    await installStore.begin(request);
+  } catch (error) {
+    startError.value = error instanceof Error ? error.message : String(error);
+    return;
+  }
   currentPhase.value = 'execute';
-  await installStore.begin(request);
 }
 
 function advanceConfiguration(): void {
@@ -301,17 +293,6 @@ watch(
 
 onMounted(() => {
   if (installStore.prepareForNewInstall()) draftStore.reset();
-  if (!installStore.activeTaskId)
-    void mofoxApi
-      .listInstallTasks()
-      .then((tasks) => {
-        recoveredTasks.value = tasks.filter(
-          (task) => !['done', 'cancelled'].includes(task.progress.status),
-        );
-      })
-      .catch((error) => {
-        recoveryError.value = String(error);
-      });
   if (installStore.activeTaskId || installStore.progress) currentPhase.value = 'execute';
   window.addEventListener('keydown', onKeydownEnter);
 });
@@ -352,21 +333,6 @@ function goToInstances(): void {
 </script>
 
 <template>
-  <section
-    v-if="recoveredTasks.length || recoveryError"
-    class="recovery-list"
-    aria-label="未完成的安装任务"
-  >
-    <p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
-    <button
-      v-for="task in recoveredTasks"
-      :key="task.progress.taskId"
-      class="btn btn--tonal"
-      @click="selectRecovered(task)"
-    >
-      查看未完成安装：{{ task.request.instanceName }}（可继续或取消）
-    </button>
-  </section>
   <div class="wizard">
     <InstallerTaskShell
       :title="shellTitle"
@@ -534,6 +500,13 @@ function goToInstances(): void {
         <p class="cancelling-dialog__message">正在停止任务并清理临时文件，请稍候…</p>
       </div>
     </BaseDialog>
+
+    <ErrorDialog
+      :open="startError !== ''"
+      title="无法开始安装"
+      :description="startError"
+      @close="startError = ''"
+    />
   </div>
 </template>
 
