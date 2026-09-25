@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useInstancesStore } from '@/stores/instances';
 import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
+import { useSmartEnter } from '@/composables/use-smart-enter';
 import ErrorDialog from '@/components/ErrorDialog.vue';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
 import InstallerTaskShell, { type TaskPhase } from './InstallerTaskShell.vue';
@@ -283,6 +284,35 @@ async function submit(): Promise<void> {
   }
 }
 
+// 智能回车：输入框上按 Enter 聚焦下一个输入框；最后一个输入框或焦点不在
+// 输入框上时执行主操作（继续 / 开始导入 / 查看实例）。
+const rootRef = ref<HTMLElement | null>(null);
+
+useSmartEnter({
+  target: rootRef,
+  enabled: () => !busy.value && !validating.value && !showErrorDialog.value,
+  // 平台区块折叠时其中的输入框仍参与布局，不能作为回车目标。
+  isVisible: (element) => {
+    const fields = element.closest('.platform-fields');
+    return !fields || fields.classList.contains('platform-fields--open');
+  },
+  onPrimary: () => {
+    if (completed.value) {
+      emit('complete');
+      return;
+    }
+    if (currentStep.value < 3) void next();
+    else void submit();
+  },
+});
+
+// 回到信息填写步骤时聚焦实例名称，回车链路可以直接开始输入。
+watch(currentStep, async (step) => {
+  if (step !== 2) return;
+  await nextTick();
+  rootRef.value?.querySelector<HTMLInputElement>('input')?.focus();
+});
+
 onMounted(async () => {
   platformsLoading.value = true;
   try {
@@ -296,7 +326,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="manual-import">
+  <div ref="rootRef" class="manual-import">
     <InstallerTaskShell
       :title="shellTitle"
       :subtitle="shellSubtitle"

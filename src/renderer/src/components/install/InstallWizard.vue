@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
+import { computed, nextTick, onMounted, ref, watch, type Component } from 'vue';
 import BaseDialog from '@/components/BaseDialog.vue';
 import ErrorDialog from '@/components/ErrorDialog.vue';
+import { useSmartEnter } from '@/composables/use-smart-enter';
 import { useInstallDraftStore } from '@/stores/install-draft';
 import { useInstallStore } from '@/stores/install';
 import type { InstallRequest } from '@shared/domain/install';
@@ -207,9 +208,12 @@ function touchConfiguration(): void {
   }
 }
 
-function continueFromLicense(): void {
+async function continueFromLicense(): Promise<void> {
   if (!licenseAgreed.value) return;
   currentPhase.value = 'configure';
+  // 进入配置阶段后聚焦第一个输入框，让回车链路可以直接继续填表。
+  await nextTick();
+  focusFirstVisibleInput();
 }
 
 async function reviewConfiguration(): Promise<void> {
@@ -245,47 +249,57 @@ async function startInstall(): Promise<void> {
   currentPhase.value = 'execute';
 }
 
-function advanceConfiguration(): void {
-  if (!sectionReady(activeConfigSection.value)) return;
+async function advanceConfiguration(): Promise<void> {
+  if (!sectionReady(activeConfigSection.value)) {
+    // 区块还没填完：标出所有缺失项给用户反馈，而不是静默不动。
+    touchConfiguration();
+    return;
+  }
   const index = CONFIG_SECTIONS.findIndex((section) => section.id === activeConfigSection.value);
   const next = CONFIG_SECTIONS[index + 1];
-  if (next) activeConfigSection.value = next.id;
-  else void reviewConfiguration();
+  if (!next) {
+    void reviewConfiguration();
+    return;
+  }
+  activeConfigSection.value = next.id;
+  // 跳到下一区块后聚焦它的第一个输入框，回车链路得以延续。
+  await nextTick();
+  focusFirstVisibleInput();
+}
+
+// 聚焦当前展开区块里的第一个输入框或下拉框。
+function focusFirstVisibleInput(): void {
+  const open = contentRef.value?.querySelector('.config-section--open');
+  if (!open) return;
+  const first = open.querySelector<HTMLInputElement | HTMLElement>(
+    'input:not([type="checkbox"]):not([type="hidden"]), md-outlined-select',
+  );
+  first?.focus();
 }
 
 function runPrimaryAction(): void {
-  if (currentPhase.value === 'license') continueFromLicense();
-  else if (currentPhase.value === 'configure') advanceConfiguration();
+  if (currentPhase.value === 'license') void continueFromLicense();
+  else if (currentPhase.value === 'configure') void advanceConfiguration();
   else if (currentPhase.value === 'review') void startInstall();
 }
 
-function onKeydownEnter(event: KeyboardEvent): void {
-  if (event.key !== 'Enter' || event.isComposing || currentPhase.value === 'execute') return;
-  const active = document.activeElement as HTMLElement | null;
-  if (!active || !contentRef.value) return;
-  const tag = active.tagName;
-  if (tag === 'BUTTON' || tag === 'A') return;
-
-  const isInputLike = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
-  if (isInputLike) {
-    const input = active as HTMLInputElement;
-    if (input.type === 'checkbox' || input.type === 'hidden' || input.disabled) return;
-  }
-
-  const focusables = Array.from(
-    contentRef.value.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
-      'input:not([type="checkbox"]):not([type="hidden"]), select',
-    ),
-  ).filter((element) => !element.disabled && element.offsetParent !== null);
-  const index = focusables.indexOf(active as HTMLInputElement | HTMLSelectElement);
-  if (index >= 0 && index < focusables.length - 1) {
-    event.preventDefault();
-    focusables[index + 1].focus();
-    return;
-  }
-  event.preventDefault();
-  runPrimaryAction();
-}
+// 智能回车：输入框上按 Enter 聚焦下一个输入框；最后一个输入框或焦点不在
+// 输入框上时执行主操作（开始配置 / 下一区块 / 开始安装）。
+useSmartEnter({
+  target: contentRef,
+  enabled: () =>
+    currentPhase.value !== 'execute' &&
+    !confirmingCancel.value &&
+    !cancelling.value &&
+    !draftStore.validatingTargetDir &&
+    startError.value === '',
+  // 配置阶段一次只展开一个区块，折叠区块里的输入框仍在布局中，不能作为回车目标。
+  isVisible: (element) => {
+    const section = element.closest('.config-section');
+    return !section || section.classList.contains('config-section--open');
+  },
+  onPrimary: runPrimaryAction,
+});
 
 watch(
   () => installStore.cancelRequested,
@@ -299,11 +313,6 @@ watch(
 onMounted(() => {
   if (installStore.prepareForNewInstall()) draftStore.reset();
   if (installStore.activeTaskId || installStore.progress) currentPhase.value = 'execute';
-  window.addEventListener('keydown', onKeydownEnter);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydownEnter);
 });
 
 function cancelInstall(): void {
