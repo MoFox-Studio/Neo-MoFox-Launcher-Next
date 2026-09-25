@@ -153,53 +153,101 @@ function formatDate(value: number | null): string {
       </div>
     </div>
 
+    <!-- 选项行竖直排列，与设置页 settings-group__body 同构。 -->
     <div class="manage-group__body">
-      <dl class="info-grid">
-        <div class="info-grid__item">
-          <dt>实例 ID</dt>
-          <dd class="info-grid__value--mono">{{ instance.id }}</dd>
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">fingerprint</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">实例 ID</span>
+          <span class="settings-item__desc settings-item__desc--mono">{{ instance.id }}</span>
         </div>
-        <div class="info-grid__item">
-          <dt>运行状态</dt>
-          <dd><StatusBadge :status="instance.status" /></dd>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">monitor_heart</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">运行状态</span>
         </div>
-        <div class="info-grid__item">
-          <dt>创建时间</dt>
-          <dd>{{ formatDate(instance.createdAt) }}</dd>
+        <StatusBadge :status="instance.status" />
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">event</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">创建时间</span>
+          <span class="settings-item__desc">{{ formatDate(instance.createdAt) }}</span>
         </div>
-        <div class="info-grid__item">
-          <dt>最后启动</dt>
-          <dd>{{ formatDate(instance.lastStartedAt) }}</dd>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">schedule</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">最后启动</span>
+          <span class="settings-item__desc">{{ formatDate(instance.lastStartedAt) }}</span>
         </div>
-        <div class="info-grid__item">
-          <dt>MoFox 安装目录</dt>
-          <dd class="info-grid__value--mono">{{ instance.mofoxInstallDir || '—' }}</dd>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">folder</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">MoFox 安装目录</span>
+          <span class="settings-item__desc settings-item__desc--mono">{{
+            instance.mofoxInstallDir || '—'
+          }}</span>
         </div>
-        <div class="info-grid__item">
-          <dt>虚拟环境目录</dt>
-          <dd class="info-grid__value--mono">{{ instance.venvDir || '—' }}</dd>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">science</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">虚拟环境目录</span>
+          <span class="settings-item__desc settings-item__desc--mono">{{
+            instance.venvDir || '—'
+          }}</span>
         </div>
-        <div class="info-grid__item">
-          <dt>平台种类</dt>
-          <dd>{{ instance.platform?.id ?? '未安装' }}</dd>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">smart_toy</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">平台种类</span>
+          <span class="settings-item__desc">{{ instance.platform?.id ?? '未安装' }}</span>
         </div>
-        <div class="info-grid__item">
-          <dt>平台安装目录</dt>
-          <dd class="info-grid__value--mono">{{ instance.platform?.installDir || '—' }}</dd>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">folder_open</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">平台安装目录</span>
+          <span class="settings-item__desc settings-item__desc--mono">{{
+            instance.platform?.installDir || '—'
+          }}</span>
         </div>
-        <div class="info-grid__item">
-          <dt>平台版本</dt>
-          <dd>{{ instance.platform?.version || '—' }}</dd>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">tag</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">平台版本</span>
+          <span class="settings-item__desc">{{ instance.platform?.version || '—' }}</span>
         </div>
-        <div class="info-grid__item">
-          <dt>启动时自动运行</dt>
-          <dd>{{ instance.autoStart ? '是' : '否' }}</dd>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">power</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">启动时自动运行</span>
         </div>
-        <div class="info-grid__item">
-          <dt>已收藏</dt>
-          <dd>{{ instance.extra?.isLike === true ? '是' : '否' }}</dd>
+        <span class="info-item__value">{{ instance.autoStart ? '是' : '否' }}</span>
+      </div>
+
+      <div class="settings-item">
+        <span class="msr settings-item__icon" aria-hidden="true">favorite</span>
+        <div class="settings-item__body">
+          <span class="settings-item__label">已收藏</span>
         </div>
-      </dl>
+        <span class="info-item__value">{{ instance.extra?.isLike === true ? '是' : '否' }}</span>
+      </div>
     </div>
   </section>
 </template>
@@ -312,41 +360,70 @@ function formatDate(value: number | null): string {
   }
 }
 
+/* 选项行竖直排列：布局与设置页 settings-group__body 同构。 */
 .manage-group__body {
-  padding: 24px;
-}
-
-.info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 3px;
-  margin: 0;
+  padding: 12px 10px 10px;
 }
 
-.info-grid__item {
+.manage-group__body > :first-child {
+  border-radius: 18px 18px 7px 7px;
+}
+
+.manage-group__body > :last-child {
+  border-radius: 7px 7px 18px 18px;
+}
+
+.manage-group__body > :only-child {
+  border-radius: 18px;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  min-height: var(--app-density-row-min-height);
+  padding: var(--app-density-row-padding-block) 18px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+}
+
+.settings-item__icon {
+  flex: none;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 24px;
+}
+
+.settings-item__body {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-height: 70px;
-  justify-content: center;
-  padding: 11px 14px;
-  border-radius: 8px;
-  background: var(--md-sys-color-surface-container);
+  gap: 2px;
 }
 
-.info-grid__item dt {
-  font: var(--md-sys-typescale-label-medium);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.info-grid__item dd {
-  margin: 0;
-  font: var(--md-sys-typescale-body-medium);
+.settings-item__label {
   color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-large);
 }
 
-.info-grid__value--mono {
+.settings-item__desc {
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+  overflow-wrap: anywhere;
+}
+
+.settings-item__desc--mono {
   font-family: var(--md-ref-typeface-mono);
+}
+
+/* 短值（是/否）作为行尾元素展示，位置对齐设置页的开关控件。 */
+.info-item__value {
+  flex: none;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
 }
 
 .icon-btn {
