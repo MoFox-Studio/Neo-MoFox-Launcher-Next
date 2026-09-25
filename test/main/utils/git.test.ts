@@ -139,9 +139,7 @@ describe('git mutation helpers', () => {
     const progress: string[] = [];
     execCommand
       .mockResolvedValueOnce(result('true')) // isGitRepository
-      .mockResolvedValueOnce(
-        result('+refs/heads/*:refs/remotes/origin/*'),
-      ) // refspec 已含通配
+      .mockResolvedValueOnce(result('+refs/heads/*:refs/remotes/origin/*')) // refspec 已含通配
       .mockResolvedValueOnce(result('')) // fetch origin dev
       .mockResolvedValueOnce(result(' M main.py')) // status dirty
       .mockResolvedValueOnce(result('')) // stash

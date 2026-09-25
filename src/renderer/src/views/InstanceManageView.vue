@@ -162,11 +162,7 @@ function returnToDashboard(): void {
         </span>
         <h2>实例不存在</h2>
         <p>该实例可能已被删除，或访问地址有误。</p>
-        <button
-          class="manage-missing__action state-layer"
-          type="button"
-          @click="returnToDashboard"
-        >
+        <button class="manage-missing__action state-layer" type="button" @click="returnToDashboard">
           返回主页面
         </button>
       </div>

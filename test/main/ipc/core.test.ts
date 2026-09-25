@@ -67,9 +67,9 @@ describe('registerCoreIpc', () => {
     await handlers.get(IPC_INVOKE_CHANNELS.openDataFile)?.({}, 'instances');
     expect(services.dataFiles.open).toHaveBeenCalledWith('instances');
 
-    await expect(
-      handlers.get(IPC_INVOKE_CHANNELS.openDataFile)?.({}, 'secrets'),
-    ).rejects.toThrow('MOFOX_ERROR:');
+    await expect(handlers.get(IPC_INVOKE_CHANNELS.openDataFile)?.({}, 'secrets')).rejects.toThrow(
+      'MOFOX_ERROR:',
+    );
     expect(services.dataFiles.open).toHaveBeenCalledTimes(1);
   });
 });

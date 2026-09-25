@@ -307,10 +307,7 @@ onMounted(() => {
                   launcher-settings.json
                 </span>
               </div>
-              <button
-                class="text-button state-layer"
-                @click="openDataFile('settings')"
-              >
+              <button class="text-button state-layer" @click="openDataFile('settings')">
                 打开
               </button>
             </div>
@@ -321,10 +318,7 @@ onMounted(() => {
                 <span class="settings-item__label">实例源文件</span>
                 <span class="settings-item__desc settings-item__desc--mono">instances.json</span>
               </div>
-              <button
-                class="text-button state-layer"
-                @click="openDataFile('instances')"
-              >
+              <button class="text-button state-layer" @click="openDataFile('instances')">
                 打开
               </button>
             </div>
