@@ -52,6 +52,25 @@ function onInstallDirBlur(): void {
   void settingsStore.update({ defaultInstallDir: installDir.value });
 }
 
+// 安装目录通过通用目录对话框选择；用户取消时保留原值。
+const installDirBusy = ref(false);
+
+async function chooseInstallDir(): Promise<void> {
+  if (installDirBusy.value) return;
+  installDirBusy.value = true;
+  try {
+    const picked = await mofoxApi.pickDirectory({
+      title: '选择默认安装目录',
+      defaultPath: installDir.value || undefined,
+    });
+    if (picked) await settingsStore.update({ defaultInstallDir: picked });
+  } catch {
+    // 对话框打开失败（如 IPC 异常）时保持原目录不变。
+  } finally {
+    installDirBusy.value = false;
+  }
+}
+
 // ─── 壁纸 ───────────────────────────────────────────────────────────────
 // 与设置页保持一致的流程：主进程暂存 → 渲染层取色 → 提交为受管壁纸。
 const wallpaperBusy = ref(false);
@@ -329,16 +348,27 @@ function applyWallpaperColor(color: string): void {
     </div>
 
     <div class="pref-block">
-      <label class="field">
-        <input
-          v-model="installDir"
-          class="field__input"
-          type="text"
-          placeholder=" "
-          @blur="onInstallDirBlur"
-        />
-        <span class="field__label">默认安装目录</span>
-      </label>
+      <div class="path-field">
+        <label class="field field--grow">
+          <input
+            v-model="installDir"
+            class="field__input"
+            type="text"
+            placeholder=" "
+            @blur="onInstallDirBlur"
+          />
+          <span class="field__label">默认安装目录</span>
+        </label>
+        <button
+          type="button"
+          class="btn btn--tonal state-layer"
+          :disabled="installDirBusy"
+          @click="chooseInstallDir"
+        >
+          <span class="msr" aria-hidden="true">folder_open</span>
+          浏览
+        </button>
+      </div>
       <p class="pref-block__hint">实例默认安装到此目录下的子文件夹；可留空使用系统默认位置。</p>
     </div>
 
@@ -467,6 +497,28 @@ function applyWallpaperColor(color: string): void {
   background: transparent;
   color: var(--md-sys-color-primary);
   padding: 0 12px;
+}
+
+.btn--tonal {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.btn .msr {
+  font-size: 19px;
+}
+
+/* 目录输入与“浏览”按钮并排，按钮高度与 56px 输入框对齐。 */
+.path-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.path-field .btn {
+  flex: none;
+  height: 56px;
+  white-space: nowrap;
 }
 
 .pref-block__hint--lead {
