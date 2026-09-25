@@ -647,7 +647,7 @@ onMounted(async () => {
   gap: 14px;
   padding: 12px 16px;
   border-radius: 6px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
 }
 
 .welcome-list__item:first-child {
@@ -789,7 +789,7 @@ onMounted(async () => {
   margin-top: 12px;
   padding: 18px;
   border-radius: 18px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
 }
 
 .error-message-card {

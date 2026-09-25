@@ -567,8 +567,12 @@ watch(
 /* 卡片结构与设置页 settings-group 同构：卡片承载标题与选项行。 */
 .manage-group__card {
   overflow: hidden;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 .manage-group__heading {
@@ -610,7 +614,7 @@ watch(
   min-height: var(--app-density-row-min-height);
   padding: var(--app-density-row-padding-block) 18px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
   transition: background-color var(--md-sys-motion-duration-short4)
     var(--md-sys-motion-easing-standard);
 }

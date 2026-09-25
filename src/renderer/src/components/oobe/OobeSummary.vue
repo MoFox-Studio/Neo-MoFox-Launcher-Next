@@ -143,7 +143,7 @@ defineExpose({ finish });
   min-height: 50px;
   padding: 10px 14px;
   border-radius: 6px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
 }
 
 .summary-list__item:first-child {

@@ -203,8 +203,12 @@ function onManage(id: string): void {
   align-items: center;
   gap: 14px;
   padding: 12px 14px;
+  border: 1px solid var(--app-glass-border);
   border-radius: 24px;
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 .search-box {
@@ -352,8 +356,12 @@ function onManage(id: string): void {
   justify-content: center;
   gap: 7px;
   padding: 32px;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
   text-align: center;
 }
 

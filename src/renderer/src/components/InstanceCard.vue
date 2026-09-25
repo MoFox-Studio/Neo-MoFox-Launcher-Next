@@ -146,15 +146,20 @@ function onPrimaryAction(): void {
   flex-direction: column;
   gap: 14px;
   padding: 18px;
+  border: 1px solid var(--app-glass-border);
   border-radius: 24px;
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
   color: var(--md-sys-color-on-surface);
-  transition: background-color var(--md-sys-motion-duration-short4)
-    var(--md-sys-motion-easing-standard);
+  transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.instance-card:hover {
-  background: var(--md-sys-color-surface-container);
+@media (hover: hover) and (pointer: fine) {
+  .instance-card:hover {
+    box-shadow: var(--app-glass-card-shadow-hover);
+  }
 }
 
 .instance-card__head {
@@ -235,7 +240,7 @@ function onPrimaryAction(): void {
   gap: 10px;
   padding: 9px 12px;
   border-radius: 14px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
   color: var(--md-sys-color-on-surface-variant);
 }
 

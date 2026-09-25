@@ -71,8 +71,12 @@
   /* 应用玻璃表面：沿用动态主题色，不引入额外装饰色。 */
   --app-glass-surface: color-mix(in srgb, var(--md-sys-color-surface) 75%, transparent);
   --app-glass-card: color-mix(in srgb, var(--md-sys-color-surface-container) 72%, transparent);
+  /* 卡片内部行/内嵌块：堆叠后比卡片高出一档，保证行与卡片分层明显可辨。 */
+  --app-glass-row: color-mix(in srgb, var(--md-sys-color-surface-container) 75%, transparent);
   --app-glass-border: color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
   --app-glass-filter: blur(8px);
+  /* 面板卡片专用模糊：与标题栏/导航栏共用基线，浅色主题下单独减淡（见下方覆盖块）。 */
+  --app-glass-card-filter: var(--app-glass-filter);
   --app-glass-card-shadow: 0 4px 16px rgb(24 28 32 / 0.04);
   --app-glass-card-shadow-hover: 0 6px 20px rgb(24 28 32 / 0.08);
 
@@ -114,6 +118,14 @@
 /* 浅色主题:白底与亮色壁纸对比天然弱,罩层减薄让壁纸透出可感知。 */
 :root[data-theme='light'] {
   --app-mica-surface: color-mix(in srgb, var(--md-sys-color-surface) 35%, transparent);
+
+  /*
+   * 浅色下的玻璃:亮色壁纸上高实度白玻璃只会发白,壁纸完全不可感知。
+   * 卡片大幅调透让壁纸透出;内部行保持较高堆叠实度,与卡片拉开明显分层。
+   */
+  --app-glass-card: color-mix(in srgb, var(--md-sys-color-surface-container) 60%, transparent);
+  --app-glass-row: color-mix(in srgb, var(--md-sys-color-surface-container) 70%, transparent);
+  --app-glass-card-filter: blur(4px);
 }
 
 /* 密度偏好集中覆盖应用级尺寸；组件只消费令牌，不各自猜测缩放比例。 */

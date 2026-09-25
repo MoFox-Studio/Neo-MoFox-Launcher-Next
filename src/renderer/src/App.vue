@@ -228,6 +228,7 @@ onMounted(async () => {
    标题栏与主导航侧栏保持固定玻璃，不随遮罩变化。 */
 .shell--wallpaper-max {
   --app-glass-card: var(--md-sys-color-surface-container);
+  --app-glass-row: var(--md-sys-color-surface-container);
   --app-glass-surface: var(--md-sys-color-surface);
   --app-subrail-surface: color-mix(
     in srgb,

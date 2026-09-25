@@ -259,10 +259,12 @@ function formatDate(value: number | null): string {
   box-sizing: border-box;
   margin: 0 auto;
   overflow: hidden;
-  border: 0;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
-  box-shadow: none;
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 .manage-info__head {
@@ -309,7 +311,7 @@ function formatDate(value: number | null): string {
 }
 
 .manage-info__rename-field {
-  --field-label-background: var(--md-sys-color-surface-container-low);
+  --field-label-background: var(--app-glass-card);
 
   flex: 0 1 auto;
   width: min(360px, 100%);
@@ -387,7 +389,7 @@ function formatDate(value: number | null): string {
   min-height: var(--app-density-row-min-height);
   padding: var(--app-density-row-padding-block) 18px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
 }
 
 .settings-item__icon {

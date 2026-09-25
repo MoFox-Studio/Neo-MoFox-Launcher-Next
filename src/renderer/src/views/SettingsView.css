@@ -141,8 +141,12 @@
 /* 分组卡片与外观设置页的 appearance-card 同构：卡片承载标题与选项行。 */
 .settings-group__card {
   overflow: hidden;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 .settings-group__heading {
@@ -183,7 +187,7 @@
   min-height: var(--app-density-row-min-height);
   padding: var(--app-density-row-padding-block) 18px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
   transition: background-color var(--md-sys-motion-duration-short4)
     var(--md-sys-motion-easing-standard);
 }
@@ -327,7 +331,7 @@
   gap: 8px;
   padding: 12px 16px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
   font: var(--md-sys-typescale-body-medium);
 }
 
@@ -346,7 +350,7 @@
 .migration-preview {
   padding: 12px 16px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
 }
 
 .migration-preview__hint {

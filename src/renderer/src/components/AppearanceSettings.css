@@ -61,10 +61,12 @@
 
 .appearance-card {
   overflow: hidden;
-  border: 0;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
-  box-shadow: none;
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 .appearance-card__heading {
@@ -93,7 +95,7 @@
 .setting-block,
 .wallpaper-block {
   border-radius: 7px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
   transition: background-color var(--md-sys-motion-duration-short4)
     var(--md-sys-motion-easing-standard);
 }
@@ -631,17 +633,6 @@
 
 .native-select:focus {
   border: 2px solid var(--md-sys-color-primary);
-}
-
-.reveal-enter-active,
-.reveal-leave-active {
-  overflow: hidden;
-  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.reveal-enter-from,
-.reveal-leave-to {
-  opacity: 0;
 }
 
 @media (max-width: 840px) {

@@ -12,8 +12,12 @@
   flex: none;
   margin: 18px 32px 10px;
   padding: 8px;
+  border: 1px solid var(--app-glass-border);
   border-radius: 24px;
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 /* 仅在壁纸背景存在时为日志页整面铺设遮罩驱动的半透明底衬，并保留 82% 下限，
@@ -205,8 +209,12 @@
   position: relative;
   margin: 0 32px 24px;
   padding: 5px;
+  border: 1px solid var(--app-glass-border);
   border-radius: 24px;
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 .log-view__terminal {

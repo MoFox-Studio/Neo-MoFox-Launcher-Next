@@ -314,76 +314,73 @@ function onLanguageChange(event: Event): void {
             </p>
           </div>
 
-          <Transition name="reveal">
-            <div v-if="settings.themeColorSource === 'manual'" class="setting-block">
-              <div class="setting-block__title">
-                <span>手动种子色</span>
-                <span class="setting-block__hint">{{ settings.seedColor.toUpperCase() }}</span>
-              </div>
-              <div class="seed-colors">
-                <button
-                  v-for="color in presetColors"
-                  :key="color"
-                  class="seed-color state-layer"
-                  :class="{ 'seed-color--selected': settings.seedColor.toUpperCase() === color }"
-                  :style="{ background: color }"
-                  type="button"
-                  :aria-label="`选择颜色 ${color}`"
-                  :aria-pressed="settings.seedColor.toUpperCase() === color"
-                  @click="setManualColor(color)"
-                >
-                  <span v-if="settings.seedColor.toUpperCase() === color" class="msr">check</span>
-                </button>
-                <label class="seed-color seed-color--custom" title="自定义颜色">
-                  <span class="msr">colorize</span>
-                  <input
-                    type="color"
-                    :value="settings.seedColor"
-                    aria-label="自定义主题色"
-                    @input="setManualColor(($event.target as HTMLInputElement).value)"
-                  />
-                </label>
-              </div>
+          <!-- 颜色来源切换时直接替换区块，不做过渡动画，避免进出同时发生引起闪跳。 -->
+          <div v-if="settings.themeColorSource === 'manual'" class="setting-block">
+            <div class="setting-block__title">
+              <span>手动种子色</span>
+              <span class="setting-block__hint">{{ settings.seedColor.toUpperCase() }}</span>
             </div>
-          </Transition>
+            <div class="seed-colors">
+              <button
+                v-for="color in presetColors"
+                :key="color"
+                class="seed-color state-layer"
+                :class="{ 'seed-color--selected': settings.seedColor.toUpperCase() === color }"
+                :style="{ background: color }"
+                type="button"
+                :aria-label="`选择颜色 ${color}`"
+                :aria-pressed="settings.seedColor.toUpperCase() === color"
+                @click="setManualColor(color)"
+              >
+                <span v-if="settings.seedColor.toUpperCase() === color" class="msr">check</span>
+              </button>
+              <label class="seed-color seed-color--custom" title="自定义颜色">
+                <span class="msr">colorize</span>
+                <input
+                  type="color"
+                  :value="settings.seedColor"
+                  aria-label="自定义主题色"
+                  @input="setManualColor(($event.target as HTMLInputElement).value)"
+                />
+              </label>
+            </div>
+          </div>
 
-          <Transition name="reveal">
-            <div v-if="settings.themeColorSource === 'wallpaper'" class="setting-block">
-              <div class="setting-block__title">
-                <span>壁纸取色盘</span>
-                <span class="setting-block__hint">{{
-                  settings.wallpaperSeedColor
-                    ? settings.wallpaperSeedColor.toUpperCase()
-                    : '取自当前壁纸'
-                }}</span>
-              </div>
-              <div v-if="wallpaperColors.length" class="seed-colors">
-                <button
-                  v-for="(color, index) in wallpaperColors"
-                  :key="color"
-                  class="seed-color state-layer"
-                  :class="{
-                    'seed-color--selected':
-                      settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase(),
-                  }"
-                  :style="{ background: color }"
-                  type="button"
-                  :aria-label="`采用壁纸颜色 ${index + 1}: ${color}`"
-                  :aria-pressed="settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase()"
-                  @click="applyWallpaperColor(color)"
-                >
-                  <span
-                    v-if="settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase()"
-                    class="msr"
-                    >check</span
-                  >
-                </button>
-              </div>
-              <p v-else class="inline-note">
-                <span class="msr">info</span> 导入或更换壁纸后，这里会给出壁纸的取色结果。
-              </p>
+          <div v-if="settings.themeColorSource === 'wallpaper'" class="setting-block">
+            <div class="setting-block__title">
+              <span>壁纸取色盘</span>
+              <span class="setting-block__hint">{{
+                settings.wallpaperSeedColor
+                  ? settings.wallpaperSeedColor.toUpperCase()
+                  : '取自当前壁纸'
+              }}</span>
             </div>
-          </Transition>
+            <div v-if="wallpaperColors.length" class="seed-colors">
+              <button
+                v-for="(color, index) in wallpaperColors"
+                :key="color"
+                class="seed-color state-layer"
+                :class="{
+                  'seed-color--selected':
+                    settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase(),
+                }"
+                :style="{ background: color }"
+                type="button"
+                :aria-label="`采用壁纸颜色 ${index + 1}: ${color}`"
+                :aria-pressed="settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase()"
+                @click="applyWallpaperColor(color)"
+              >
+                <span
+                  v-if="settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase()"
+                  class="msr"
+                  >check</span
+                >
+              </button>
+            </div>
+            <p v-else class="inline-note">
+              <span class="msr">info</span> 导入或更换壁纸后，这里会给出壁纸的取色结果。
+            </p>
+          </div>
 
           <div class="setting-block">
             <div class="setting-block__title">

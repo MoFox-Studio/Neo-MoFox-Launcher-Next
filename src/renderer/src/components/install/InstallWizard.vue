@@ -620,7 +620,7 @@ function goToInstances(): void {
 .config-section {
   overflow: hidden;
   border-radius: 7px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
   transition: background-color var(--md-sys-motion-duration-short4)
     var(--md-sys-motion-easing-standard);
 }

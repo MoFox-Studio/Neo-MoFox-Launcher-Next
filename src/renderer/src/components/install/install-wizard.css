@@ -358,7 +358,7 @@
   gap: 3px;
   padding: 10px;
   border-radius: 20px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
 }
 
 .summary-section-header {

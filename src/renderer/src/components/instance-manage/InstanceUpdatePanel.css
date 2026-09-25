@@ -12,8 +12,12 @@
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 /* 卡片头部：分区图标 + 标题描述 + 目标切换与刷新 */
@@ -137,7 +141,7 @@
 .update-card {
   padding: 16px 18px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
 }
 
 .update-panel > .update-card:first-child,

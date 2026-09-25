@@ -13,8 +13,12 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
 }
 
 /* 卡片头部：分区图标 + 标题描述 + 刷新 / 安装依赖 */
@@ -78,7 +82,7 @@
   min-height: 70px;
   padding: 11px 14px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
 }
 
 .venv-overview__label {
@@ -117,7 +121,7 @@
   gap: 12px;
   padding: 16px 18px;
   border-radius: 7px 7px 18px 18px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  background: var(--app-glass-row);
 }
 
 .update-card__head-row {

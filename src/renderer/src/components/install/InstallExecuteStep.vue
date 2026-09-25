@@ -325,7 +325,7 @@ async function retry(): Promise<void> {
   gap: 12px;
   padding: 9px 14px;
   border-radius: 6px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
   color: var(--md-sys-color-on-surface-variant);
 }
 
@@ -628,7 +628,7 @@ async function retry(): Promise<void> {
   gap: 10px;
   padding: 10px 14px;
   border-radius: 6px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-medium);
 }

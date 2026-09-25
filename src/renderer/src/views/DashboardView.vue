@@ -203,8 +203,12 @@ function openInstances(): void {
   justify-content: space-between;
   gap: 24px;
   padding: 28px 30px;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
   color: var(--md-sys-color-on-surface);
 }
 
@@ -320,7 +324,7 @@ function openInstances(): void {
   padding: 16px 20px;
   border: 0;
   border-radius: 7px;
-  background: var(--md-sys-color-surface-container);
+  background: var(--app-glass-row);
   color: var(--md-sys-color-on-surface);
   text-align: left;
   cursor: pointer;
@@ -425,8 +429,12 @@ function openInstances(): void {
   justify-content: center;
   gap: 7px;
   padding: 32px;
+  border: 1px solid var(--app-glass-border);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
   text-align: center;
 }
 
