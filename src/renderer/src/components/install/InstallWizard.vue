@@ -86,8 +86,13 @@ const licenseAgreed = ref(false);
 const contentRef = ref<HTMLElement | null>(null);
 const confirmingCancel = ref(false);
 const cancelling = ref(false);
-// 启动安装（请求校验、后台建任务）失败的弹窗信息；失败时留在确认页可再次尝试。
+// 启动安装（请求校验、后台建任务）失败的弹窗信息；弹窗不可关闭，唯一出口是返回主界面。
 const startError = ref('');
+
+function leaveAfterStartError(): void {
+  startError.value = '';
+  emit('close');
+}
 
 const phaseIndex = computed(() => PHASES.findIndex((phase) => phase.id === currentPhase.value));
 
@@ -108,7 +113,7 @@ const shellSubtitle = computed(() => {
   if (currentPhase.value === 'review') return '最后检查一次关键配置，确认后即开始安装。';
   if (installStore.isDone) return '文件、依赖与配置已经准备完毕。';
   if (installStore.isFailed) return '已保留任务现场，可以查看详情并从失败步骤重试。';
-  return '可以随时展开日志查看细节，安装状态会持续更新。';
+  return '安装状态会持续更新，出错时会弹出原因与日志。';
 });
 
 const shellIcon = computed(() => {
@@ -503,10 +508,16 @@ function goToInstances(): void {
 
     <ErrorDialog
       :open="startError !== ''"
+      :dismissible="false"
       title="无法开始安装"
       :description="startError"
-      @close="startError = ''"
-    />
+    >
+      <template #actions>
+        <button type="button" class="btn btn--filled state-layer" @click="leaveAfterStartError">
+          返回主界面
+        </button>
+      </template>
+    </ErrorDialog>
   </div>
 </template>
 

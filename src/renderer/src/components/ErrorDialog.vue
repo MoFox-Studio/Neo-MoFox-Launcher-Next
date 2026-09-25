@@ -155,7 +155,10 @@ function onClose(): void {
     </div>
 
     <template #actions>
-      <button class="btn btn--text state-layer" type="button" @click="onClose">关闭</button>
+      <!-- 未提供自定义按钮时回退为普通关闭按钮，保持既有调用方行为不变。 -->
+      <slot name="actions">
+        <button class="btn btn--text state-layer" type="button" @click="onClose">关闭</button>
+      </slot>
     </template>
   </BaseDialog>
 </template>

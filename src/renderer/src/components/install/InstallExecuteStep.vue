@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useInstallStore } from '@/stores/install';
-import WavyLinearProgress from '@/components/WavyLinearProgress.vue';
+import LinearProgress from '@/components/LinearProgress.vue';
 import ErrorDialog from '@/components/ErrorDialog.vue';
 import type { InstallStepId } from '@shared/domain/install';
 
@@ -37,35 +37,32 @@ const steps = computed(() =>
   ),
 );
 const progress = computed(() => installStore.progress);
-const logOpen = ref(false);
 const retrying = ref(false);
-const logRef = ref<HTMLDivElement | null>(null);
 
 const currentStepIndex = computed(() => progress.value?.stepIndex ?? 0);
 const currentStep = computed(() => STEPS.find((step) => step.id === progress.value?.step));
 const currentStepLabel = computed(() => currentStep.value?.label ?? '准备安装');
-const latestMessage = computed(
-  () => progress.value?.message || installStore.logLines.at(-1) || '正在创建安装任务…',
-);
 // 失败原因优先取后端失败事件的 message，退而求其次用最后一条日志。
 const failureReason = computed(
   () => progress.value?.message || installStore.logLines.at(-1) || '未知错误',
 );
 const failureLogText = computed(() => installStore.logLines.join('\n'));
 
-// 检测到安装失败时自动弹出带原因与日志的错误弹窗；
-// 从恢复入口进入的已失败任务不重复打扰（其状态没有经过运行态）。
+// 检测到安装失败时弹出错误弹窗（不可关闭，只能在「重试」与「取消」之间选择）；
+// immediate 让带着失败状态进入本页（如离开后返回）时也能收到弹窗。
 const errorDialogOpen = ref(false);
 watch(
   () => installStore.progress?.status,
   (status, previous) => {
-    if (
+    const becameFailed =
       status === 'failed' &&
-      (previous === 'pending' || previous === 'running' || previous === 'cancelling')
-    ) {
-      errorDialogOpen.value = true;
-    }
+      (previous === undefined ||
+        previous === 'pending' ||
+        previous === 'running' ||
+        previous === 'cancelling');
+    if (becameFailed) errorDialogOpen.value = true;
   },
+  { immediate: true },
 );
 
 const overallPercent = computed(() => {
@@ -90,25 +87,14 @@ function stepState(index: number): 'done' | 'active' | 'error' | 'upcoming' {
   return installStore.isFailed ? 'error' : 'active';
 }
 
-watch(
-  () => installStore.logLines.length,
-  async () => {
-    if (!logOpen.value) return;
-    await nextTick();
-    if (logRef.value) logRef.value.scrollTop = logRef.value.scrollHeight;
-  },
-);
-
-watch(logOpen, async (open) => {
-  if (!open) return;
-  await nextTick();
-  if (logRef.value) logRef.value.scrollTop = logRef.value.scrollHeight;
-});
-
 async function retry(): Promise<void> {
+  errorDialogOpen.value = false;
   retrying.value = true;
   try {
     await installStore.retry();
+  } catch {
+    // 重试请求本身失败（如任务状态已变化）时重新弹出错误弹窗。
+    errorDialogOpen.value = true;
   } finally {
     retrying.value = false;
   }
@@ -137,13 +123,6 @@ async function retry(): Promise<void> {
         查看实例
         <span class="msr" aria-hidden="true">arrow_forward</span>
       </button>
-      <button type="button" class="log-disclosure state-layer" @click="logOpen = !logOpen">
-        <span class="msr" aria-hidden="true">terminal</span>
-        {{ logOpen ? '收起安装记录' : '查看安装记录' }}
-        <span class="msr log-disclosure__arrow" :class="{ 'is-open': logOpen }" aria-hidden="true">
-          expand_more
-        </span>
-      </button>
     </div>
 
     <div v-else-if="installStore.isFailed" class="result-state result-state--error">
@@ -168,30 +147,6 @@ async function retry(): Promise<void> {
         <li><span class="msr" aria-hidden="true">wifi</span>确认网络、代理或镜像源当前可用</li>
         <li><span class="msr" aria-hidden="true">folder_open</span>确认安装目录仍可写且空间充足</li>
       </ul>
-
-      <div class="result-state__actions">
-        <button type="button" class="btn btn--text state-layer" @click="emit('cancel')">
-          取消任务
-        </button>
-        <button
-          type="button"
-          class="btn btn--filled state-layer"
-          :disabled="retrying"
-          @click="retry"
-        >
-          <span v-if="retrying" class="spinner spinner--small" aria-hidden="true"></span>
-          <span v-else class="msr" aria-hidden="true">refresh</span>
-          {{ retrying ? '正在重试' : `从「${currentStepLabel}」重试` }}
-        </button>
-      </div>
-
-      <button type="button" class="log-disclosure state-layer" @click="logOpen = !logOpen">
-        <span class="msr" aria-hidden="true">terminal</span>
-        {{ logOpen ? '收起技术详情' : '展开技术详情' }}
-        <span class="msr log-disclosure__arrow" :class="{ 'is-open': logOpen }" aria-hidden="true">
-          expand_more
-        </span>
-      </button>
     </div>
 
     <template v-else>
@@ -205,12 +160,14 @@ async function retry(): Promise<void> {
           </div>
           <span class="progress-overview__value">{{ overallPercent }}%</span>
         </div>
-        <WavyLinearProgress
+        <LinearProgress
           :progress="overallPercent / 100"
           :indeterminate="isIndeterminate"
           label="总体安装进度"
         />
-        <p class="progress-overview__message">{{ latestMessage }}</p>
+        <p class="progress-overview__message">
+          {{ progress?.message || installStore.logLines.at(-1) || '正在创建安装任务…' }}
+        </p>
       </div>
 
       <div class="pipeline" aria-label="安装阶段">
@@ -248,43 +205,36 @@ async function retry(): Promise<void> {
       </div>
 
       <div class="execute-step__actions">
-        <button type="button" class="log-disclosure state-layer" @click="logOpen = !logOpen">
-          <span class="msr" aria-hidden="true">terminal</span>
-          {{ logOpen ? '收起安装日志' : `安装日志 · ${installStore.logLines.length}` }}
-          <span
-            class="msr log-disclosure__arrow"
-            :class="{ 'is-open': logOpen }"
-            aria-hidden="true"
-          >
-            expand_more
-          </span>
-        </button>
         <button type="button" class="btn btn--text state-layer" @click="emit('cancel')">
           取消安装
         </button>
       </div>
     </template>
 
-    <div class="log-sheet" :class="{ 'log-sheet--open': logOpen }">
-      <div class="log-sheet__clip">
-        <div ref="logRef" class="log-sheet__content">
-          <p v-if="installStore.logLines.length === 0" class="log-line log-line--empty">
-            暂无日志，正在等待任务输出…
-          </p>
-          <p v-for="(line, index) in installStore.logLines" :key="index" class="log-line">
-            {{ line }}
-          </p>
-        </div>
-      </div>
-    </div>
-
     <ErrorDialog
       :open="errorDialogOpen"
+      :dismissible="false"
       title="安装失败"
       :description="failureReason"
       :stack="failureLogText"
-      @close="errorDialogOpen = false"
-    />
+    >
+      <template #actions>
+        <!-- 取消保持弹窗打开：确认弹窗关闭后（选择继续）错误弹窗仍在，不出现无按钮的死角。 -->
+        <button type="button" class="btn btn--text state-layer" @click="emit('cancel')">
+          取消任务
+        </button>
+        <button
+          type="button"
+          class="btn btn--filled state-layer"
+          :disabled="retrying"
+          @click="retry"
+        >
+          <span v-if="retrying" class="spinner spinner--small" aria-hidden="true"></span>
+          <span v-else class="msr" aria-hidden="true">refresh</span>
+          {{ retrying ? '正在重试' : `从「${currentStepLabel}」重试` }}
+        </button>
+      </template>
+    </ErrorDialog>
   </section>
 </template>
 
@@ -422,108 +372,11 @@ async function retry(): Promise<void> {
   font-weight: 600;
 }
 
-.execute-step__actions,
-.result-state__actions {
+.execute-step__actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
-}
-
-.log-disclosure {
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-label-large);
-  cursor: pointer;
-}
-
-.log-disclosure .msr {
-  font-size: 19px;
-}
-
-.log-disclosure__arrow {
-  transition: transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.log-disclosure__arrow.is-open {
-  transform: rotate(180deg);
-}
-
-.log-sheet {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-rows var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.log-sheet--open {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-
-.log-sheet__clip {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.log-sheet__content {
-  --install-log-background: #101416;
-  --install-log-foreground: #d8e3e7;
-  --install-log-muted: #9aa6ab;
-  --install-log-scrollbar: #596469;
-
-  max-height: 190px;
-  padding: 14px 16px;
-  overflow-y: auto;
-  border: 1px solid rgba(216, 227, 231, 0.08);
-  border-radius: 16px;
-  background: var(--install-log-background);
-  color: var(--install-log-foreground);
-  color-scheme: dark;
-  font-family: var(--md-ref-typeface-mono);
-  font-size: 12px;
-  line-height: 1.55;
-  scrollbar-color: var(--install-log-scrollbar) var(--install-log-background);
-  scrollbar-width: thin;
-  user-select: text;
-}
-
-.log-sheet__content::-webkit-scrollbar-track {
-  background: var(--install-log-background);
-}
-
-.log-sheet__content::-webkit-scrollbar-thumb {
-  border: 2px solid var(--install-log-background);
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--install-log-scrollbar);
-}
-
-.log-sheet__content::-webkit-scrollbar-thumb:hover {
-  background: #748085;
-}
-
-.log-line {
-  margin: 0 0 3px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.log-line--empty {
-  color: var(--install-log-muted);
-}
-
-.log-line::selection {
-  background: #3b5070;
-  color: #f0f6fc;
 }
 
 .result-state {
@@ -674,14 +527,6 @@ async function retry(): Promise<void> {
   font-size: 20px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .log-sheet,
-  .log-disclosure__arrow {
-    animation: none;
-    transition-duration: var(--md-sys-motion-duration-short2);
-  }
-}
-
 @media (max-width: 620px) {
   .pipeline__step {
     grid-template-columns: 38px minmax(0, 1fr);
@@ -689,12 +534,6 @@ async function retry(): Promise<void> {
 
   .pipeline__status {
     display: none;
-  }
-
-  .execute-step__actions,
-  .result-state__actions {
-    align-items: stretch;
-    flex-direction: column-reverse;
   }
 }
 </style>
