@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { inspectPlatformPath } from '../../../src/main/services/common-service';
+import { inspectPlatformPath, openFile } from '../../../src/main/services/common-service';
 import type { BotPlatform } from '../../../src/shared/domain/bot-platform';
 
 /** 覆盖从手动导入迁移到通用服务后的目录校验。 */
@@ -101,5 +101,41 @@ describe('inspectPlatformPath', () => {
     await expect(
       inspectPlatformPath(platforms, 'napcat', join(root, 'missing')),
     ).resolves.toMatchObject({ exists: false, isDirectory: false, valid: false });
+  });
+});
+
+describe('openFile', () => {
+  it('opens the file itself when it exists', async () => {
+    const root = await createTemporaryDirectory();
+    const file = join(root, 'launcher-settings.json');
+    await writeFile(file, '{}');
+    const opened: string[] = [];
+    const openPath = async (path: string) => {
+      opened.push(path);
+      return '';
+    };
+
+    await expect(openFile(openPath, file, root)).resolves.toBeUndefined();
+    expect(opened).toEqual([file]);
+  });
+
+  it('falls back to the given directory when the file is missing', async () => {
+    const root = await createTemporaryDirectory();
+    const opened: string[] = [];
+    const openPath = async (path: string) => {
+      opened.push(path);
+      return '';
+    };
+
+    await openFile(openPath, join(root, 'missing.json'), root);
+    expect(opened).toEqual([root]);
+  });
+
+  it('converts shell failures into an IO_ERROR domain error', async () => {
+    const root = await createTemporaryDirectory();
+
+    await expect(
+      openFile(async () => 'Failed to open path', join(root, 'missing.json')),
+    ).rejects.toMatchObject({ code: 'IO_ERROR', message: 'Failed to open path' });
   });
 });

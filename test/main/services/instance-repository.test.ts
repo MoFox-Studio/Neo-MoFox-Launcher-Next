@@ -39,6 +39,13 @@ describe('InstanceRepository', () => {
     await expect(repository.list()).resolves.toEqual([]);
   });
 
+  it('exposes the repository file path', async () => {
+    const directory = await createTempDirectory();
+    const repository = new InstanceRepository(directory);
+
+    expect(repository.filePath).toBe(join(directory, 'instances.json'));
+  });
+
   it('migrates a legacy versioned repository and resets transient status', async () => {
     const directory = await createTempDirectory();
     await writeFile(

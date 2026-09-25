@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { useWindowTitle } from '@/composables/use-window-title';
 import { mofoxApi } from '@/services/mofox-api';
 import type { LauncherSettings } from '@shared/domain/settings';
+import type { DataFileKind } from '@shared/ipc';
 import type {
   LegacyLauncherInfo,
   MigrationPreview,
@@ -27,6 +28,7 @@ const update = (patch: Partial<LauncherSettings>) => {
 const settingCategories = [
   { id: 'appearance', label: '外观', description: '主题、颜色与语言', icon: 'palette' },
   { id: 'general', label: '通用', description: '目录与运行行为', icon: 'tune' },
+  { id: 'advanced', label: '高级', description: '打开设置与实例源文件', icon: 'data_object' },
   { id: 'migration', label: '数据迁移', description: '导入旧版实例', icon: 'cloud_sync' },
   { id: 'logs', label: '日志', description: '归档与存储限制', icon: 'article' },
   { id: 'about', label: '关于', description: '版本与更新信息', icon: 'info' },
@@ -87,6 +89,30 @@ async function chooseInstallDir(): Promise<void> {
     migrationError.value = describeError(error);
   } finally {
     installDirBusy.value = false;
+  }
+}
+
+// 默认安装目录输入框在失焦或回车时提交；留空表示由安装向导临时选择。
+function handleInstallDirInput(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  update({ defaultInstallDir: input.value.trim() });
+}
+
+// ─── 数据文件 ───────────────────────────────────────────────────────────
+// 通过主进程按符号名打开启动器源数据文件；渲染端不传递任意路径。
+const dataFileBusy = ref<DataFileKind | null>(null);
+const dataFileError = ref<string | null>(null);
+
+async function openDataFile(kind: DataFileKind): Promise<void> {
+  if (dataFileBusy.value) return;
+  dataFileBusy.value = kind;
+  dataFileError.value = null;
+  try {
+    await mofoxApi.openDataFile(kind);
+  } catch (error) {
+    dataFileError.value = describeError(error);
+  } finally {
+    dataFileBusy.value = null;
   }
 }
 
@@ -170,7 +196,7 @@ onMounted(() => {
     </aside>
 
     <main class="settings-view__content">
-      <!-- 外观、通用、数据迁移、日志与关于分组 -->
+      <!-- 外观、通用、高级、数据迁移、日志与关于分组 -->
       <!-- 外观 -->
       <AppearanceSettings v-show="activeCategory === 'appearance'" />
 
@@ -189,16 +215,24 @@ onMounted(() => {
               <span class="msr settings-item__icon">folder</span>
               <div class="settings-item__body">
                 <span class="settings-item__label">默认安装目录</span>
-                <span class="settings-item__desc settings-item__desc--mono">{{
-                  settings.defaultInstallDir
-                }}</span>
+                <div class="input-field input-field--path">
+                  <input
+                    type="text"
+                    class="input-field__native"
+                    :value="settings.defaultInstallDir"
+                    placeholder="留空使用系统默认位置"
+                    spellcheck="false"
+                    autocomplete="off"
+                    @change="handleInstallDirInput"
+                  />
+                </div>
               </div>
               <button
                 class="text-button state-layer"
                 :disabled="installDirBusy"
                 @click="chooseInstallDir"
               >
-                更改
+                浏览
               </button>
             </div>
 
@@ -233,6 +267,58 @@ onMounted(() => {
               >
                 <div class="md-switch__thumb"></div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 高级 -->
+      <section v-show="activeCategory === 'advanced'" class="settings-group">
+        <div class="settings-group__card">
+          <div class="settings-group__heading">
+            <span class="msr">data_object</span>
+            <div>
+              <h2>高级</h2>
+              <p>打开设置与实例源文件</p>
+            </div>
+          </div>
+          <div class="settings-group__body">
+            <div class="settings-item">
+              <span class="msr settings-item__icon">description</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">设置源文件</span>
+                <span class="settings-item__desc settings-item__desc--mono">
+                  launcher-settings.json
+                </span>
+              </div>
+              <button
+                class="text-button state-layer"
+                :disabled="dataFileBusy !== null"
+                @click="openDataFile('settings')"
+              >
+                打开
+              </button>
+            </div>
+
+            <div class="settings-item">
+              <span class="msr settings-item__icon">folder_special</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">实例源文件</span>
+                <span class="settings-item__desc settings-item__desc--mono">instances.json</span>
+              </div>
+              <button
+                class="text-button state-layer"
+                :disabled="dataFileBusy !== null"
+                @click="openDataFile('instances')"
+              >
+                打开
+              </button>
+            </div>
+
+            <!-- 打开失败提示 -->
+            <div v-if="dataFileError" class="migration-note migration-note--error">
+              <span class="msr migration-note__icon">error</span>
+              <span>{{ dataFileError }}</span>
             </div>
           </div>
         </div>

@@ -37,6 +37,13 @@ describe('SettingsService', () => {
     await expect(service.get()).resolves.toEqual(DEFAULT_SETTINGS);
   });
 
+  it('exposes the canonical settings file path', async () => {
+    const directory = await createTempDirectory();
+    const service = new SettingsService(directory);
+
+    expect(service.filePath).toBe(join(directory, 'launcher-settings.json'));
+  });
+
   it('migrates legacy settings fields and nested logging values', async () => {
     const directory = await createTempDirectory();
     await writeFile(

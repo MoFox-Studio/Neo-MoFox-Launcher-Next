@@ -17,6 +17,7 @@ describe('registerCoreIpc', () => {
       IPC_INVOKE_CHANNELS.getSettings,
       IPC_INVOKE_CHANNELS.updateSettings,
       IPC_INVOKE_CHANNELS.getSystemAccentColor,
+      IPC_INVOKE_CHANNELS.openDataFile,
     ]);
   });
 
@@ -53,6 +54,24 @@ describe('registerCoreIpc', () => {
     );
     expect(services.settings.update).not.toHaveBeenCalled();
   });
+
+  it('forwards data file kinds and rejects unknown kinds before calling the service', async () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const ipcMain = {
+      handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
+        handlers.set(channel, handler),
+    };
+    const services = createServices();
+    registerCoreIpc(ipcMain, services);
+
+    await handlers.get(IPC_INVOKE_CHANNELS.openDataFile)?.({}, 'instances');
+    expect(services.dataFiles.open).toHaveBeenCalledWith('instances');
+
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.openDataFile)?.({}, 'secrets'),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    expect(services.dataFiles.open).toHaveBeenCalledTimes(1);
+  });
 });
 
 function createServices() {
@@ -65,5 +84,6 @@ function createServices() {
       update: vi.fn(async () => ({})),
     },
     appearance: { getSystemAccentColor: vi.fn(() => '#0078D4') },
+    dataFiles: { open: vi.fn(async () => undefined) },
   };
 }

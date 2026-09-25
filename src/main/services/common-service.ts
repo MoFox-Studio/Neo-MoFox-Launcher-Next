@@ -1,4 +1,5 @@
-import { BrowserWindow, dialog } from 'electron';
+import { BrowserWindow, dialog, shell } from 'electron';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type {
   DirectoryPickerOptions,
@@ -8,6 +9,7 @@ import type {
 } from '../../shared/domain/file-picker';
 import type { PathInspection, PlatformPathInspection } from '../../shared/domain/manual-import';
 import type { BotPlatform } from '../../shared/domain/bot-platform';
+import { MofoxError } from '../../shared/domain/error';
 import { inspectPath } from '../utils/path-inspection';
 
 /**
@@ -74,6 +76,27 @@ export async function pickDirectory(
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
+}
+
+/**
+ * 用系统默认程序打开本地文件，供「打开源文件」等能力复用。
+ *
+ * 文件尚不存在时回退为打开指定目录（如启动器数据目录），避免系统对不存在的文件报错。
+ *
+ * @param openPath - 调用系统外壳打开路径的适配器；返回空字符串表示成功，否则为错误描述。
+ * @param filePath - 目标文件的绝对路径。
+ * @param fallbackDirectory - 文件不存在时回退打开的目录。
+ * @throws {MofoxError} 系统外壳返回错误描述时抛出 `IO_ERROR`。
+ */
+export async function openFile(
+  openPath: (path: string) => Promise<string>,
+  filePath: string,
+  fallbackDirectory?: string,
+): Promise<void> {
+  const target =
+    fallbackDirectory !== undefined && !existsSync(filePath) ? fallbackDirectory : filePath;
+  const error = await openPath(target);
+  if (error) throw new MofoxError('IO_ERROR', error);
 }
 
 /**

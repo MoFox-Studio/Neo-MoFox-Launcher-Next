@@ -324,6 +324,19 @@
   white-space: nowrap;
 }
 
+/* 路径输入框：占据设置条目主体宽度，并以等宽字体左对齐显示路径。 */
+.input-field--path {
+  width: 100%;
+  min-width: 0;
+  margin-top: 6px;
+  height: 36px;
+}
+
+.input-field--path .input-field__native {
+  text-align: left;
+  font-family: var(--md-ref-typeface-mono);
+}
+
 /* 数据迁移：预览列表与状态提示（作为卡片内的内嵌块） */
 .migration-note {
   display: flex;

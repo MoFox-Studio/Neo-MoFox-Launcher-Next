@@ -46,6 +46,9 @@ import type {
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
 
+/** 可从渲染端按符号名请求打开的启动器数据源文件；具体路径始终由主进程解析。 */
+export type DataFileKind = 'settings' | 'instances';
+
 /**
  * 仅允许预加载层调用这些请求通道。
  * `satisfies` 将对象键与公开 API 保持同步，同时保留字面量通道类型。
@@ -88,6 +91,7 @@ export const IPC_INVOKE_CHANNELS = {
   getSettings: 'settings:get',
   updateSettings: 'settings:update',
   getSystemAccentColor: 'appearance:system-accent-color',
+  openDataFile: 'data:open-file',
   detectLegacyLauncher: 'migration:detect-legacy',
   previewLegacyMigration: 'migration:preview',
   importLegacyMigration: 'migration:import',
@@ -162,7 +166,8 @@ export interface MofoxApi {
   stopInstanceProcess(instanceId: string, source: InstanceProcessSource): Promise<void>;
   /** 仅重启指定实例的单个进程源。 */
   restartInstanceProcess(instanceId: string, source: InstanceProcessSource): Promise<void>;
-  removeInstance(instanceId: string): Promise<void>;
+  /** `mode` 为 `record` 时仅移除启动器记录，`files` 时连磁盘文件一起删除。 */
+  removeInstance(instanceId: string, mode: InstanceRemovalMode): Promise<void>;
   openInstanceFolder(instanceId: string): Promise<void>;
   /** 更新实例的可编辑配置字段，返回持久化后的最新实例。 */
   updateInstance(instanceId: string, patch: EditableInstancePatch): Promise<Instance>;
@@ -207,6 +212,8 @@ export interface MofoxApi {
   /** 启动器设置读取与局部更新。 */
   getSettings(): Promise<LauncherSettings>;
   updateSettings(patch: Partial<LauncherSettings>): Promise<LauncherSettings>;
+  /** 用系统默认程序打开启动器数据源文件；`settings` 为设置 JSON，`instances` 为实例仓库 JSON。 */
+  openDataFile(kind: DataFileKind): Promise<void>;
   /** 当前操作系统强调色；平台不支持或读取失败时返回 null。 */
   getSystemAccentColor(): Promise<string | null>;
 

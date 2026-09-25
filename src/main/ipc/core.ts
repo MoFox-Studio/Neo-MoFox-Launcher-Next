@@ -3,7 +3,7 @@ import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import type { SystemEnvInfo } from '../../shared/domain/system-env';
 import type { BotPlatformMetadata } from '../../shared/domain/bot-platform';
 import type { Instance } from '../../shared/domain/instance';
-import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
+import { IPC_INVOKE_CHANNELS, type DataFileKind } from '../../shared/ipc';
 
 /** 核心查询与设置 IPC 注册层：校验来自 preload 的参数，并将服务异常收敛为稳定的 IPC 错误协议。 */
 interface CoreServices {
@@ -16,6 +16,9 @@ interface CoreServices {
   };
   appearance: {
     getSystemAccentColor(): string | null;
+  };
+  dataFiles: {
+    open(kind: DataFileKind): Promise<void>;
   };
 }
 
@@ -46,6 +49,9 @@ export function registerCoreIpc(ipcMain: IpcMainRegistrar, services: CoreService
   register(ipcMain, IPC_INVOKE_CHANNELS.getSystemAccentColor, () =>
     services.appearance.getSystemAccentColor(),
   );
+  register(ipcMain, IPC_INVOKE_CHANNELS.openDataFile, (kind) =>
+    services.dataFiles.open(requireDataFileKind(kind)),
+  );
 }
 
 /**
@@ -68,4 +74,19 @@ function register(
       throw serializeIpcError(error);
     }
   });
+}
+
+/**
+ * 校验渲染端请求的数据源文件符号名。
+ *
+ * 渲染端只允许传递白名单内的符号名，真实路径一律由主进程解析，避免任意路径打开能力外泄。
+ *
+ * @param value - 未经类型约束的 IPC 参数。
+ * @returns 校验通过的数据文件种类。
+ */
+function requireDataFileKind(value: unknown): DataFileKind {
+  if (value !== 'settings' && value !== 'instances') {
+    throw new MofoxError('INVALID_ARGUMENT', 'Unknown data file kind');
+  }
+  return value;
 }

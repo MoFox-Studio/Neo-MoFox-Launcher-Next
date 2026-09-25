@@ -71,6 +71,7 @@ describe('createMofoxApi', () => {
     await api.getSettings();
     await api.updateSettings({ themeMode: 'dark' });
     await api.getSystemAccentColor();
+    await api.openDataFile('instances');
     await api.detectLegacyLauncher();
     await api.previewLegacyMigration();
     await api.importLegacyMigration();

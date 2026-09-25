@@ -36,6 +36,11 @@ export class InstanceRepository {
     this.path = join(dataDirectory, 'instances.json');
   }
 
+  /** 实例仓库源文件（instances.json）的绝对路径，供「打开源文件」等能力使用。 */
+  get filePath(): string {
+    return this.path;
+  }
+
   /**
    * 列出全部实例，返回内存快照的浅拷贝。
    *

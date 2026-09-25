@@ -61,6 +61,11 @@ export class SettingsService {
     this.legacyPath = join(dataDirectory, 'settings.json');
   }
 
+  /** 规范设置源文件（launcher-settings.json）的绝对路径，供「打开源文件」等能力使用。 */
+  get filePath(): string {
+    return this.settingsPath;
+  }
+
   /**
    * 获取当前设置；首次调用从磁盘加载并缓存。
    *
