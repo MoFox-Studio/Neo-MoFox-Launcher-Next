@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import type { Instance } from '@shared/domain/instance';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { useInstancesStore } from '@/stores/instances';
 
-// 信息查看面板：实例名称、运行状态与只读元数据集中展示；名称支持标题旁内联重命名。
+// 信息查看面板：实例名称、运行状态与只读元数据集中展示；名称支持标题旁内联重命名，其余条目点击即复制。
 const props = defineProps<{
   instance: Instance;
 }>();
@@ -17,6 +17,127 @@ const emit = defineEmits<{
 const instancesStore = useInstancesStore();
 
 const MAX_NAME_LENGTH = 32;
+
+/** 信息条目渲染模型；copyText 为空表示该条目没有可复制的内容。 */
+interface InfoRow {
+  key: string;
+  icon: string;
+  label: string;
+  /** 界面展示值；缺省信息以占位符呈现。徽标行由徽标展示文字，无需 value。 */
+  value?: string;
+  /** 实际写入剪贴板的文本；与展示值分离，占位符不会被复制。 */
+  copyText?: string;
+  /** 等宽字体展示（ID、路径类信息）。 */
+  mono?: boolean;
+  /** 短值（是/否）作为行尾元素展示，位置对齐设置页的开关控件。 */
+  trailing?: boolean;
+  /** 以状态徽标代替文字值展示；徽标行仅作展示，不支持点击复制。 */
+  badge?: boolean;
+}
+
+const infoRows = computed<InfoRow[]>(() => {
+  const inst = props.instance;
+  return [
+    {
+      key: 'id',
+      icon: 'fingerprint',
+      label: '实例 ID',
+      value: inst.id,
+      copyText: inst.id,
+      mono: true,
+    },
+    {
+      key: 'status',
+      icon: 'monitor_heart',
+      label: '运行状态',
+      badge: true,
+    },
+    {
+      key: 'createdAt',
+      icon: 'event',
+      label: '创建时间',
+      value: formatDate(inst.createdAt),
+      copyText: inst.createdAt ? formatDate(inst.createdAt) : '',
+    },
+    {
+      key: 'lastStartedAt',
+      icon: 'schedule',
+      label: '最后启动',
+      value: formatDate(inst.lastStartedAt),
+      copyText: inst.lastStartedAt ? formatDate(inst.lastStartedAt) : '',
+    },
+    {
+      key: 'mofoxInstallDir',
+      icon: 'folder',
+      label: 'MoFox 安装目录',
+      value: inst.mofoxInstallDir || '—',
+      copyText: inst.mofoxInstallDir,
+      mono: true,
+    },
+    {
+      key: 'venvDir',
+      icon: 'science',
+      label: '虚拟环境目录',
+      value: inst.venvDir || '—',
+      copyText: inst.venvDir,
+      mono: true,
+    },
+    {
+      key: 'platformId',
+      icon: 'smart_toy',
+      label: '平台种类',
+      value: inst.platform?.id ?? '未安装',
+      copyText: inst.platform?.id ?? '',
+    },
+    {
+      key: 'platformInstallDir',
+      icon: 'folder_open',
+      label: '平台安装目录',
+      value: inst.platform?.installDir || '—',
+      copyText: inst.platform?.installDir ?? '',
+      mono: true,
+    },
+    {
+      key: 'platformVersion',
+      icon: 'tag',
+      label: '平台版本',
+      value: inst.platform?.version || '—',
+      copyText: inst.platform?.version ?? '',
+    },
+    {
+      key: 'autoStart',
+      icon: 'power',
+      label: '启动时自动运行',
+      value: inst.autoStart ? '是' : '否',
+      copyText: inst.autoStart ? '是' : '否',
+      trailing: true,
+    },
+    {
+      key: 'isLike',
+      icon: 'favorite',
+      label: '已收藏',
+      value: inst.extra?.isLike === true ? '是' : '否',
+      copyText: inst.extra?.isLike === true ? '是' : '否',
+      trailing: true,
+    },
+  ];
+});
+
+async function copyRow(row: InfoRow): Promise<void> {
+  // 徽标行（运行状态）仅作展示，不提供复制。
+  if (row.badge) return;
+  const text = (row.copyText ?? '').trim();
+  if (!text) {
+    emit('toast', '没有可复制的内容');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    emit('toast', '已复制到剪贴板');
+  } catch (error) {
+    emit('toast', `复制失败: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 
 const editingName = ref(false);
 const draftName = ref('');
@@ -153,101 +274,35 @@ function formatDate(value: number | null): string {
       </div>
     </div>
 
-    <!-- 选项行竖直排列，与设置页 settings-group__body 同构。 -->
+    <!-- 选项行竖直排列，与设置页 settings-group__body 同构；整行可点击复制条目内容（徽标行仅展示）。 -->
     <div class="manage-group__body">
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">fingerprint</span>
+      <component
+        :is="row.badge ? 'div' : 'button'"
+        v-for="row in infoRows"
+        :key="row.key"
+        class="settings-item"
+        :class="{ 'state-layer': !row.badge }"
+        :type="row.badge ? undefined : 'button'"
+        :title="row.badge ? undefined : `复制${row.label}`"
+        :aria-label="row.badge ? undefined : `复制${row.label}`"
+        @click="copyRow(row)"
+      >
+        <span class="msr settings-item__icon" aria-hidden="true">{{ row.icon }}</span>
         <div class="settings-item__body">
-          <span class="settings-item__label">实例 ID</span>
-          <span class="settings-item__desc settings-item__desc--mono">{{ instance.id }}</span>
+          <span class="settings-item__label">{{ row.label }}</span>
+          <span
+            v-if="!row.trailing && !row.badge"
+            class="settings-item__desc"
+            :class="{ 'settings-item__desc--mono': row.mono }"
+            >{{ row.value }}</span
+          >
         </div>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">monitor_heart</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">运行状态</span>
-        </div>
-        <StatusBadge :status="instance.status" />
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">event</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">创建时间</span>
-          <span class="settings-item__desc">{{ formatDate(instance.createdAt) }}</span>
-        </div>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">schedule</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">最后启动</span>
-          <span class="settings-item__desc">{{ formatDate(instance.lastStartedAt) }}</span>
-        </div>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">folder</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">MoFox 安装目录</span>
-          <span class="settings-item__desc settings-item__desc--mono">{{
-            instance.mofoxInstallDir || '—'
-          }}</span>
-        </div>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">science</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">虚拟环境目录</span>
-          <span class="settings-item__desc settings-item__desc--mono">{{
-            instance.venvDir || '—'
-          }}</span>
-        </div>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">smart_toy</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">平台种类</span>
-          <span class="settings-item__desc">{{ instance.platform?.id ?? '未安装' }}</span>
-        </div>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">folder_open</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">平台安装目录</span>
-          <span class="settings-item__desc settings-item__desc--mono">{{
-            instance.platform?.installDir || '—'
-          }}</span>
-        </div>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">tag</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">平台版本</span>
-          <span class="settings-item__desc">{{ instance.platform?.version || '—' }}</span>
-        </div>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">power</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">启动时自动运行</span>
-        </div>
-        <span class="info-item__value">{{ instance.autoStart ? '是' : '否' }}</span>
-      </div>
-
-      <div class="settings-item">
-        <span class="msr settings-item__icon" aria-hidden="true">favorite</span>
-        <div class="settings-item__body">
-          <span class="settings-item__label">已收藏</span>
-        </div>
-        <span class="info-item__value">{{ instance.extra?.isLike === true ? '是' : '否' }}</span>
-      </div>
+        <StatusBadge v-if="row.badge" :status="instance.status" />
+        <span v-else-if="row.trailing" class="info-item__value">{{ row.value }}</span>
+        <span v-if="!row.badge" class="msr settings-item__copy" aria-hidden="true"
+          >content_copy</span
+        >
+      </component>
     </div>
   </section>
 </template>
@@ -381,15 +436,25 @@ function formatDate(value: number | null): string {
   border-radius: 18px;
 }
 
+/* 信息条目：可复制行渲染为整行按钮（重置默认样式保持原行外观），徽标行为普通静态行。 */
 .settings-item {
   display: flex;
   align-items: center;
   gap: 16px;
+  width: 100%;
   min-width: 0;
   min-height: var(--app-density-row-min-height);
   padding: var(--app-density-row-padding-block) 18px;
+  border: none;
   border-radius: 7px;
   background: var(--app-glass-row);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.settings-item {
+  cursor: pointer;
 }
 
 .settings-item__icon {
@@ -426,6 +491,20 @@ function formatDate(value: number | null): string {
   flex: none;
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-medium);
+}
+
+/* 行尾复制图标：悬停或键盘聚焦时浮现，提示整行可点击复制。 */
+.settings-item__copy {
+  flex: none;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 20px;
+  opacity: 0;
+  transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.settings-item:hover .settings-item__copy,
+.settings-item:focus-visible .settings-item__copy {
+  opacity: 0.64;
 }
 
 .icon-btn {
