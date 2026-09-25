@@ -78,9 +78,9 @@ const SEARCH_DECORATIONS = {
   matchBackground: '#3b5070',
   matchBorder: '#3b5070',
   matchOverviewRuler: '#4f7bd0',
-  activeMatchBackground: '#7c5cdb',
-  activeMatchBorder: '#7c5cdb',
-  activeMatchColorOverviewRuler: '#7c5cdb',
+  activeMatchBackground: '#367bf0',
+  activeMatchBorder: '#367bf0',
+  activeMatchColorOverviewRuler: '#367bf0',
 };
 
 const TERMINAL_THEME = {

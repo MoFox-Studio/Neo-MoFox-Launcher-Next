@@ -9,7 +9,7 @@ import {
 import { mofoxApi } from '@/services/mofox-api';
 import { applyAppearancePreferences, applyTheme } from '@/services/theme';
 
-export const DEFAULT_SEED = '#7C5CDB';
+export const DEFAULT_SEED = '#367BF0';
 
 // 设置仓库负责持久化配置、加载状态及主题副作用。
 export const useSettingsStore = defineStore('settings', () => {

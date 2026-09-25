@@ -25,7 +25,7 @@ const THEME_OPTIONS: ThemeOption[] = [
   { value: 'dark', label: '深色', icon: 'dark_mode' },
 ];
 
-const SEED_COLORS = ['#7C5CDB', '#B3261E', '#006A6A', '#9C4400', '#386A20', '#345CA8'];
+const SEED_COLORS = ['#367BF0', '#B3261E', '#006A6A', '#9C4400', '#386A20', '#345CA8'];
 
 const settingsStore = useSettingsStore();
 

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">Neo-MoFox Launcher Next 进程模型</title>
+  <desc id="arch-desc">三端分层进程模型：Vue 3 渲染层与 mofoxAPI 类型化客户端，经 contextBridge 白名单 Preload 桥与共享类型契约的 IPC 通道，到达 Electron 主进程业务服务层，再对接平台适配层与 node-pty 子进程；渲染侧沙箱隔离。</desc>
+
+  <!-- MD3 tonal-spot scheme, seed #367BF0, dark -->
+  <rect width="1200" height="560" rx="28" fill="#121318"/>
+
+  <!-- header -->
+  <text x="64" y="60" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="22" font-weight="500" fill="#E2E2E9">进程模型</text>
+  <text x="1136" y="59" text-anchor="end" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="15" fill="#8E9099">shared/ipc.ts · 三端唯一契约</text>
+
+  <!-- renderer band -->
+  <rect x="64" y="84" width="1072" height="112" rx="16" fill="#282A2F"/>
+  <rect x="88" y="104" width="504" height="72" rx="12" fill="#33353A"/>
+  <text x="112" y="134" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="20" font-weight="500" fill="#E2E2E9">Vue 3 渲染层</text>
+  <text x="112" y="160" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="15" fill="#C5C6D0">views · components · Pinia stores · MD3 主题</text>
+  <rect x="608" y="104" width="504" height="72" rx="12" fill="#33353A"/>
+  <text x="632" y="134" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="20" font-weight="500" fill="#E2E2E9">mofoxAPI 类型化客户端</text>
+  <text x="632" y="160" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="15" fill="#C5C6D0">MofoxApi 接口 · 事件订阅返回退订函数</text>
+
+  <!-- arrow: renderer → preload -->
+  <line x1="600" y1="200" x2="600" y2="226" stroke="#AEC6FF" stroke-width="2.5"/>
+  <polygon points="592,224 608,224 600,236" fill="#AEC6FF"/>
+  <text x="620" y="222" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="15" fill="#8E9099">contextBridge 暴露白名单 API</text>
+
+  <!-- preload band -->
+  <rect x="64" y="240" width="1072" height="64" rx="12" fill="#3F4759"/>
+  <text x="112" y="266" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="20" font-weight="500" fill="#DBE2F9">Preload 桥</text>
+  <text x="112" y="290" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="15" fill="#DBE2F9" opacity="0.75">唯一允许使用 ipcRenderer 的渲染侧边界 · MofoxError 反序列化</text>
+
+  <!-- arrow: preload → main -->
+  <line x1="600" y1="308" x2="600" y2="334" stroke="#AEC6FF" stroke-width="2.5"/>
+  <polygon points="592,332 608,332 600,344" fill="#AEC6FF"/>
+  <text x="620" y="330" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="15" fill="#8E9099">IPC 请求 / 事件通道 · satisfies 编译期校验</text>
+
+  <!-- main band -->
+  <rect x="64" y="348" width="1072" height="148" rx="16" fill="#1A1B20"/>
+  <text x="112" y="380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="20" font-weight="500" fill="#E2E2E9">Electron 主进程</text>
+  <text x="1112" y="379" text-anchor="end" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="14" fill="#8E9099">承载全部可信操作 · 窗口 / 托盘</text>
+
+  <rect x="88" y="396" width="600" height="80" rx="12" fill="#282A2F"/>
+  <text x="112" y="424" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="18" font-weight="500" fill="#E2E2E9">业务服务层</text>
+  <text x="112" y="450" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="15" fill="#C5C6D0">实例 · 安装任务 · 更新 · 虚拟环境 · 完整性 · 设置 · 迁移</text>
+
+  <rect x="704" y="396" width="408" height="36" rx="10" fill="#33353A"/>
+  <text x="908" y="420" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="16" fill="#E2E2E9">平台适配层 · NapCat / SnowLuma</text>
+  <rect x="704" y="440" width="408" height="36" rx="10" fill="#33353A"/>
+  <text x="908" y="464" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="16" fill="#E2E2E9">node-pty · 双进程真 PTY</text>
+
+  <!-- security chips -->
+  <g font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="15">
+    <rect x="64" y="514" width="216" height="30" rx="15" fill="none" stroke="#44474F" stroke-width="1.5"/>
+    <text x="172" y="534" text-anchor="middle" fill="#C5C6D0">contextIsolation: <tspan fill="#AEC6FF">true</tspan></text>
+    <rect x="292" y="514" width="146" height="30" rx="15" fill="none" stroke="#44474F" stroke-width="1.5"/>
+    <text x="365" y="534" text-anchor="middle" fill="#C5C6D0">sandbox: <tspan fill="#AEC6FF">true</tspan></text>
+    <rect x="450" y="514" width="230" height="30" rx="15" fill="none" stroke="#44474F" stroke-width="1.5"/>
+    <text x="565" y="534" text-anchor="middle" fill="#C5C6D0">nodeIntegration: <tspan fill="#AEC6FF">false</tspan></text>
+  </g>
+</svg>

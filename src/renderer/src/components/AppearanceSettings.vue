@@ -81,7 +81,7 @@ const motionOptions: Array<{ id: MotionPreference; label: string; description: s
 ];
 
 const presetColors = [
-  '#7C5CDB',
+  '#367BF0',
   '#6750A4',
   '#455D92',
   '#0061A4',

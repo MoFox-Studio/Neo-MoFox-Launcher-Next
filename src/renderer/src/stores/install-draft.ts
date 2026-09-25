@@ -61,6 +61,10 @@ export const useInstallDraftStore = defineStore('install-draft', () => {
     touched[field] = true;
   }
 
+  function isTouched(field: string): boolean {
+    return Boolean(touched[field]);
+  }
+
   function isInvalid(field: keyof typeof fieldErrors.value): boolean {
     return Boolean(touched[field]) && fieldErrors.value[field] !== '';
   }
@@ -135,6 +139,7 @@ export const useInstallDraftStore = defineStore('install-draft', () => {
     validatingTargetDir,
     targetDirCheckError,
     touch,
+    isTouched,
     isInvalid,
     set,
     validateTargetDirRemote,

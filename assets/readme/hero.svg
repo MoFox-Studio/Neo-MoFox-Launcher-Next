@@ -1,133 +1,117 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="hero-title hero-desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="540" viewBox="0 0 1200 540" role="img" aria-labelledby="hero-title hero-desc">
   <title id="hero-title">Neo-MoFox Launcher Next — Neo-MoFox 框架的桌面实例管理启动器</title>
-  <desc id="hero-desc">Electron 35 + Vue 3 + TypeScript 全量重写的桌面启动器：卡片式实例管理、双进程终端、六阶段安装流水线。右侧展示实例卡片、双终端标签与状态点。</desc>
+  <desc id="hero-desc">Material Design 3 风格的启动器预览：左侧为产品名称与简介，右侧为应用窗口模型，包含导航栏、实例卡片与双标签实时终端。Electron 43 + Vue 3 + TypeScript 全量重写。</desc>
 
-  <defs>
-    <linearGradient id="surfaceGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#171A21"/>
-      <stop offset="1" stop-color="#0E1014"/>
-    </linearGradient>
-    <linearGradient id="termGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#1A1D24"/>
-      <stop offset="1" stop-color="#14161C"/>
-    </linearGradient>
-    <pattern id="dotGrid" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-      <circle cx="1" cy="1" r="1" fill="#E6E1E5" opacity="0.05"/>
-    </pattern>
-  </defs>
-
-  <rect width="1200" height="420" rx="24" fill="url(#surfaceGrad)"/>
-  <rect width="1200" height="420" rx="24" fill="url(#dotGrid)"/>
-
-  <!-- left rail accent -->
-  <rect x="0" y="0" width="6" height="420" fill="#FF8A65"/>
+  <!-- MD3 tonal-spot scheme, seed #367BF0, dark -->
+  <rect width="1200" height="540" rx="28" fill="#121318"/>
 
   <!-- ============ LEFT: title block ============ -->
-  <g transform="translate(64 56)">
-    <!-- eyebrow: category + version -->
-    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="1.5">
-      <text x="0" y="0" fill="#8B90A0">DESKTOP LAUNCHER</text>
-      <text x="222" y="0" fill="#4DD0E1">v0.1.0 · ELECTRON 35</text>
+  <g>
+    <!-- assist chips -->
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif">
+      <rect x="64" y="56" width="178" height="32" rx="16" fill="none" stroke="#44474F" stroke-width="1.5"/>
+      <text x="153" y="77" text-anchor="middle" font-size="17" fill="#C5C6D0">v0.1.0 · 早期开发</text>
+      <rect x="254" y="56" width="126" height="32" rx="16" fill="none" stroke="#44474F" stroke-width="1.5"/>
+      <text x="317" y="77" text-anchor="middle" font-size="17" fill="#C5C6D0">Electron 43</text>
     </g>
 
-    <!-- project name -->
-    <text x="0" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="58" font-weight="700" fill="#E6E1E5" letter-spacing="-1">Neo-MoFox</text>
-    <text x="0" y="128" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="58" font-weight="700" fill="#E6E1E5" letter-spacing="-1">Launcher<tspan fill="#FF8A65"> Next</tspan></text>
+    <!-- display -->
+    <text x="64" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="62" font-weight="500" letter-spacing="-0.5" fill="#E2E2E9">Neo-MoFox</text>
+    <text x="64" y="232" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="62" font-weight="500" letter-spacing="-0.5" fill="#E2E2E9">Launcher <tspan fill="#AEC6FF">Next</tspan></text>
 
-    <!-- value -->
-    <text x="0" y="178" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="21" fill="#B9BDC9">Neo-MoFox QQ 机器人框架的桌面实例管理启动器</text>
-    <text x="0" y="208" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="21" fill="#B9BDC9">Electron · Vue 3 · TypeScript 全量重写</text>
+    <!-- headline -->
+    <text x="64" y="284" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="22" fill="#C5C6D0">把 Neo-MoFox 机器人的安装、更新、</text>
+    <text x="64" y="316" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="22" fill="#C5C6D0">运行、终端与日志收在一处。</text>
+    <text x="64" y="354" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="18" fill="#8E9099">MD3 动态主题 · 真 PTY 终端 · 双进程管理</text>
 
     <!-- tech chips -->
-    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">
-      <g transform="translate(0 240)">
-        <rect width="92" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="46" y="20" text-anchor="middle" fill="#B9BDC9">Electron</text>
-      </g>
-      <g transform="translate(102 240)">
-        <rect width="68" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="34" y="20" text-anchor="middle" fill="#B9BDC9">Vue 3</text>
-      </g>
-      <g transform="translate(178 240)">
-        <rect width="100" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="50" y="20" text-anchor="middle" fill="#B9BDC9">TypeScript</text>
-      </g>
-      <g transform="translate(286 240)">
-        <rect width="60" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="30" y="20" text-anchor="middle" fill="#B9BDC9">Vite</text>
-      </g>
-      <g transform="translate(354 240)">
-        <rect width="104" height="30" rx="8" fill="#1F232C" stroke="#2A2F3A"/>
-        <text x="52" y="20" text-anchor="middle" fill="#B9BDC9">Material 3</text>
-      </g>
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="17">
+      <rect x="64" y="392" width="104" height="34" rx="17" fill="none" stroke="#44474F" stroke-width="1.5"/>
+      <text x="116" y="414" text-anchor="middle" fill="#C5C6D0">Electron</text>
+      <rect x="180" y="392" width="84" height="34" rx="17" fill="none" stroke="#44474F" stroke-width="1.5"/>
+      <text x="222" y="414" text-anchor="middle" fill="#C5C6D0">Vue 3</text>
+      <rect x="276" y="392" width="120" height="34" rx="17" fill="none" stroke="#44474F" stroke-width="1.5"/>
+      <text x="336" y="414" text-anchor="middle" fill="#C5C6D0">TypeScript</text>
+      <rect x="408" y="392" width="124" height="34" rx="17" fill="none" stroke="#44474F" stroke-width="1.5"/>
+      <text x="470" y="414" text-anchor="middle" fill="#C5C6D0">Material 3</text>
     </g>
 
-    <!-- motif: status point + prompt -->
-    <g transform="translate(0 296)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#8B90A0">
-      <circle cx="6" cy="6" r="5" fill="#4DD0E1"/>
-      <circle cx="6" cy="6" r="5" fill="#4DD0E1" opacity="0.3"/>
-      <text x="22" y="11">running</text>
-      <text x="92" y="11" fill="#5A6070">▌</text>
-      <text x="108" y="11">node-pty · xterm.js · contextIsolation</text>
-    </g>
+    <text x="64" y="470" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="15" fill="#8E9099">❯ node-pty · xterm.js · contextIsolation</text>
   </g>
 
-  <!-- ============ RIGHT: product proof ============ -->
-  <g transform="translate(680 56)">
+  <!-- ============ RIGHT: app window mock ============ -->
+  <g>
+    <!-- window -->
+    <rect x="636" y="56" width="500" height="428" rx="16" fill="#1A1B20"/>
 
-    <!-- Instance card -->
-    <g transform="translate(0 0)">
-      <rect width="464" height="124" rx="14" fill="#1A1D24" stroke="#262B36"/>
-      <rect x="0" y="0" width="4" height="124" rx="2" fill="#4DD0E1"/>
-      <!-- status dot -->
-      <circle cx="26" cy="28" r="6" fill="#4DD0E1"/>
-      <circle cx="26" cy="28" r="6" fill="#4DD0E1" opacity="0.25"/>
-      <text x="44" y="33" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="18" font-weight="600" fill="#E6E1E5">napcat-prod</text>
-      <text x="180" y="33" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#4DD0E1">RUNNING</text>
+    <!-- title bar -->
+    <circle cx="662" cy="76" r="8" fill="#AEC6FF"/>
+    <text x="680" y="82" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="16" fill="#C5C6D0">Neo-MoFox Launcher</text>
+    <circle cx="1076" cy="76" r="4" fill="#8E9099" opacity="0.6"/>
+    <circle cx="1092" cy="76" r="4" fill="#8E9099" opacity="0.6"/>
+    <circle cx="1108" cy="76" r="4" fill="#8E9099" opacity="0.6"/>
+    <line x1="636" y1="96" x2="1136" y2="96" stroke="#44474F" stroke-width="1" opacity="0.5"/>
 
-      <!-- sub processes -->
-      <g transform="translate(26 56)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">
-        <rect width="196" height="28" rx="7" fill="#14161C" stroke="#262B36"/>
-        <circle cx="14" cy="14" r="3.5" fill="#4DD0E1"/>
-        <text x="26" y="19" fill="#B9BDC9">mofox</text>
-        <text x="120" y="19" fill="#5A6070">pid 4821</text>
-
-        <g transform="translate(216 0)">
-          <rect width="196" height="28" rx="7" fill="#14161C" stroke="#262B36"/>
-          <circle cx="14" cy="14" r="3.5" fill="#FF8A65"/>
-          <text x="26" y="19" fill="#B9BDC9">adapter</text>
-          <text x="120" y="19" fill="#5A6070">pid 4822</text>
-        </g>
+    <!-- nav rail -->
+    <g>
+      <rect x="640" y="112" width="56" height="32" rx="16" fill="#3F4759"/>
+      <g stroke="#DBE2F9" stroke-width="2" fill="none">
+        <rect x="654" y="121" width="7" height="7" rx="2" fill="#DBE2F9" stroke="none"/>
+        <rect x="665" y="121" width="7" height="7" rx="2"/>
+        <rect x="654" y="132" width="7" height="7" rx="2"/>
+        <rect x="665" y="132" width="7" height="7" rx="2"/>
       </g>
-
-      <!-- footer meta -->
-      <g transform="translate(26 102)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#5A6070">
-        <text x="0" y="0">uptime 02:14:33</text>
-        <text x="180" y="0">CPU 3.2%</text>
-        <text x="280" y="0">RSS 128M</text>
-        <text x="372" y="0" fill="#4DD0E1">▌</text>
+      <g stroke="#C5C6D0" stroke-width="2" fill="none">
+        <rect x="656" y="176" width="24" height="18" rx="5"/>
+        <circle cx="668" cy="185" r="3" fill="#C5C6D0" stroke="none"/>
+        <path d="M 660 232 L 654 240 L 660 248"/>
+        <line x1="666" y1="240" x2="676" y2="240"/>
+        <circle cx="668" cy="296" r="7"/>
+        <circle cx="668" cy="296" r="2.5" fill="#C5C6D0" stroke="none"/>
       </g>
+      <circle cx="668" cy="452" r="14" fill="#3F4759"/>
     </g>
 
-    <!-- Dual terminal -->
-    <g transform="translate(0 142)">
-      <rect width="464" height="166" rx="14" fill="url(#termGrad)" stroke="#262B36"/>
-      <!-- tab bar -->
-      <g transform="translate(20 22)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">
-        <rect x="-8" y="-16" width="116" height="22" rx="6" fill="#262B36"/>
-        <text x="0" y="0" fill="#E6E1E5">mofox ▌</text>
-        <text x="140" y="0" fill="#5A6070">adapter</text>
-      </g>
+    <!-- content: page header -->
+    <text x="716" y="136" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="20" font-weight="500" fill="#E2E2E9">实例</text>
+    <rect x="1032" y="110" width="84" height="34" rx="17" fill="#AEC6FF"/>
+    <text x="1074" y="132" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="16" font-weight="500" fill="#132F60">新建</text>
 
-      <!-- terminal lines -->
-      <g transform="translate(20 56)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13.5">
-        <text x="0" y="0" fill="#5A6070">❯</text>
-        <text x="16" y="0" fill="#B9BDC9">mofox run --instance napcat-prod</text>
-        <text x="0" y="22" fill="#8B90A0">[INFO] loading platform: NapCat</text>
-        <text x="0" y="44" fill="#8B90A0">[INFO] onebot11 ws://127.0.0.1:3001 ready</text>
-        <text x="0" y="66" fill="#4DD0E1">[OK]   bot online as 100012345</text>
-        <text x="0" y="88" fill="#5A6070">▌</text>
-      </g>
+    <!-- instance card -->
+    <rect x="716" y="160" width="400" height="148" rx="12" fill="#282A2F"/>
+    <rect x="732" y="176" width="88" height="26" rx="13" fill="#AEC6FF" fill-opacity="0.12"/>
+    <circle cx="748" cy="189" r="4" fill="#AEC6FF"/>
+    <text x="760" y="194" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="15" fill="#AEC6FF">运行中</text>
+    <text x="836" y="194" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="20" font-weight="500" fill="#E2E2E9">napcat-prod</text>
+
+    <rect x="732" y="216" width="178" height="34" rx="8" fill="#1E1F25"/>
+    <circle cx="748" cy="233" r="4" fill="#AEC6FF"/>
+    <text x="760" y="238" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="15" fill="#E2E2E9">mofox</text>
+    <text x="852" y="238" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="13" fill="#8E9099">pid 4821</text>
+
+    <rect x="922" y="216" width="178" height="34" rx="8" fill="#1E1F25"/>
+    <circle cx="938" cy="233" r="4" fill="#DFBBDE"/>
+    <text x="950" y="238" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif" font-size="15" fill="#E2E2E9">adapter</text>
+    <text x="1042" y="238" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="13" fill="#8E9099">pid 4822</text>
+
+    <g font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="13" fill="#8E9099">
+      <text x="732" y="286">uptime 02:14:33</text>
+      <text x="872" y="286">CPU 3.2%</text>
+      <text x="968" y="286">RSS 128M</text>
+    </g>
+
+    <!-- terminal card -->
+    <rect x="716" y="324" width="400" height="148" rx="12" fill="#0C0E13"/>
+    <rect x="732" y="336" width="76" height="24" rx="12" fill="#3F4759"/>
+    <text x="770" y="353" text-anchor="middle" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="14" fill="#DBE2F9">mofox</text>
+    <text x="828" y="353" font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="14" fill="#8E9099">adapter</text>
+
+    <g font-family="'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace" font-size="14">
+      <text x="732" y="384"><tspan fill="#AEC6FF">❯</tspan><tspan fill="#C5C6D0"> mofox run --instance napcat-prod</tspan></text>
+      <text x="732" y="406" fill="#8E9099">[INFO] loading platform: NapCat</text>
+      <text x="732" y="428" fill="#8E9099">[INFO] onebot11 ws://127.0.0.1:3001 ready</text>
+      <text x="732" y="450" fill="#AEC6FF">[OK] bot online as 100012345</text>
+      <text x="732" y="466" fill="#AEC6FF">▌</text>
     </g>
   </g>
 </svg>

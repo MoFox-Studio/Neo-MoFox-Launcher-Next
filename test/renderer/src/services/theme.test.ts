@@ -16,7 +16,7 @@ const paletteStyles: PaletteStyle[] = [
 
 describe('dynamic Material theme', () => {
   it.each(paletteStyles)('builds a complete %s palette', (style) => {
-    const scheme = buildThemeScheme('#7C5CDB', false, style, 'standard');
+    const scheme = buildThemeScheme('#367BF0', false, style, 'standard');
 
     expect(scheme.primary).toMatch(/^#[0-9a-f]{6}$/i);
     expect(scheme.secondaryContainer).toMatch(/^#[0-9a-f]{6}$/i);
@@ -25,8 +25,8 @@ describe('dynamic Material theme', () => {
   });
 
   it('changes generated roles when contrast is increased', () => {
-    const standard = buildThemeScheme('#7C5CDB', true, 'expressive', 'standard');
-    const high = buildThemeScheme('#7C5CDB', true, 'expressive', 'high');
+    const standard = buildThemeScheme('#367BF0', true, 'expressive', 'standard');
+    const high = buildThemeScheme('#367BF0', true, 'expressive', 'high');
 
     expect(high.primary).not.toBe(standard.primary);
     expect(high.onSurface).not.toBe(standard.onSurface);

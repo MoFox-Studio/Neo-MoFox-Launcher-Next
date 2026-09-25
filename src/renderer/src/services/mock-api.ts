@@ -99,7 +99,7 @@ const instances: Instance[] = [
 let settings: LauncherSettings = {
   themeMode: 'system',
   themeColorSource: 'manual',
-  seedColor: '#7C5CDB',
+  seedColor: '#367BF0',
   wallpaperSeedColor: '',
   paletteStyle: 'tonal-spot',
   themeContrast: 'standard',
