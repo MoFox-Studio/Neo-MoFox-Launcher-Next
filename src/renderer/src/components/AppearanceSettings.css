@@ -513,41 +513,51 @@
   text-align: right;
 }
 
-.wallpaper-palette {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 12px;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-medium);
-}
-
-.wallpaper-palette > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-}
-
-.wallpaper-color {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 2px solid var(--md-sys-color-surface);
-  border-radius: 50%;
-  color: #fff;
+/* 开关控件：与 SettingsView 的 md-switch 保持同一视觉规格。 */
+.md-switch {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 32px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
+  border: 2px solid var(--md-sys-color-outline);
+  position: relative;
   cursor: pointer;
-  text-shadow: 0 1px 2px #000;
+  transition:
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.wallpaper-color--selected {
-  outline: 3px solid var(--md-sys-color-primary);
-  outline-offset: 1px;
+.md-switch__thumb {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-on-surface-variant);
+  transform: translate(0, -50%) scale(0.6667);
+  transform-origin: center;
+  transition:
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.wallpaper-color .msr {
-  font-size: 17px;
+.md-switch--checked {
+  background: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
+}
+
+.md-switch--checked .md-switch__thumb {
+  background: var(--md-sys-color-on-primary);
+  transform: translate(20px, -50%) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-switch__thumb {
+    transition: background-color var(--md-sys-motion-duration-short4)
+      var(--md-sys-motion-easing-standard);
+  }
 }
 
 .visual-choice__button,

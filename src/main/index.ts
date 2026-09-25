@@ -64,6 +64,8 @@ import { MofoxError } from '../shared/domain/error';
 let mainWindow: BrowserWindow | null = null;
 /** 运行中的实例进程管理器；ready 后创建，退出时用于回收全部托管进程树。 */
 let processHelper: ProcessHelper | null = null;
+/** 无壁纸时的系统模糊材质开关；窗口创建与设置更新共用，重建窗口后状态不丢失。 */
+let backdropEnabled = true;
 
 /** 将 Electron 返回的 RGB/RGBA 字符串收敛为渲染层使用的 #RRGGBB。 */
 function normalizeSystemColor(value: unknown): string | null {
@@ -160,10 +162,11 @@ function createMainWindow(): BrowserWindow {
     transparent: !nativeWindowsCorners,
     roundedCorners: true,
     ...(isWindows ? { thickFrame: nativeWindowsCorners } : {}),
-    // 系统原生材质：无壁纸时由 shell 玻璃层透出桌面，提供微微模糊的桌面感。
-    backgroundMaterial: isMac ? 'none' : isWindows ? 'mica' : 'none',
+    // 系统原生材质：无壁纸时由 shell 玻璃层透出桌面，提供微微模糊的桌面感；
+    // 用户关闭"系统模糊效果"后停用原生材质，由渲染端铺纯色兜底表面。
+    backgroundMaterial: isMac ? 'none' : isWindows && backdropEnabled ? 'mica' : 'none',
     visualEffectState: 'active',
-    vibrancy: isMac ? 'under-window' : undefined,
+    vibrancy: isMac && backdropEnabled ? 'under-window' : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -199,6 +202,21 @@ function createMainWindow(): BrowserWindow {
   else void window.loadFile(join(__dirname, '../renderer/index.html'));
 
   return window;
+}
+
+/**
+ * 将系统模糊材质开关即时应用到现存窗口。
+ *
+ * Windows 切换 Mica 背板，macOS 切换 under-window vibrancy；其余平台无原生材质。
+ * 窗口尚未创建或已销毁时静默忽略，由窗口创建时读取的 `backdropEnabled` 兜底。
+ *
+ * @param window - 目标主窗口。
+ * @param enabled - 是否启用系统模糊材质。
+ */
+function applyNativeBackdrop(window: BrowserWindow | null, enabled: boolean): void {
+  if (!window || window.isDestroyed()) return;
+  if (process.platform === 'win32') window.setBackgroundMaterial(enabled ? 'mica' : 'none');
+  else if (process.platform === 'darwin') window.setVibrancy(enabled ? 'under-window' : null);
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -271,7 +289,16 @@ if (!hasSingleInstanceLock) {
       instances,
       environment,
       platforms: new PlatformMetadataService(platforms),
-      settings,
+      // 设置通道包装一层以同步系统模糊材质开关；壁纸/OOBE 写入的字段不涉及该开关。
+      settings: {
+        get: () => settings.get(),
+        update: async (patch) => {
+          const next = await settings.update(patch);
+          backdropEnabled = next.systemBackdrop;
+          applyNativeBackdrop(mainWindow, next.systemBackdrop);
+          return next;
+        },
+      },
       appearance: { getSystemAccentColor },
     });
     registerWallpaperIpc(ipcMain, {
@@ -459,6 +486,8 @@ if (!hasSingleInstanceLock) {
           error instanceof Error ? error : new Error(String(error)),
         ),
       );
+    // 窗口显示前读取一次材质开关，避免启动瞬间闪现已关闭的系统模糊。
+    backdropEnabled = (await settings.get()).systemBackdrop;
     mainWindow = createMainWindow();
 
     // 正常关闭先持久化关闭标记并等待任务取消；等待期间重复关闭也不能绕过收尾。

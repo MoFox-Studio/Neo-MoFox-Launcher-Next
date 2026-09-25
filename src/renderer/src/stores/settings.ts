@@ -23,6 +23,7 @@ export const useSettingsStore = defineStore('settings', () => {
     themeContrast: 'standard',
     appearanceDensity: 'comfortable',
     motionPreference: 'system',
+    systemBackdrop: true,
     navigationPosition: 'side',
     navigationStyle: 'standard',
     language: 'zh-CN',

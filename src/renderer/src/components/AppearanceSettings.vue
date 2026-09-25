@@ -347,6 +347,44 @@ function onLanguageChange(event: Event): void {
             </div>
           </Transition>
 
+          <Transition name="reveal">
+            <div v-if="settings.themeColorSource === 'wallpaper'" class="setting-block">
+              <div class="setting-block__title">
+                <span>壁纸取色盘</span>
+                <span class="setting-block__hint">{{
+                  settings.wallpaperSeedColor
+                    ? settings.wallpaperSeedColor.toUpperCase()
+                    : '取自当前壁纸'
+                }}</span>
+              </div>
+              <div v-if="wallpaperColors.length" class="seed-colors">
+                <button
+                  v-for="(color, index) in wallpaperColors"
+                  :key="color"
+                  class="seed-color state-layer"
+                  :class="{
+                    'seed-color--selected':
+                      settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase(),
+                  }"
+                  :style="{ background: color }"
+                  type="button"
+                  :aria-label="`采用壁纸颜色 ${index + 1}: ${color}`"
+                  :aria-pressed="settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase()"
+                  @click="applyWallpaperColor(color)"
+                >
+                  <span
+                    v-if="settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase()"
+                    class="msr"
+                    >check</span
+                  >
+                </button>
+              </div>
+              <p v-else class="inline-note">
+                <span class="msr">info</span> 导入或更换壁纸后，这里会给出壁纸的取色结果。
+              </p>
+            </div>
+          </Transition>
+
           <div class="setting-block">
             <div class="setting-block__title">
               <span>调色板风格</span>
@@ -540,34 +578,23 @@ function onLanguageChange(event: Event): void {
                 <output>{{ Math.round(settings.wallpaperOpacity * 100) }}%</output>
               </label>
             </div>
+          </div>
 
-            <div v-if="wallpaperColors.length" class="wallpaper-palette">
-              <span>壁纸调色板</span>
-              <div>
-                <button
-                  v-for="(color, index) in wallpaperColors"
-                  :key="color"
-                  class="wallpaper-color state-layer"
-                  :class="{
-                    'wallpaper-color--selected':
-                      settings.themeColorSource === 'wallpaper' &&
-                      settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase(),
-                  }"
-                  :style="{ background: color }"
-                  type="button"
-                  :aria-label="`采用壁纸颜色 ${index + 1}: ${color}`"
-                  @click="applyWallpaperColor(color)"
-                >
-                  <span
-                    v-if="
-                      settings.themeColorSource === 'wallpaper' &&
-                      settings.wallpaperSeedColor.toUpperCase() === color.toUpperCase()
-                    "
-                    class="msr"
-                    >check</span
-                  >
-                </button>
-              </div>
+          <div class="setting-row">
+            <div class="setting-row__copy">
+              <span class="setting-row__label">系统模糊效果</span>
+              <span class="setting-row__description">
+                无壁纸时启用 Mica 与系统原生模糊材质；关闭后使用纯色背景
+              </span>
+            </div>
+            <div
+              class="md-switch"
+              role="switch"
+              :aria-checked="settings.systemBackdrop"
+              :class="{ 'md-switch--checked': settings.systemBackdrop }"
+              @click="update({ systemBackdrop: !settings.systemBackdrop })"
+            >
+              <div class="md-switch__thumb"></div>
             </div>
           </div>
         </div>

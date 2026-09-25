@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   themeContrast: 'standard',
   appearanceDensity: 'comfortable',
   motionPreference: 'system',
+  systemBackdrop: true,
   navigationPosition: 'side',
   navigationStyle: 'standard',
   language: 'zh-CN',

@@ -31,8 +31,12 @@ const wallpaperAtMax = computed(() => hasWallpaper.value && settings.value.wallp
 
 // 宿主是否自带窗口材质(Win11 Mica / macOS vibrancy);缺省假定有,避免 Win11 闪现兜底层。
 const nativeBackdrop = ref(true);
-// 无壁纸且无原生材质时,由渲染端 CSS Mica 罩层接管窗口背景。
-const cssMica = computed(() => !hasWallpaper.value && !nativeBackdrop.value);
+// "系统模糊效果"开关关闭时原生材质已被主进程停用,此时不透明纯色兜底接管窗口背景。
+const solidBackdrop = computed(() => !hasWallpaper.value && !settings.value.systemBackdrop);
+// 开关开启但平台无原生材质时,由渲染端 CSS Mica 罩层接管窗口背景。
+const cssMica = computed(
+  () => !solidBackdrop.value && !hasWallpaper.value && !nativeBackdrop.value,
+);
 
 // 启动器启动时校验全部实例文件是否齐全，发现缺失项时弹窗询问删除或保留。
 onMounted(async () => {
@@ -59,7 +63,7 @@ onMounted(async () => {
       'shell--nav-floating': !bare && settings.navigationStyle === 'floating',
     }"
   >
-    <DesktopBackdropLayer :active="cssMica" />
+    <DesktopBackdropLayer :active="cssMica" :solid="solidBackdrop" />
     <WallpaperLayer />
     <div class="shell__foreground">
       <!-- 应用窗体栏与主导航框架始终位于壁纸层上方。 -->

@@ -51,6 +51,8 @@ export interface LauncherSettings {
   themeContrast: ThemeContrast;
   appearanceDensity: AppearanceDensity;
   motionPreference: MotionPreference;
+  /** 无壁纸时启用系统模糊材质(Win11 Mica / macOS vibrancy / 渲染端 CSS Mica 兜底)；关闭后使用纯色表面。 */
+  systemBackdrop: boolean;
   navigationPosition: NavigationPosition;
   navigationStyle: NavigationStyle;
   language: 'zh-CN' | 'en-US';
