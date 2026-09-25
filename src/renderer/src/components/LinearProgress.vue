@@ -66,7 +66,10 @@ const barStyle = computed(() => ({ width: `${normalizedProgress.value * 100}%` }
   inset: 0 8px 0 0;
   overflow: hidden;
   border-radius: var(--md-sys-shape-corner-full);
-  background: color-mix(in srgb, var(--md-sys-color-on-primary-container) 18%, transparent);
+  background: var(
+    --linear-progress-track-color,
+    color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent)
+  );
   transition: right var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
 }
 
@@ -80,7 +83,7 @@ const barStyle = computed(() => ({ width: `${normalizedProgress.value * 100}%` }
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: var(--md-sys-color-primary);
+  background: var(--linear-progress-indicator-color, var(--md-sys-color-primary));
   transition: width var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
 }
 
@@ -91,7 +94,7 @@ const barStyle = computed(() => ({ width: `${normalizedProgress.value * 100}%` }
   width: 4px;
   height: 4px;
   border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-primary);
+  background: var(--linear-progress-indicator-color, var(--md-sys-color-primary));
   transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 

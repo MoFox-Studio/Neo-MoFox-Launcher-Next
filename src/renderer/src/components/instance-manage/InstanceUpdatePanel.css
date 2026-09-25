@@ -531,6 +531,7 @@
 }
 
 .update-progress__card {
+  --linear-progress-track-color: var(--md-sys-color-surface-container-highest);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -563,19 +564,8 @@
   text-align: center;
 }
 
-.update-progress__track {
-  width: 100%;
-  height: 4px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-highest);
-  overflow: hidden;
-}
-
 .update-progress__bar {
-  height: 100%;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-primary);
-  transition: width var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+  width: 100%;
 }
 
 .progress-fade-enter-active,

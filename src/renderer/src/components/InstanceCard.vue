@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { Instance } from '@shared/domain/instance';
 import StatusBadge from './StatusBadge.vue';
+import LinearProgress from '@/components/LinearProgress.vue';
 
 const props = defineProps<{ instance: Instance }>();
 
@@ -81,14 +82,12 @@ function onPrimaryAction(): void {
       <span :title="installPath">{{ installPath || '尚未记录安装目录' }}</span>
     </div>
 
-    <div
+    <LinearProgress
       v-if="isBusy"
       class="instance-card__progress"
-      role="progressbar"
-      aria-label="实例状态切换中"
-    >
-      <div class="instance-card__progress-bar"></div>
-    </div>
+      indeterminate
+      label="实例状态切换中"
+    />
 
     <footer class="instance-card__actions">
       <button
@@ -258,30 +257,6 @@ function onPrimaryAction(): void {
   white-space: nowrap;
 }
 
-.instance-card__progress {
-  height: 4px;
-  overflow: hidden;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
-}
-
-.instance-card__progress-bar {
-  width: 38%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--md-sys-color-primary);
-  animation: instance-progress 1.2s linear infinite;
-}
-
-@keyframes instance-progress {
-  from {
-    transform: translateX(-110%);
-  }
-  to {
-    transform: translateX(285%);
-  }
-}
-
 .instance-card__actions {
   display: flex;
   align-items: center;
@@ -356,7 +331,6 @@ function onPrimaryAction(): void {
 
 @media (prefers-reduced-motion: reduce) {
   .instance-card,
-  .instance-card__progress-bar,
   .instance-card__spin {
     animation: none;
     transition-duration: var(--md-sys-motion-duration-short2);

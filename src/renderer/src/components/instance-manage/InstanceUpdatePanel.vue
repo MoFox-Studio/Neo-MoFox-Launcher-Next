@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Instance } from '@shared/domain/instance';
 import ErrorDialog from '@/components/ErrorDialog.vue';
+import LinearProgress from '@/components/LinearProgress.vue';
 import { useInstanceUpdates } from '@/composables/use-instance-updates';
 const props = defineProps<{ instance: Instance }>();
 const emit = defineEmits<{ toast: [message: string] }>();
@@ -405,14 +406,13 @@ const {
             <span class="msr spinning" aria-hidden="true">sync</span>
           </div>
           <span class="update-progress__message">{{ progress?.message ?? '处理中...' }}</span>
-          <div class="update-progress__track">
-            <div
-              class="update-progress__bar"
-              :style="{
-                width: progress && progress.percent >= 0 ? `${progress.percent * 100}%` : '40%',
-              }"
-            ></div>
-          </div>
+          <!-- percent < 0 表示后端未上报可测进度，交给不确定态动画。 -->
+          <LinearProgress
+            class="update-progress__bar"
+            :indeterminate="!(progress && progress.percent >= 0)"
+            :progress="progress?.percent ?? 0"
+            label="更新进度"
+          />
         </div>
       </div>
     </Transition>

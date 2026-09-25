@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
 import { useInstancesStore } from '@/stores/instances';
@@ -44,16 +44,28 @@ function showToast(message: string): void {
   }, 2600);
 }
 
+// 首次刷新完成前不触发「实例消失」跳转，避免与初始加载竞态。
+let initialLoadDone = false;
+
 onMounted(async () => {
   await instancesStore.refresh();
   if (!instance.value) {
     void router.replace({ name: 'instances' });
     return;
   }
+  initialLoadDone = true;
   try {
     platforms.value = await mofoxApi.listBotPlatforms();
   } catch (error) {
     showToast(`平台列表加载失败: ${error instanceof Error ? error.message : String(error)}`);
+  }
+});
+
+// 删除实例时仓库刷新会让当前面板先一步卸载，`deleted` 事件可能因此丢失；
+// 这里直接监听实例从列表中消失，统一负责送回主页面。
+watch(instance, (value) => {
+  if (initialLoadDone && !value && route.name === 'instance-manage') {
+    returnToDashboard();
   }
 });
 
@@ -69,8 +81,9 @@ function goBack(): void {
   router.back();
 }
 
-function onDeleted(): void {
-  void router.replace({ name: 'instances' });
+// 删除完成后送回主页面；同时供「实例不存在」兜底状态的返回按钮使用。
+function returnToDashboard(): void {
+  void router.replace({ name: 'dashboard' });
 }
 </script>
 
@@ -129,7 +142,7 @@ function onDeleted(): void {
         :instance="instance"
         :platforms="platforms"
         @toast="showToast"
-        @deleted="onDeleted"
+        @deleted="returnToDashboard"
       />
       <InstanceVenvPanel
         v-else-if="instance && activeTab === 'venv'"
@@ -141,7 +154,21 @@ function onDeleted(): void {
         :instance="instance"
         @toast="showToast"
       />
-      <p v-else class="manage-group__empty">实例不存在或已被删除。</p>
+      <!-- 实例不存在时的兜底状态：整卡居中展示，仅在列表刷新完成后出现 -->
+      <div v-else-if="!instancesStore.loading" class="manage-missing" role="status">
+        <span class="manage-missing__mark" aria-hidden="true">
+          <span class="msr">delete_forever</span>
+        </span>
+        <h2>实例不存在</h2>
+        <p>该实例可能已被删除，或访问地址有误。</p>
+        <button
+          class="manage-missing__action state-layer"
+          type="button"
+          @click="returnToDashboard"
+        >
+          返回主页面
+        </button>
+      </div>
     </main>
 
     <transition name="toast">
@@ -291,10 +318,66 @@ function onDeleted(): void {
   overflow-y: auto;
 }
 
-.manage-group__empty {
+/* 实例不存在时的兜底状态：整卡居中，复用应用玻璃卡片语言。 */
+.manage-missing {
+  width: 100%;
+  min-height: 100%;
+  max-width: 824px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 48px 32px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
+  text-align: center;
+}
+
+.manage-missing__mark {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 9px;
+  border-radius: 23px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.manage-missing__mark .msr {
+  font-size: 36px;
+}
+
+.manage-missing h2 {
+  margin: 0;
+  font: var(--md-sys-typescale-title-large);
+  color: var(--md-sys-color-on-surface);
+}
+
+.manage-missing p {
+  max-width: 380px;
   margin: 0;
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-medium);
+}
+
+.manage-missing__action {
+  min-height: 40px;
+  margin-top: 8px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font: var(--md-sys-typescale-label-large);
+  cursor: pointer;
 }
 
 .manage-view__toast {
