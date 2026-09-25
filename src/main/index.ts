@@ -1,4 +1,16 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell, systemPreferences } from 'electron';
+import {
+  BrowserWindow,
+  Menu,
+  Notification,
+  Tray,
+  app,
+  dialog,
+  ipcMain,
+  nativeImage,
+  protocol,
+  shell,
+  systemPreferences,
+} from 'electron';
 import { setUnverifiedDownloadConfirmation } from './utils/git/download-consent';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -46,10 +58,13 @@ import { SettingsService } from './services/settings-service';
 import { WallpaperService } from './services/wallpaper-service';
 import { VenvService } from './services/venv-service';
 import { createWallpaperProtocolHandler } from './wallpaper-protocol';
+import type { VenvPackageResult } from '../shared/domain/venv';
 import { EnvironmentService } from './utils/environment-service';
 import { ProcessHelper } from './utils/process-helper';
 import { createLogger, type Logger } from './utils/logger';
 import { removePathSafe } from './utils/native-file-remover';
+import { TrayController, type TrayPlatform } from './utils/tray';
+import { BackgroundNotifier, type NotifyPlatform } from './utils/background-notifier';
 import { MofoxError } from '../shared/domain/error';
 
 /** 主进程组合根：管理单实例锁、窗口生命周期、服务依赖与主进程到渲染进程的事件同步。 */
@@ -58,6 +73,14 @@ let mainWindow: BrowserWindow | null = null;
 let processHelper: ProcessHelper | null = null;
 /** 无壁纸时的系统模糊材质开关；窗口创建与设置更新共用，重建窗口后状态不丢失。 */
 let backdropEnabled = true;
+/** 关闭窗口时是否转入托盘后台运行；随设置更新即时生效。 */
+let closeToTrayEnabled = true;
+/** 启动器不在前台时是否允许任务完成系统通知。 */
+let trayNotificationsEnabled = true;
+/** before-quit 置位后的窗口关闭不再转入托盘隐藏分支。 */
+let quitting = false;
+/** 托盘运行态管理器；ready 后创建，托盘菜单与后台通知共用。 */
+let trayController: TrayController | null = null;
 
 /** 将 Electron 返回的 RGB/RGBA 字符串收敛为渲染层使用的 #RRGGBB。 */
 function normalizeSystemColor(value: unknown): string | null {
@@ -116,6 +139,21 @@ function resolveAppIcon(): string | undefined {
     join(process.resourcesPath, 'icon.ico'),
     join(__dirname, '../../assets/images/icon.ico'),
   ];
+
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
+/** 解析托盘与系统通知共用的图标路径；Windows 使用 ico，其余平台优先 PNG。 */
+function resolveTrayIcon(): string | undefined {
+  const candidates =
+    process.platform === 'win32'
+      ? [join(process.resourcesPath, 'icon.ico'), join(__dirname, '../../assets/images/icon.ico')]
+      : [
+          join(process.resourcesPath, 'icon.png'),
+          join(process.resourcesPath, 'icon.ico'),
+          join(__dirname, '../../assets/images/icon.png'),
+          join(__dirname, '../../assets/images/icon.ico'),
+        ];
 
   return candidates.find((candidate) => existsSync(candidate));
 }
@@ -221,8 +259,8 @@ if (!hasSingleInstanceLock) {
 
   app.on('second-instance', () => {
     if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    // 托盘后台运行时重新拉起主窗口；可见时等价于恢复并聚焦。
+    trayController?.revealMainWindow();
   });
 
   void app.whenReady().then(async () => {
@@ -254,6 +292,49 @@ if (!hasSingleInstanceLock) {
       else console.error(message, error);
     };
     const settings = new SettingsService(dataDirectory, report);
+    /** Electron 托盘宿主实现；图标缺失时由 Electron 使用默认图标。 */
+    const trayPlatform: TrayPlatform = {
+      createTray: ({ tooltip, icon, items, onIconActivate }) => {
+        const tray = new Tray(icon ?? nativeImage.createEmpty());
+        tray.setToolTip(tooltip);
+        tray.setContextMenu(
+          Menu.buildFromTemplate(
+            items.map((item) => ({ label: item.label, click: () => item.activate() })),
+          ),
+        );
+        if (onIconActivate) tray.on('click', () => onIconActivate());
+        return { destroy: () => tray.destroy() };
+      },
+    };
+    trayController = new TrayController(trayPlatform, {
+      getWindow: () => mainWindow,
+      getIcon: resolveTrayIcon,
+      tooltip: 'Neo-MoFox 启动器',
+      onQuitRequest: () => {
+        quitting = true;
+        app.quit();
+      },
+    });
+    /** Electron 系统通知宿主实现。 */
+    const notifyPlatform: NotifyPlatform = {
+      notify: (title, body) => {
+        if (!Notification.isSupported()) return;
+        const icon = resolveTrayIcon();
+        const notification = new Notification({ title, body, ...(icon ? { icon } : {}) });
+        // 点击通知即回到主页面，缩短后台任务的查看路径。
+        notification.on('click', () => trayController?.revealMainWindow());
+        notification.show();
+      },
+    };
+    /** 后台任务通知器：窗口失焦或不可见时弹出，前台聚焦时静默。 */
+    const backgroundNotifier = new BackgroundNotifier(notifyPlatform, {
+      getWindow: () => mainWindow,
+      enabled: () => trayNotificationsEnabled,
+      enteredBackgroundNotice: {
+        title: 'Neo-MoFox 启动器',
+        body: '启动器仍在后台运行，可随时从托盘菜单恢复主页面或退出。',
+      },
+    });
     const wallpapers = new WallpaperService(dataDirectory, settings);
     const instances = new InstanceRepository(dataDirectory, report);
     const platforms = new PlatformRegistry();
@@ -287,6 +368,8 @@ if (!hasSingleInstanceLock) {
         update: async (patch) => {
           const next = await settings.update(patch);
           backdropEnabled = next.systemBackdrop;
+          closeToTrayEnabled = next.closeToTray;
+          trayNotificationsEnabled = next.trayNotifications;
           applyNativeBackdrop(mainWindow, next.systemBackdrop);
           return next;
         },
@@ -409,13 +492,79 @@ if (!hasSingleInstanceLock) {
         void logger.log('update', level, message);
       },
     );
+    /**
+     * 解析实例显示名；实例已被移除或 ID 无效时回退为「实例」。
+     *
+     * @param instanceId - 实例 ID。
+     */
+    const resolveInstanceName = async (instanceId: string): Promise<string> =>
+      (await instances.list()).find((instance) => instance.id === instanceId)?.name ?? '实例';
+
+    /**
+     * 观察可能后台落定的实例任务，并按结果弹出系统通知。
+     *
+     * 通知仅在窗口失焦或不可见且用户允许时真正发出；返回原 Promise，
+     * 不改变 IPC 结果语义。
+     *
+     * @param instanceId - 任务所属实例 ID。
+     * @param task - 待观察的任务。
+     * @param action - 动作名称，如「主程序更新」。
+     * @returns 原样返回的任务 Promise。
+     */
+    const watchInstanceTask = <T>(
+      instanceId: string,
+      task: Promise<T>,
+      action: string,
+    ): Promise<T> => {
+      void task.then(
+        async () =>
+          backgroundNotifier.notifyTaskFinished(
+            `${action}完成`,
+            `实例「${await resolveInstanceName(instanceId)}」${action}已完成`,
+          ),
+        async () =>
+          backgroundNotifier.notifyTaskFinished(
+            `${action}失败`,
+            `实例「${await resolveInstanceName(instanceId)}」${action}失败，请打开启动器查看详情`,
+          ),
+      );
+      return task;
+    };
+
+    /**
+     * 按虚拟环境操作的结果对象弹出后台通知；结果原样返回。
+     *
+     * @param instanceId - 操作所属实例 ID。
+     * @param task - 待观察的操作。
+     * @param action - 动作名称，如「依赖安装」。
+     * @returns 原样返回的操作结果。
+     */
+    const notifyVenvResult = async (
+      instanceId: string,
+      task: Promise<VenvPackageResult>,
+      action: string,
+    ): Promise<VenvPackageResult> => {
+      const result = await task;
+      const instanceName = await resolveInstanceName(instanceId);
+      backgroundNotifier.notifyTaskFinished(
+        result.ok ? `${action}完成` : `${action}失败`,
+        result.ok
+          ? `实例「${instanceName}」${action}已完成`
+          : (result.message ?? `实例「${instanceName}」${action}失败，请打开启动器查看详情`),
+      );
+      return result;
+    };
     registerUpdateIpc(ipcMain, {
       getMofoxInfo: (instanceId) => updates.getMofoxInfo(instanceId),
-      switchBranch: (instanceId, branch) => updates.switchBranch(instanceId, branch),
-      checkoutCommit: (instanceId, commitHash) => updates.checkoutCommit(instanceId, commitHash),
-      updateMofox: (instanceId) => updates.updateMofox(instanceId),
+      switchBranch: (instanceId, branch) =>
+        watchInstanceTask(instanceId, updates.switchBranch(instanceId, branch), '分支切换'),
+      checkoutCommit: (instanceId, commitHash) =>
+        watchInstanceTask(instanceId, updates.checkoutCommit(instanceId, commitHash), '版本回退'),
+      updateMofox: (instanceId) =>
+        watchInstanceTask(instanceId, updates.updateMofox(instanceId), '主程序更新'),
       getPlatformInfo: (instanceId) => updates.getPlatformInfo(instanceId),
-      updatePlatform: (instanceId, version) => updates.updatePlatform(instanceId, version),
+      updatePlatform: (instanceId, version) =>
+        watchInstanceTask(instanceId, updates.updatePlatform(instanceId, version), '平台更新'),
     });
     const installTasks = new InstallTaskService(
       platforms,
@@ -423,7 +572,23 @@ if (!hasSingleInstanceLock) {
         repository: instances,
         mirrors,
       },
-      { progress: (event) => send(IPC_EVENT_CHANNELS['install-progress'], event) },
+      {
+        progress: (event) => {
+          send(IPC_EVENT_CHANNELS['install-progress'], event);
+          // 安装任务可能后台落定；结果通过系统通知告知（前台聚焦时静默）。
+          if (event.status === 'done') {
+            backgroundNotifier.notifyTaskFinished(
+              '实例安装完成',
+              `「${event.instanceName}」安装完成，可以启动了`,
+            );
+          } else if (event.status === 'failed') {
+            backgroundNotifier.notifyTaskFinished(
+              '实例安装失败',
+              `「${event.instanceName}」安装失败，请打开启动器查看详情`,
+            );
+          }
+        },
+      },
     );
     registerInstallIpc(ipcMain, installTasks);
     registerShellIpc(ipcMain, {
@@ -443,9 +608,12 @@ if (!hasSingleInstanceLock) {
     registerVenvIpc(ipcMain, {
       inspect: (value) => venvs.inspect(value),
       getVenvInfo: (instanceId) => venvs.getVenvInfo(instanceId),
-      install: (instanceId, name, version) => venvs.install(instanceId, name, version),
-      uninstall: (instanceId, name) => venvs.uninstall(instanceId, name),
-      update: (instanceId, name) => venvs.upgrade(instanceId, name),
+      install: (instanceId, name, version) =>
+        notifyVenvResult(instanceId, venvs.install(instanceId, name, version), '依赖安装'),
+      uninstall: (instanceId, name) =>
+        notifyVenvResult(instanceId, venvs.uninstall(instanceId, name), '依赖卸载'),
+      update: (instanceId, name) =>
+        notifyVenvResult(instanceId, venvs.upgrade(instanceId, name), '依赖更新'),
       queryVersions: (instanceId, name) => venvs.queryVersions(instanceId, name),
       getPackageInfo: (instanceId, name) => venvs.getVenvPackageInfo(instanceId, name),
     });
@@ -463,8 +631,11 @@ if (!hasSingleInstanceLock) {
       },
     );
     registerOobeIpc(ipcMain, oobeService);
-    // 窗口显示前读取一次材质开关，避免启动瞬间闪现已关闭的系统模糊。
-    backdropEnabled = (await settings.get()).systemBackdrop;
+    // 窗口显示前读取一次设置快照，同步材质与托盘相关开关，避免启动瞬间状态不一致。
+    const initialSettings = await settings.get();
+    backdropEnabled = initialSettings.systemBackdrop;
+    closeToTrayEnabled = initialSettings.closeToTray;
+    trayNotificationsEnabled = initialSettings.trayNotifications;
     mainWindow = createMainWindow();
 
     // 正常关闭先等待安装任务取消并清理现场；等待期间重复关闭也不能绕过收尾。
@@ -472,6 +643,12 @@ if (!hasSingleInstanceLock) {
     let installCloseReady = false;
     mainWindow.on('close', (event) => {
       if (installCloseReady) return;
+      // 托盘模式：用户主动关闭仅隐藏窗口，安装与更新等后台任务继续运行。
+      if (!quitting && closeToTrayEnabled && trayController?.minimizeToTray()) {
+        event.preventDefault();
+        backgroundNotifier.notifyEnteredBackground();
+        return;
+      }
       event.preventDefault();
       if (installCloseDispatched) return;
       installCloseDispatched = true;
@@ -492,6 +669,7 @@ if (!hasSingleInstanceLock) {
 
     app.on('activate', () => {
       if (!mainWindow) mainWindow = createMainWindow();
+      else trayController?.revealMainWindow();
     });
   });
 
@@ -500,5 +678,9 @@ if (!hasSingleInstanceLock) {
   });
 
   // 应用退出前强制回收所有托管进程树，避免关闭启动器后遗留平台子进程。
-  app.on('before-quit', () => processHelper?.killAll());
+  app.on('before-quit', () => {
+    quitting = true;
+    trayController?.destroy();
+    processHelper?.killAll();
+  });
 }

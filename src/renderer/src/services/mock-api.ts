@@ -111,6 +111,7 @@ let settings: LauncherSettings = {
   language: 'zh-CN',
   defaultInstallDir: 'D:\\MoFox',
   closeToTray: true,
+  trayNotifications: true,
   hardwareAcceleration: true,
   maxLogFileSizeMb: 16,
   maxLogArchiveDays: 14,

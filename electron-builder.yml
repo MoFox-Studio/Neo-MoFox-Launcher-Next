@@ -12,6 +12,8 @@ asarUnpack:
 extraResources:
   - from: assets/images/icon.ico
     to: icon.ico
+  - from: assets/images/icon.png
+    to: icon.png
 win:
   target:
     - nsis

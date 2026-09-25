@@ -57,7 +57,10 @@ export interface LauncherSettings {
   navigationStyle: NavigationStyle;
   language: 'zh-CN' | 'en-US';
   defaultInstallDir: string;
+  /** 关闭窗口时是否隐藏到系统托盘继续运行；关闭后点击关闭按钮将直接退出。 */
   closeToTray: boolean;
+  /** 启动器不在前台（失焦、最小化或托盘）时，安装/更新/依赖等任务完成是否弹出系统通知。 */
+  trayNotifications: boolean;
   hardwareAcceleration: boolean;
   maxLogFileSizeMb: number;
   maxLogArchiveDays: number;

@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   language: 'zh-CN',
   defaultInstallDir: '',
   closeToTray: true,
+  trayNotifications: true,
   hardwareAcceleration: true,
   maxLogFileSizeMb: 16,
   maxLogArchiveDays: 14,

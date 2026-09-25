@@ -230,10 +230,13 @@ onMounted(() => {
               </button>
             </div>
 
-            <div v-if="false" class="settings-item">
-              <span class="msr settings-item__icon">pip</span>
+            <div class="settings-item">
+              <span class="msr settings-item__icon">call_to_action</span>
               <div class="settings-item__body">
                 <span class="settings-item__label">关闭时最小化到托盘</span>
+                <span class="settings-item__desc">
+                  关闭窗口后保留在系统托盘运行，可从托盘菜单显示主页面或退出；关闭后直接退出启动器
+                </span>
               </div>
               <div
                 class="md-switch"
@@ -241,6 +244,25 @@ onMounted(() => {
                 :aria-checked="settings.closeToTray"
                 :class="{ 'md-switch--checked': settings.closeToTray }"
                 @click="update({ closeToTray: !settings.closeToTray })"
+              >
+                <div class="md-switch__thumb"></div>
+              </div>
+            </div>
+
+            <div class="settings-item">
+              <span class="msr settings-item__icon">notifications</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">后台任务通知</span>
+                <span class="settings-item__desc">
+                  启动器不在前台（失焦、最小化或托盘）时，任务完成将弹出系统通知
+                </span>
+              </div>
+              <div
+                class="md-switch"
+                role="switch"
+                :aria-checked="settings.trayNotifications"
+                :class="{ 'md-switch--checked': settings.trayNotifications }"
+                @click="update({ trayNotifications: !settings.trayNotifications })"
               >
                 <div class="md-switch__thumb"></div>
               </div>
