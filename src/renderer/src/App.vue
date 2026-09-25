@@ -7,9 +7,11 @@ import AddInstanceDialog from '@/components/AddInstanceDialog.vue';
 import IntegrityCheckDialog from '@/components/IntegrityCheckDialog.vue';
 import NavRail from '@/components/NavRail.vue';
 import WallpaperLayer from '@/components/WallpaperLayer.vue';
+import DesktopBackdropLayer from '@/components/DesktopBackdropLayer.vue';
 import { mofoxApi } from '@/services/mofox-api';
 import { useIntegrityStore } from '@/stores/integrity';
 import { useSettingsStore } from '@/stores/settings';
+import { hasNativeBackdrop } from '@/utils/native-backdrop';
 
 const route = useRoute();
 const settingsStore = useSettingsStore();
@@ -27,8 +29,14 @@ const hasWallpaper = computed(
 // 遮罩拉满时玻璃侧栏与顶栏也转实，确保壁纸完全不可见。
 const wallpaperAtMax = computed(() => hasWallpaper.value && settings.value.wallpaperOpacity >= 1);
 
+// 宿主是否自带窗口材质(Win11 Mica / macOS vibrancy);缺省假定有,避免 Win11 闪现兜底层。
+const nativeBackdrop = ref(true);
+// 无壁纸且无原生材质时,由渲染端 CSS Mica 罩层接管窗口背景。
+const cssMica = computed(() => !hasWallpaper.value && !nativeBackdrop.value);
+
 // 启动器启动时校验全部实例文件是否齐全，发现缺失项时弹窗询问删除或保留。
 onMounted(async () => {
+  nativeBackdrop.value = await hasNativeBackdrop();
   if (!settings.value.oobeCompleted) return;
   try {
     const issues = await mofoxApi.checkInstancesIntegrity();
@@ -45,11 +53,13 @@ onMounted(async () => {
     :class="{
       'shell--has-wallpaper': hasWallpaper,
       'shell--wallpaper-max': wallpaperAtMax,
+      'shell--css-mica': cssMica,
       'shell--maximized': windowMaximized,
       'shell--nav-bottom': !bare && settings.navigationPosition === 'bottom',
       'shell--nav-floating': !bare && settings.navigationStyle === 'floating',
     }"
   >
+    <DesktopBackdropLayer :active="cssMica" />
     <WallpaperLayer />
     <div class="shell__foreground">
       <!-- 应用窗体栏与主导航框架始终位于壁纸层上方。 -->
@@ -220,6 +230,22 @@ onMounted(async () => {
     var(--md-sys-color-surface-dim) 94%,
     var(--md-sys-color-shadow)
   );
+}
+
+/*
+ * CSS Mica 兜底激活时,罩层已承担底色职责;表面同步调整做补偿,
+ * 否则两层不透明度相乘会把壁纸透出率压到 ~2%,观感退回纯色墙面。
+ * 深色基准:罩层 65% 配内容 78%,总透出 ~8%;侧栏 70% 略透,保持呼吸感。
+ * 浅色对比弱,单独放宽(见下方覆盖块)。
+ */
+.shell--css-mica {
+  --app-shell-content-surface: color-mix(in srgb, var(--md-sys-color-surface) 78%, transparent);
+  --app-shell-chrome-surface: color-mix(in srgb, var(--md-sys-color-surface) 70%, transparent);
+}
+
+:root[data-theme='light'] .shell--css-mica {
+  --app-shell-content-surface: color-mix(in srgb, var(--md-sys-color-surface) 70%, transparent);
+  --app-shell-chrome-surface: color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent);
 }
 
 /* 分栏页面将玻璃层分别放到侧栏与右侧画布，确保两者读取真实的底层纹理。 */

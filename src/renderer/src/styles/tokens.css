@@ -84,6 +84,16 @@
   --app-subrail-surface: color-mix(in srgb, var(--md-sys-color-surface-container) 76%, transparent);
   --app-subrail-filter: blur(20px) saturate(1.15);
 
+  /*
+   * 无原生材质平台(Win10/Linux/浏览器 demo)的 Mica 兜底罩层。
+   * 底色只承担中性浸染,透出率由 App.vue 的 .shell--css-mica 补偿维持;
+   * 噪点位于前景之上(见 DesktopBackdropLayer),低透明度只提供颗粒。
+   * 浅色壁纸多为亮色,白底罩层会吃掉对比,因此浅色主题罩层更薄。
+   */
+  --app-mica-surface: color-mix(in srgb, var(--md-sys-color-surface) 65%, transparent);
+  --app-mica-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='mica-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23mica-noise)'/%3E%3C/svg%3E");
+  --app-mica-noise-opacity: 0.03;
+
   /* 启用壁纸时由 WallpaperLayer 写入；无壁纸时复位为 1。 */
   --app-wallpaper-content-opacity: 1;
   /* 壁纸存在时内容画布的最低下限：独立于内容遮罩，遮罩归零时仍保证内容可读。 */
@@ -99,6 +109,11 @@
   --app-density-control-height: 40px;
   --app-density-content-padding: 32px;
   --app-density-section-gap: 16px;
+}
+
+/* 浅色主题:白底与亮色壁纸对比天然弱,罩层减薄让壁纸透出可感知。 */
+:root[data-theme='light'] {
+  --app-mica-surface: color-mix(in srgb, var(--md-sys-color-surface) 35%, transparent);
 }
 
 /* 密度偏好集中覆盖应用级尺寸；组件只消费令牌，不各自猜测缩放比例。 */
