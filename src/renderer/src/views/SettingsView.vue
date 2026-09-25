@@ -170,65 +170,69 @@ onMounted(() => {
     </aside>
 
     <main class="settings-view__content">
-      <!-- 外观、通用、网络、日志与版本信息分组 -->
+      <!-- 外观、通用、数据迁移、日志与关于分组 -->
       <!-- 外观 -->
       <AppearanceSettings v-show="activeCategory === 'appearance'" />
 
       <!-- 通用 -->
       <section v-show="activeCategory === 'general'" class="settings-group">
-        <h2 class="settings-group__title">通用</h2>
         <div class="settings-group__card">
-          <div class="settings-item">
-            <span class="msr settings-item__icon">folder</span>
-            <div class="settings-item__body">
-              <span class="settings-item__label">默认安装目录</span>
-              <span class="settings-item__desc settings-item__desc--mono">{{
-                settings.defaultInstallDir
-              }}</span>
-            </div>
-            <button
-              class="text-button state-layer"
-              :disabled="installDirBusy"
-              @click="chooseInstallDir"
-            >
-              更改
-            </button>
-          </div>
-
-          <div class="settings-divider"></div>
-
-          <div v-if="false" class="settings-item">
-            <span class="msr settings-item__icon">pip</span>
-            <div class="settings-item__body">
-              <span class="settings-item__label">关闭时最小化到托盘</span>
-            </div>
-            <div
-              class="md-switch"
-              role="switch"
-              :aria-checked="settings.closeToTray"
-              :class="{ 'md-switch--checked': settings.closeToTray }"
-              @click="update({ closeToTray: !settings.closeToTray })"
-            >
-              <div class="md-switch__thumb"></div>
+          <div class="settings-group__heading">
+            <span class="msr">tune</span>
+            <div>
+              <h2>通用</h2>
+              <p>目录与运行行为</p>
             </div>
           </div>
-
-          <div class="settings-divider"></div>
-
-          <div v-if="false" class="settings-item">
-            <span class="msr settings-item__icon">speed</span>
-            <div class="settings-item__body">
-              <span class="settings-item__label">硬件加速</span>
-              <span class="settings-item__desc">更改后需重启启动器生效</span>
+          <div class="settings-group__body">
+            <div class="settings-item">
+              <span class="msr settings-item__icon">folder</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">默认安装目录</span>
+                <span class="settings-item__desc settings-item__desc--mono">{{
+                  settings.defaultInstallDir
+                }}</span>
+              </div>
+              <button
+                class="text-button state-layer"
+                :disabled="installDirBusy"
+                @click="chooseInstallDir"
+              >
+                更改
+              </button>
             </div>
-            <div
-              class="md-switch"
-              role="switch"
-              :aria-checked="settings.hardwareAcceleration"
-              :class="{ 'md-switch--checked': settings.hardwareAcceleration }"
-              @click="update({ hardwareAcceleration: !settings.hardwareAcceleration })"
-            >
-              <div class="md-switch__thumb"></div>
+
+            <div v-if="false" class="settings-item">
+              <span class="msr settings-item__icon">pip</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">关闭时最小化到托盘</span>
+              </div>
+              <div
+                class="md-switch"
+                role="switch"
+                :aria-checked="settings.closeToTray"
+                :class="{ 'md-switch--checked': settings.closeToTray }"
+                @click="update({ closeToTray: !settings.closeToTray })"
+              >
+                <div class="md-switch__thumb"></div>
+              </div>
+            </div>
+
+            <div v-if="false" class="settings-item">
+              <span class="msr settings-item__icon">speed</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">硬件加速</span>
+                <span class="settings-item__desc">更改后需重启启动器生效</span>
+              </div>
+              <div
+                class="md-switch"
+                role="switch"
+                :aria-checked="settings.hardwareAcceleration"
+                :class="{ 'md-switch--checked': settings.hardwareAcceleration }"
+                @click="update({ hardwareAcceleration: !settings.hardwareAcceleration })"
+              >
+                <div class="md-switch__thumb"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -236,64 +240,68 @@ onMounted(() => {
 
       <!-- 数据迁移 -->
       <section v-show="activeCategory === 'migration'" class="settings-group">
-        <h2 class="settings-group__title">数据迁移</h2>
         <div class="settings-group__card">
-          <div class="settings-item">
-            <span class="msr settings-item__icon">cloud_sync</span>
-            <div class="settings-item__body">
-              <span class="settings-item__label">从旧启动器导入实例</span>
-              <span class="settings-item__desc" v-if="legacyInfo">
-                {{ legacyInfo.dataDirectory }} · {{ legacyInfo.instanceCount }} 个实例
-              </span>
-              <span class="settings-item__desc" v-else>
-                检测旧启动器（Neo-MoFox-Launcher）数据目录并导入其实例
-              </span>
+          <div class="settings-group__heading">
+            <span class="msr">cloud_sync</span>
+            <div>
+              <h2>数据迁移</h2>
+              <p>导入旧版实例</p>
             </div>
-            <button
-              v-if="migrationPhase === 'idle'"
-              class="text-button state-layer"
-              :disabled="migrationBusy"
-              @click="detectLegacy"
-            >
-              检测
-            </button>
-            <button
-              v-else-if="migrationPhase === 'detected'"
-              class="text-button state-layer"
-              :disabled="migrationBusy"
-              @click="previewMigration"
-            >
-              预览
-            </button>
-            <button
-              v-else-if="migrationPhase === 'previewed'"
-              class="text-button state-layer"
-              :disabled="migrationBusy"
-              @click="importMigration"
-            >
-              导入
-            </button>
-            <button
-              v-else
-              class="text-button state-layer"
-              :disabled="migrationBusy"
-              @click="resetMigration"
-            >
-              重置
-            </button>
           </div>
+          <div class="settings-group__body">
+            <div class="settings-item">
+              <span class="msr settings-item__icon">cloud_sync</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">从旧启动器导入实例</span>
+                <span class="settings-item__desc" v-if="legacyInfo">
+                  {{ legacyInfo.dataDirectory }} · {{ legacyInfo.instanceCount }} 个实例
+                </span>
+                <span class="settings-item__desc" v-else>
+                  检测旧启动器（Neo-MoFox-Launcher）数据目录并导入其实例
+                </span>
+              </div>
+              <button
+                v-if="migrationPhase === 'idle'"
+                class="text-button state-layer"
+                :disabled="migrationBusy"
+                @click="detectLegacy"
+              >
+                检测
+              </button>
+              <button
+                v-else-if="migrationPhase === 'detected'"
+                class="text-button state-layer"
+                :disabled="migrationBusy"
+                @click="previewMigration"
+              >
+                预览
+              </button>
+              <button
+                v-else-if="migrationPhase === 'previewed'"
+                class="text-button state-layer"
+                :disabled="migrationBusy"
+                @click="importMigration"
+              >
+                导入
+              </button>
+              <button
+                v-else
+                class="text-button state-layer"
+                :disabled="migrationBusy"
+                @click="resetMigration"
+              >
+                重置
+              </button>
+            </div>
 
-          <!-- 检测失败提示 -->
-          <div v-if="migrationError" class="settings-divider"></div>
-          <div v-if="migrationError" class="migration-note migration-note--error">
-            <span class="msr migration-note__icon">error</span>
-            <span>{{ migrationError }}</span>
-          </div>
+            <!-- 检测失败提示 -->
+            <div v-if="migrationError" class="migration-note migration-note--error">
+              <span class="msr migration-note__icon">error</span>
+              <span>{{ migrationError }}</span>
+            </div>
 
-          <!-- 预览结果：列出待导入实例与冲突项 -->
-          <template v-if="migrationPreview">
-            <div class="settings-divider"></div>
-            <div class="migration-preview">
+            <!-- 预览结果：列出待导入实例与冲突项 -->
+            <div v-if="migrationPreview" class="migration-preview">
               <p class="migration-preview__hint">
                 共 {{ migrationPreview.previews.length }} 条记录，
                 <span class="migration-preview__conflict">
@@ -323,75 +331,76 @@ onMounted(() => {
                 </li>
               </ul>
             </div>
-          </template>
 
-          <!-- 导入完成统计 -->
-          <template v-if="migrationResult">
-            <div class="settings-divider"></div>
-            <div class="migration-note migration-note--ok">
+            <!-- 导入完成统计 -->
+            <div v-if="migrationResult" class="migration-note migration-note--ok">
               <span class="msr migration-note__icon">check_circle</span>
               <span>
                 导入 {{ migrationResult.imported }} 个，跳过 {{ migrationResult.skipped }} 个， 共
                 {{ migrationResult.total }} 个实例
               </span>
             </div>
-          </template>
+          </div>
         </div>
       </section>
 
       <!-- 日志 -->
       <section v-show="activeCategory === 'logs'" class="settings-group">
-        <h2 class="settings-group__title">日志</h2>
         <div class="settings-group__card">
-          <div class="settings-item">
-            <span class="msr settings-item__icon">hard_drive</span>
-            <div class="settings-item__body">
-              <span class="settings-item__label">单文件上限</span>
-            </div>
-            <div class="input-field">
-              <input
-                type="number"
-                class="input-field__native"
-                :value="settings.maxLogFileSizeMb"
-                @change="(e) => handleNumberInput('maxLogFileSizeMb', e, 1, 512)"
-              />
-              <span class="input-field__suffix">MB</span>
+          <div class="settings-group__heading">
+            <span class="msr">article</span>
+            <div>
+              <h2>日志</h2>
+              <p>归档与存储限制</p>
             </div>
           </div>
-
-          <div class="settings-divider"></div>
-
-          <div class="settings-item">
-            <span class="msr settings-item__icon">history</span>
-            <div class="settings-item__body">
-              <span class="settings-item__label">归档保留天数</span>
+          <div class="settings-group__body">
+            <div class="settings-item">
+              <span class="msr settings-item__icon">hard_drive</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">单文件上限</span>
+              </div>
+              <div class="input-field">
+                <input
+                  type="number"
+                  class="input-field__native"
+                  :value="settings.maxLogFileSizeMb"
+                  @change="(e) => handleNumberInput('maxLogFileSizeMb', e, 1, 512)"
+                />
+                <span class="input-field__suffix">MB</span>
+              </div>
             </div>
-            <div class="input-field">
-              <input
-                type="number"
-                class="input-field__native"
-                :value="settings.maxLogArchiveDays"
-                @change="(e) => handleNumberInput('maxLogArchiveDays', e, 1, 90)"
-              />
-              <span class="input-field__suffix">天</span>
-            </div>
-          </div>
 
-          <div class="settings-divider"></div>
-
-          <div class="settings-item">
-            <span class="msr settings-item__icon">folder_zip</span>
-            <div class="settings-item__body">
-              <span class="settings-item__label">压缩归档日志</span>
+            <div class="settings-item">
+              <span class="msr settings-item__icon">history</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">归档保留天数</span>
+              </div>
+              <div class="input-field">
+                <input
+                  type="number"
+                  class="input-field__native"
+                  :value="settings.maxLogArchiveDays"
+                  @change="(e) => handleNumberInput('maxLogArchiveDays', e, 1, 90)"
+                />
+                <span class="input-field__suffix">天</span>
+              </div>
             </div>
-            <div
-              class="md-switch"
-              role="switch"
-              :aria-checked="settings.compressLogArchive"
-              :class="{ 'md-switch--checked': settings.compressLogArchive }"
-              @click="update({ compressLogArchive: !settings.compressLogArchive })"
-            >
-              <div class="md-switch__thumb"></div>
+
+            <div class="settings-item">
+              <span class="msr settings-item__icon">folder_zip</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">压缩归档日志</span>
+              </div>
+              <div
+                class="md-switch"
+                role="switch"
+                :aria-checked="settings.compressLogArchive"
+                :class="{ 'md-switch--checked': settings.compressLogArchive }"
+                @click="update({ compressLogArchive: !settings.compressLogArchive })"
+              >
+                <div class="md-switch__thumb"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -399,21 +408,28 @@ onMounted(() => {
 
       <!-- 关于 -->
       <section v-show="activeCategory === 'about'" class="settings-group">
-        <h2 class="settings-group__title">关于</h2>
         <div class="settings-group__card">
-          <div class="settings-item">
-            <span class="msr settings-item__icon">info</span>
-            <div class="settings-item__body">
-              <span class="settings-item__label">Neo-MoFox Launcher</span>
-              <span class="settings-item__desc">版本 0.1.0</span>
+          <div class="settings-group__heading">
+            <span class="msr">info</span>
+            <div>
+              <h2>关于</h2>
+              <p>版本与更新信息</p>
             </div>
-            <button class="text-button state-layer">检查更新</button>
           </div>
-          <div class="settings-divider"></div>
-          <div class="settings-item">
-            <span class="msr settings-item__icon">description</span>
-            <div class="settings-item__body">
-              <span class="settings-item__desc">基于 Electron · Vue 3 · Material Design 3</span>
+          <div class="settings-group__body">
+            <div class="settings-item">
+              <span class="msr settings-item__icon">info</span>
+              <div class="settings-item__body">
+                <span class="settings-item__label">Neo-MoFox Launcher</span>
+                <span class="settings-item__desc">版本 0.1.0</span>
+              </div>
+              <button class="text-button state-layer">检查更新</button>
+            </div>
+            <div class="settings-item">
+              <span class="msr settings-item__icon">description</span>
+              <div class="settings-item__body">
+                <span class="settings-item__desc">基于 Electron · Vue 3 · Material Design 3</span>
+              </div>
             </div>
           </div>
         </div>
