@@ -5,11 +5,12 @@ import { useRouter } from 'vue-router';
 import { useInstancesStore } from '@/stores/instances';
 import { useWindowTitle } from '@/composables/use-window-title';
 import { useHomeWidgets } from '@/composables/use-home-widgets';
+import HomeWidgetGrid from '@/components/home/HomeWidgetGrid.vue';
 import { greetingByHour } from '@/utils/greeting';
 
 const router = useRouter();
 const instancesStore = useInstancesStore();
-const { rows } = useHomeWidgets();
+const { widgets } = useHomeWidgets();
 
 const greeting = computed(() => greetingByHour(new Date().getHours()));
 
@@ -82,20 +83,7 @@ function openInstances(): void {
         </button>
       </section>
 
-      <!-- 按用户配置的顺序渲染小部件；相邻半宽部件自动并排成行。 -->
-      <div
-        v-for="(row, rowIndex) in rows"
-        :key="rowIndex"
-        class="dashboard__row"
-        :class="{ 'dashboard__row--single': row.single }"
-      >
-        <component
-          :is="item.definition.component"
-          v-for="item in row.items"
-          :key="item.state.id"
-          :config="item.state.config"
-        />
-      </div>
+      <HomeWidgetGrid :widgets="widgets" />
     </div>
   </div>
 </template>
@@ -114,18 +102,6 @@ function openInstances(): void {
   margin: 0 auto;
   padding: 28px 32px calc(36px + var(--app-nav-overlay-bottom-inset))
     calc(32px + var(--app-nav-overlay-start-inset));
-}
-
-/* 一行部件：行内等宽分布；行尾落单的半宽部件也会占满整行。 */
-.dashboard__row {
-  display: flex;
-  gap: 22px;
-  min-width: 0;
-}
-
-.dashboard__row > * {
-  flex: 1 1 0;
-  min-width: 0;
 }
 
 .hero {
@@ -246,10 +222,6 @@ function openInstances(): void {
   .dashboard__body {
     padding: 18px 18px calc(28px + var(--app-nav-overlay-bottom-inset))
       calc(18px + var(--app-nav-overlay-start-inset));
-  }
-
-  .dashboard__row {
-    flex-direction: column;
   }
 
   .hero {

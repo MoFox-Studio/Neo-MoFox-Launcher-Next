@@ -58,7 +58,7 @@ useWindowTitle({ title: '设置', subtitle: '调整启动器的外观、行为�
       </nav>
       <div class="settings-sidebar__status">
         <span class="msr settings-sidebar__status-icon" aria-hidden="true">cloud_done</span>
-        <span>自动保存</span>
+        <span>{{ activeTab === 'home' ? '布局在编辑器中保存' : '自动保存' }}</span>
       </div>
     </aside>
 

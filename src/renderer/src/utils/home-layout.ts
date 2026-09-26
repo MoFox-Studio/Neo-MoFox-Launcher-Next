@@ -1,50 +1,101 @@
-/**
- * 主页小部件的行布局分组工具。
- *
- * 「半宽」部件按顺序两两并排成行，「全宽」部件独占一行；行尾落单的
- * 半宽部件仍占满整行。布局仅依赖部件跨度，保持纯函数以便测试。
- */
-
-/** 部件在行布局中的跨度。 */
+/** Renderer-only geometry shared by the dashboard and layout editor. */
 export type WidgetSpan = 'half' | 'full';
-
-/** 参与布局分组的最小部件描述。 */
-export interface SpannedWidget {
-  id: string;
+export type WidgetHeight = 'half' | 'full' | 'tall';
+export interface WidgetGeometry {
   span: WidgetSpan;
+  height: WidgetHeight;
+  solo: boolean;
+  side: 'left' | 'right';
 }
-
-/** 一行部件；`single` 为 true 时该行只有一个部件并占满整行。 */
-export interface HomeWidgetRowLayout<T extends SpannedWidget> {
-  items: T[];
-  single: boolean;
+export interface SpannedWidget extends WidgetGeometry {
+  id: string;
 }
+export const WIDGET_HEIGHTS: Record<WidgetHeight, number> = { half: 180, full: 360, tall: 540 };
+export const HOME_LAYOUT_KEY = 'mofox.home.geometry.v1';
+export type HomeGeometry = Record<string, WidgetGeometry>;
 
-/**
- * 将有序部件列表分组为行布局。
- *
- * @param widgets - 按展示顺序排列的部件描述。
- * @returns 行列表；相邻的半宽部件合并为同一行，其余独占一行。
- */
-export function groupWidgetRows<T extends SpannedWidget>(
-  widgets: readonly T[],
-): Array<HomeWidgetRowLayout<T>> {
-  const rows: Array<HomeWidgetRowLayout<T>> = [];
-  let pending: T[] = [];
-  const flush = (): void => {
-    if (pending.length === 0) return;
-    rows.push({ items: pending, single: pending.length === 1 });
-    pending = [];
+export function defaultGeometry(id: string): WidgetGeometry {
+  return {
+    span: ['clock', 'quotes', 'docs'].includes(id) ? 'half' : 'full',
+    height: ['favorites', 'changelog', 'docs'].includes(id) ? 'full' : 'half',
+    solo: false,
+    side: 'left',
   };
-  for (const widget of widgets) {
-    if (widget.span === 'half') {
-      pending.push(widget);
-      if (pending.length === 2) flush();
-    } else {
-      flush();
-      rows.push({ items: [widget], single: true });
+}
+
+export function normalizeGeometry(source: unknown, ids: readonly string[]): HomeGeometry {
+  const record = source && typeof source === 'object' ? (source as Record<string, unknown>) : {};
+  return Object.fromEntries(
+    ids.map((id) => {
+      const raw = record[id];
+      const value = raw && typeof raw === 'object' ? (raw as Partial<WidgetGeometry>) : {};
+      const defaults = defaultGeometry(id);
+      return [
+        id,
+        {
+          span: value.span === 'half' || value.span === 'full' ? value.span : defaults.span,
+          height:
+            value.height === 'half' || value.height === 'full' || value.height === 'tall'
+              ? value.height
+              : defaults.height,
+          solo: value.solo === true,
+          side: value.side === 'right' ? 'right' : 'left',
+        },
+      ];
+    }),
+  );
+}
+
+export interface WidgetPlacement<T> {
+  widget: T;
+  top: number;
+  height: number;
+  column: number;
+  columns: number;
+}
+
+/** The opposite stack never exceeds its anchor. Stacked tiles touch vertically
+ * so half + full fits tall exactly. Bands and columns retain a 16px gutter. */
+export function placeWidgets<T extends SpannedWidget>(widgets: readonly T[]): WidgetPlacement<T>[] {
+  const placed: WidgetPlacement<T>[] = [];
+  let top = 0;
+  for (let index = 0; index < widgets.length;) {
+    const anchor = widgets[index++]!;
+    const height = WIDGET_HEIGHTS[anchor.height];
+    const column = anchor.side === 'right' ? 2 : 1;
+    placed.push({
+      widget: anchor,
+      top,
+      height,
+      column: anchor.span === 'full' ? 1 : column,
+      columns: anchor.span === 'full' ? 2 : 1,
+    });
+    if (anchor.span === 'half' && !anchor.solo) {
+      let used = 0;
+      while (index < widgets.length) {
+        const next = widgets[index]!;
+        const nextHeight = WIDGET_HEIGHTS[next.height];
+        if (next.span === 'full' || next.solo || used + nextHeight > height) break;
+        placed.push({
+          widget: next,
+          top: top + used,
+          height: nextHeight,
+          column: column === 1 ? 2 : 1,
+          columns: 1,
+        });
+        used += nextHeight;
+        index++;
+      }
     }
+    top += height + 16;
   }
-  flush();
-  return rows;
+  return placed;
+}
+
+export function placementStyle(placement: WidgetPlacement<SpannedWidget>) {
+  return {
+    gridColumn: `${placement.column} / span ${placement.columns}`,
+    gridRow: `${placement.top + 1} / span ${placement.height}`,
+    '--widget-height': `${placement.height}px`,
+  };
 }
