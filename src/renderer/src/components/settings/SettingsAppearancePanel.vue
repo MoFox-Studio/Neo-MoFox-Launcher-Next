@@ -596,7 +596,7 @@ function onLanguageChange(event: Event): void {
         </div>
 
         <div class="settings-item">
-          <span class="msr settings-item__icon">blur</span>
+          <span class="msr settings-item__icon">blur_on</span>
           <div class="settings-item__body">
             <span class="settings-item__label">系统模糊效果</span>
             <span class="settings-item__desc">
