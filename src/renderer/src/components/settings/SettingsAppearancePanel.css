@@ -1,162 +1,24 @@
-.appearance-panel {
-  width: 100%;
-  max-width: 920px;
-  margin: 0 auto;
-  color: var(--md-sys-color-on-surface);
-}
+/* 外观面板专属控件样式；卡片与设置行结构复用 settings-panel.css。 */
 
-.appearance-panel__header {
-  display: flex;
+/* 堆叠型设置条目：色板网格、预览等内容在标签下方展开。 */
+.settings-item--stack {
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 20px;
-  padding: 4px 4px 0;
 }
 
-.appearance-panel__header h2,
-.appearance-panel__header p,
-.appearance-card__heading h3,
-.appearance-card__heading p {
-  margin: 0;
+.settings-item--stack .settings-item__body {
+  min-width: 0;
 }
 
-.appearance-panel__header h2 {
-  font: var(--md-sys-typescale-headline-small);
+.source-grid,
+.seed-colors,
+.palette-grid,
+.density-grid,
+.motion-grid,
+.wallpaper-preview {
+  margin-top: 10px;
 }
 
-.appearance-panel__header p,
-.appearance-card__heading p {
-  margin-top: 4px;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-medium);
-}
-
-.active-theme-chip {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  gap: 8px;
-  min-height: 36px;
-  padding: 6px 12px 6px 8px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container);
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-label-large);
-}
-
-.active-theme-chip__color {
-  width: 22px;
-  height: 22px;
-  border: 2px solid var(--md-sys-color-surface);
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--md-sys-color-outline-variant);
-}
-
-.appearance-stack {
-  display: grid;
-  gap: var(--app-density-section-gap);
-}
-
-.appearance-card {
-  overflow: hidden;
-  border: 1px solid var(--app-glass-border);
-  border-radius: var(--md-sys-shape-corner-extra-large);
-  background: var(--app-glass-card);
-  box-shadow: var(--app-glass-card-shadow);
-  backdrop-filter: var(--app-glass-card-filter);
-  -webkit-backdrop-filter: var(--app-glass-card-filter);
-}
-
-.appearance-card__heading {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 20px 22px 14px;
-}
-
-.appearance-card__heading > .msr {
-  color: var(--md-sys-color-primary);
-  font-size: 26px;
-}
-
-.appearance-card__heading h3 {
-  font: var(--md-sys-typescale-title-large);
-}
-
-.segmented-column {
-  display: grid;
-  gap: 3px;
-  padding: 0 10px 10px;
-}
-
-.setting-row,
-.setting-block,
-.wallpaper-block {
-  border-radius: 7px;
-  background: var(--app-glass-row);
-  transition: background-color var(--md-sys-motion-duration-short4)
-    var(--md-sys-motion-easing-standard);
-}
-
-.segmented-column > :first-child {
-  border-radius: 18px 18px 7px 7px;
-}
-
-.segmented-column > :last-child {
-  border-radius: 7px 7px 18px 18px;
-}
-
-.segmented-column > :only-child {
-  border-radius: 18px;
-}
-
-.setting-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  min-height: var(--app-density-row-min-height);
-  padding: var(--app-density-row-padding-block) 18px;
-}
-
-.setting-row__copy {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 180px;
-}
-
-.setting-row__label {
-  font: var(--md-sys-typescale-body-large);
-}
-
-.setting-row__description,
-.setting-block__hint {
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-small);
-}
-
-.setting-row__error {
-  margin-top: 4px;
-  color: var(--md-sys-color-error);
-  font: var(--md-sys-typescale-body-small);
-}
-
-.setting-block,
-.wallpaper-block {
-  padding: 16px 18px 18px;
-}
-
-.setting-block__title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
-  font: var(--md-sys-typescale-body-large);
-}
-
+/* 分段选择控件 */
 .choice-segment {
   display: flex;
   overflow: hidden;
@@ -193,8 +55,8 @@
   font-size: 18px;
 }
 
-.source-grid,
-.density-grid {
+/* 颜色来源 */
+.source-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
@@ -240,29 +102,17 @@
 }
 
 .source-option strong,
-.source-option small,
 .palette-option strong,
-.palette-option small,
 .motion-option strong,
-.motion-option small,
-.density-option strong,
-.range-row strong,
-.range-row small {
+.density-option strong {
   display: block;
-}
-
-.source-option strong,
-.palette-option strong,
-.motion-option strong,
-.density-option strong,
-.range-row strong {
   font: var(--md-sys-typescale-label-large);
 }
 
 .source-option small,
 .palette-option small,
-.motion-option small,
-.range-row small {
+.motion-option small {
+  display: block;
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
 }
@@ -272,6 +122,7 @@
   font-size: 20px;
 }
 
+/* 内联提示 */
 .inline-note {
   display: flex;
   align-items: center;
@@ -285,6 +136,7 @@
   font-size: 17px;
 }
 
+/* 种子色 */
 .seed-colors {
   display: flex;
   flex-wrap: wrap;
@@ -329,6 +181,7 @@
   cursor: pointer;
 }
 
+/* 调色板风格 */
 .palette-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -383,26 +236,12 @@
   color: inherit;
 }
 
-.wallpaper-actions,
-.visual-choice {
+/* 壁纸操作与预览 */
+.wallpaper-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
-}
-
-.text-action,
-.icon-action {
-  border: 0;
-  background: transparent;
-  color: var(--md-sys-color-primary);
-  cursor: pointer;
-}
-
-.text-action {
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: var(--md-sys-shape-corner-full);
-  font: var(--md-sys-typescale-label-large);
 }
 
 .icon-action {
@@ -410,14 +249,13 @@
   place-items: center;
   width: 40px;
   height: 40px;
+  border: 0;
   border-radius: 50%;
-}
-
-.icon-action--danger {
+  background: transparent;
   color: var(--md-sys-color-error);
+  cursor: pointer;
 }
 
-.text-action:disabled,
 .icon-action:disabled {
   cursor: not-allowed;
   opacity: 0.38;
@@ -481,85 +319,36 @@
   grid-row: 1 / -1;
 }
 
-.wallpaper-sliders {
-  display: grid;
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.wallpaper-sliders--disabled {
-  opacity: 0.48;
-}
-
-.range-row {
-  display: grid;
-  grid-template-columns: 28px 130px minmax(120px, 1fr) 48px;
+/* 滑条控制 */
+.range-control {
+  display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 10px;
-  min-height: 48px;
 }
 
-.range-row__icon {
-  color: var(--md-sys-color-primary);
-  font-size: 20px;
-}
-
-.range-row input {
-  width: 100%;
+.range-control input {
+  width: 160px;
   accent-color: var(--md-sys-color-primary);
 }
 
-.range-row output {
+.range-control input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.range-control output {
+  min-width: 48px;
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-label-medium);
   text-align: right;
 }
 
-/* 开关控件：与 SettingsView 的 md-switch 保持同一视觉规格。 */
-.md-switch {
-  flex: 0 0 auto;
-  width: 52px;
-  height: 32px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-highest);
-  border: 2px solid var(--md-sys-color-outline);
-  position: relative;
-  cursor: pointer;
-  transition:
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.md-switch__thumb {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-on-surface-variant);
-  transform: translate(0, -50%) scale(0.6667);
-  transform-origin: center;
-  transition:
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.md-switch--checked {
-  background: var(--md-sys-color-primary);
-  border-color: var(--md-sys-color-primary);
-}
-
-.md-switch--checked .md-switch__thumb {
-  background: var(--md-sys-color-on-primary);
-  transform: translate(20px, -50%) scale(1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .md-switch__thumb {
-    transition: background-color var(--md-sys-motion-duration-short4)
-      var(--md-sys-motion-easing-standard);
-  }
+/* 导航、密度与动态效果选项 */
+.visual-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .visual-choice__button,
@@ -583,6 +372,12 @@
 
 .visual-choice__button .msr {
   font-size: 20px;
+}
+
+.density-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .density-option {
@@ -619,6 +414,7 @@
   font-size: 20px;
 }
 
+/* 界面语言 */
 .native-select {
   min-width: 150px;
   height: var(--app-density-control-height);
@@ -640,28 +436,9 @@
   .palette-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .setting-row {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .choice-segment,
-  .visual-choice {
-    width: 100%;
-  }
-
-  .choice-segment__button,
-  .visual-choice__button {
-    flex: 1;
-  }
 }
 
 @media (max-width: 560px) {
-  .appearance-panel__header {
-    flex-direction: column;
-  }
-
   .source-grid,
   .palette-grid,
   .density-grid,
@@ -671,13 +448,5 @@
 
   .choice-segment__button .msr {
     display: none;
-  }
-
-  .range-row {
-    grid-template-columns: 26px 1fr 46px;
-  }
-
-  .range-row input {
-    grid-column: 2 / -1;
   }
 }

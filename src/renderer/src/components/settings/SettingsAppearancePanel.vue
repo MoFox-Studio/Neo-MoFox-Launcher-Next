@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 外观面板：主题、颜色、壁纸与布局设置，直接绑定设置仓库并实时预览主题方案。
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import type {
@@ -234,56 +235,45 @@ function onLanguageChange(event: Event): void {
 </script>
 
 <template>
-  <section class="appearance-panel">
-    <header class="appearance-panel__header">
-      <div>
-        <h2>个性化</h2>
-        <p>颜色、背景、布局与动态效果会即时应用并自动保存。</p>
+  <section class="settings-group">
+    <!-- 颜色与主题 -->
+    <section class="settings-group__card">
+      <div class="settings-group__heading">
+        <span class="msr">palette</span>
+        <div>
+          <h2>颜色与主题</h2>
+          <p>由种子色生成完整的 Material 3 配色</p>
+        </div>
       </div>
-      <div class="active-theme-chip">
-        <span class="active-theme-chip__color" :style="{ background: effectiveSeedColor }"></span>
-        <span>{{ paletteStyles.find((item) => item.id === settings.paletteStyle)?.label }}</span>
-      </div>
-    </header>
-
-    <div class="appearance-stack">
-      <section class="appearance-card">
-        <div class="appearance-card__heading">
-          <span class="msr">palette</span>
-          <div>
-            <h3>颜色与主题</h3>
-            <p>由种子色生成完整的 Material 3 配色。</p>
+      <div class="settings-group__body">
+        <div class="settings-item">
+          <span class="msr settings-item__icon">brightness_auto</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">主题模式</span>
+            <span class="settings-item__desc">选择明暗外观</span>
+          </div>
+          <div class="choice-segment" role="radiogroup" aria-label="主题模式">
+            <button
+              v-for="option in themeModes"
+              :key="option.id"
+              class="choice-segment__button state-layer"
+              :class="{ 'choice-segment__button--selected': settings.themeMode === option.id }"
+              type="button"
+              role="radio"
+              :aria-checked="settings.themeMode === option.id"
+              @click="update({ themeMode: option.id })"
+            >
+              <span class="msr">{{ option.icon }}</span>
+              <span>{{ option.label }}</span>
+            </button>
           </div>
         </div>
 
-        <div class="segmented-column">
-          <div class="setting-row">
-            <div class="setting-row__copy">
-              <span class="setting-row__label">主题模式</span>
-              <span class="setting-row__description">选择明暗外观</span>
-            </div>
-            <div class="choice-segment" role="radiogroup" aria-label="主题模式">
-              <button
-                v-for="option in themeModes"
-                :key="option.id"
-                class="choice-segment__button state-layer"
-                :class="{ 'choice-segment__button--selected': settings.themeMode === option.id }"
-                type="button"
-                role="radio"
-                :aria-checked="settings.themeMode === option.id"
-                @click="update({ themeMode: option.id })"
-              >
-                <span class="msr">{{ option.icon }}</span>
-                <span>{{ option.label }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="setting-block">
-            <div class="setting-block__title">
-              <span>颜色来源</span>
-              <span class="setting-block__hint">当前 {{ effectiveSeedColor.toUpperCase() }}</span>
-            </div>
+        <div class="settings-item settings-item--stack">
+          <span class="msr settings-item__icon">colorize</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">颜色来源</span>
+            <span class="settings-item__desc">当前 {{ effectiveSeedColor.toUpperCase() }}</span>
             <div class="source-grid" role="radiogroup" aria-label="主题颜色来源">
               <button
                 v-for="source in colorSources"
@@ -313,13 +303,17 @@ function onLanguageChange(event: Event): void {
               <span class="msr">info</span> 当前平台未提供系统强调色，已自动使用手动颜色兜底。
             </p>
           </div>
+        </div>
 
-          <!-- 颜色来源切换时直接替换区块，不做过渡动画，避免进出同时发生引起闪跳。 -->
-          <div v-if="settings.themeColorSource === 'manual'" class="setting-block">
-            <div class="setting-block__title">
-              <span>手动种子色</span>
-              <span class="setting-block__hint">{{ settings.seedColor.toUpperCase() }}</span>
-            </div>
+        <!-- 颜色来源切换时直接替换区块，不做过渡动画，避免进出同时发生引起闪跳。 -->
+        <div
+          v-if="settings.themeColorSource === 'manual'"
+          class="settings-item settings-item--stack"
+        >
+          <span class="msr settings-item__icon">format_color_fill</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">手动种子色</span>
+            <span class="settings-item__desc">{{ settings.seedColor.toUpperCase() }}</span>
             <div class="seed-colors">
               <button
                 v-for="color in presetColors"
@@ -345,16 +339,20 @@ function onLanguageChange(event: Event): void {
               </label>
             </div>
           </div>
+        </div>
 
-          <div v-if="settings.themeColorSource === 'wallpaper'" class="setting-block">
-            <div class="setting-block__title">
-              <span>壁纸取色盘</span>
-              <span class="setting-block__hint">{{
-                settings.wallpaperSeedColor
-                  ? settings.wallpaperSeedColor.toUpperCase()
-                  : '取自当前壁纸'
-              }}</span>
-            </div>
+        <div
+          v-if="settings.themeColorSource === 'wallpaper'"
+          class="settings-item settings-item--stack"
+        >
+          <span class="msr settings-item__icon">photo_library</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">壁纸取色盘</span>
+            <span class="settings-item__desc">{{
+              settings.wallpaperSeedColor
+                ? settings.wallpaperSeedColor.toUpperCase()
+                : '取自当前壁纸'
+            }}</span>
             <div v-if="wallpaperColors.length" class="seed-colors">
               <button
                 v-for="(color, index) in wallpaperColors"
@@ -381,12 +379,13 @@ function onLanguageChange(event: Event): void {
               <span class="msr">info</span> 导入或更换壁纸后，这里会给出壁纸的取色结果。
             </p>
           </div>
+        </div>
 
-          <div class="setting-block">
-            <div class="setting-block__title">
-              <span>调色板风格</span>
-              <span class="setting-block__hint">九种 Material 动态方案</span>
-            </div>
+        <div class="settings-item settings-item--stack">
+          <span class="msr settings-item__icon">style</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">调色板风格</span>
+            <span class="settings-item__desc">九种 Material 动态方案</span>
             <div class="palette-grid" role="radiogroup" aria-label="调色板风格">
               <button
                 v-for="preview in palettePreviews"
@@ -420,73 +419,82 @@ function onLanguageChange(event: Event): void {
               </button>
             </div>
           </div>
-
-          <div class="setting-row">
-            <div class="setting-row__copy">
-              <span class="setting-row__label">颜色对比度</span>
-              <span class="setting-row__description">提高文字与表面的可辨识度</span>
-            </div>
-            <div class="choice-segment" role="radiogroup" aria-label="颜色对比度">
-              <button
-                v-for="option in contrastOptions"
-                :key="option.id"
-                class="choice-segment__button state-layer"
-                :class="{
-                  'choice-segment__button--selected': settings.themeContrast === option.id,
-                }"
-                type="button"
-                role="radio"
-                :aria-checked="settings.themeContrast === option.id"
-                @click="update({ themeContrast: option.id })"
-              >
-                {{ option.label }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="appearance-card">
-        <div class="appearance-card__heading">
-          <span class="msr">wallpaper</span>
-          <div>
-            <h3>背景与表面</h3>
-            <p>分别控制壁纸模糊、压暗层和内容表面透明度。</p>
-          </div>
         </div>
 
-        <div class="segmented-column">
-          <div class="setting-row setting-row--top">
-            <div class="setting-row__copy">
-              <span class="setting-row__label">应用壁纸</span>
-              <span class="setting-row__description">
-                JPG、PNG、WebP 不超过 10 MiB；MP4、WebM 不超过 50 MiB
-              </span>
-              <span v-if="wallpaperError" class="setting-row__error">{{ wallpaperError }}</span>
-            </div>
-            <div class="wallpaper-actions">
-              <button
-                class="text-action state-layer"
-                type="button"
-                :disabled="wallpaperBusy"
-                @click="selectWallpaper"
-              >
-                {{ wallpaperBusy ? '正在导入' : hasWallpaper ? '更换' : '选择壁纸' }}
-              </button>
-              <button
-                v-if="hasWallpaper"
-                class="icon-action icon-action--danger state-layer"
-                type="button"
-                aria-label="删除壁纸"
-                :disabled="wallpaperBusy"
-                @click="removeWallpaper"
-              >
-                <span class="msr">delete</span>
-              </button>
-            </div>
+        <div class="settings-item">
+          <span class="msr settings-item__icon">contrast</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">颜色对比度</span>
+            <span class="settings-item__desc">提高文字与表面的可辨识度</span>
           </div>
+          <div class="choice-segment" role="radiogroup" aria-label="颜色对比度">
+            <button
+              v-for="option in contrastOptions"
+              :key="option.id"
+              class="choice-segment__button state-layer"
+              :class="{ 'choice-segment__button--selected': settings.themeContrast === option.id }"
+              type="button"
+              role="radio"
+              :aria-checked="settings.themeContrast === option.id"
+              @click="update({ themeContrast: option.id })"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
 
-          <div class="wallpaper-block">
+    <!-- 背景与表面 -->
+    <section class="settings-group__card">
+      <div class="settings-group__heading">
+        <span class="msr">wallpaper</span>
+        <div>
+          <h2>背景与表面</h2>
+          <p>分别控制壁纸模糊、压暗层和内容表面透明度</p>
+        </div>
+      </div>
+      <div class="settings-group__body">
+        <div class="settings-item">
+          <span class="msr settings-item__icon">add_photo_alternate</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">应用壁纸</span>
+            <span class="settings-item__desc">
+              JPG、PNG、WebP 不超过 10 MiB；MP4、WebM 不超过 50 MiB
+            </span>
+          </div>
+          <div class="wallpaper-actions">
+            <button
+              class="text-button state-layer"
+              type="button"
+              :disabled="wallpaperBusy"
+              @click="selectWallpaper"
+            >
+              {{ wallpaperBusy ? '正在导入' : hasWallpaper ? '更换' : '选择壁纸' }}
+            </button>
+            <button
+              v-if="hasWallpaper"
+              class="icon-action icon-action--danger state-layer"
+              type="button"
+              aria-label="删除壁纸"
+              :disabled="wallpaperBusy"
+              @click="removeWallpaper"
+            >
+              <span class="msr">delete</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="wallpaperError" class="settings-note settings-note--error">
+          <span class="msr settings-note__icon">error</span>
+          <span>{{ wallpaperError }}</span>
+        </div>
+
+        <div class="settings-item settings-item--stack">
+          <span class="msr settings-item__icon">wallpaper</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">壁纸预览</span>
+            <span class="settings-item__desc">实时呈现模糊、压暗与内容表面效果</span>
             <div class="wallpaper-preview" :class="{ 'wallpaper-preview--empty': !hasWallpaper }">
               <img
                 v-if="hasWallpaper && settings.wallpaperType === 'image'"
@@ -521,148 +529,162 @@ function onLanguageChange(event: Event): void {
                 <span></span><span></span><span></span>
               </div>
             </div>
-
-            <div
-              class="wallpaper-sliders"
-              :class="{ 'wallpaper-sliders--disabled': !hasWallpaper }"
-            >
-              <label class="range-row">
-                <span class="range-row__icon msr">blur_on</span>
-                <span class="range-row__copy"
-                  ><strong>壁纸模糊</strong><small>只模糊媒体层</small></span
-                >
-                <input
-                  type="range"
-                  min="0"
-                  max="20"
-                  step="1"
-                  :value="settings.wallpaperBlur"
-                  :disabled="!hasWallpaper || wallpaperBusy"
-                  @input="updateRange('wallpaperBlur', $event, 0, 20)"
-                />
-                <output>{{ settings.wallpaperBlur }} px</output>
-              </label>
-              <label class="range-row">
-                <span class="range-row__icon msr">dark_mode</span>
-                <span class="range-row__copy"
-                  ><strong>背景压暗</strong><small>增加黑色遮罩</small></span
-                >
-                <input
-                  type="range"
-                  min="0"
-                  max="0.8"
-                  step="0.05"
-                  :value="settings.wallpaperDim"
-                  :disabled="!hasWallpaper || wallpaperBusy"
-                  @input="updateRange('wallpaperDim', $event, 0, 0.8)"
-                />
-                <output>{{ Math.round(settings.wallpaperDim * 100) }}%</output>
-              </label>
-              <label class="range-row">
-                <span class="range-row__icon msr">layers</span>
-                <span class="range-row__copy"
-                  ><strong>内容表面</strong><small>控制前景不透明度</small></span
-                >
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  :value="settings.wallpaperOpacity"
-                  :disabled="!hasWallpaper || wallpaperBusy"
-                  @input="updateRange('wallpaperOpacity', $event, 0, 1)"
-                />
-                <output>{{ Math.round(settings.wallpaperOpacity * 100) }}%</output>
-              </label>
-            </div>
-          </div>
-
-          <div class="setting-row">
-            <div class="setting-row__copy">
-              <span class="setting-row__label">系统模糊效果</span>
-              <span class="setting-row__description">
-                无壁纸时启用 Mica 与系统原生模糊材质；关闭后使用纯色背景
-              </span>
-            </div>
-            <div
-              class="md-switch"
-              role="switch"
-              :aria-checked="settings.systemBackdrop"
-              :class="{ 'md-switch--checked': settings.systemBackdrop }"
-              @click="update({ systemBackdrop: !settings.systemBackdrop })"
-            >
-              <div class="md-switch__thumb"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="appearance-card">
-        <div class="appearance-card__heading">
-          <span class="msr">dashboard_customize</span>
-          <div>
-            <h3>布局与动态效果</h3>
-            <p>调整主导航、内容密度和全局动画节奏。</p>
           </div>
         </div>
 
-        <div class="segmented-column">
-          <div class="setting-row">
-            <div class="setting-row__copy">
-              <span class="setting-row__label">导航位置</span>
-              <span class="setting-row__description">在侧边栏和底栏之间切换</span>
-            </div>
-            <div class="visual-choice" role="radiogroup" aria-label="导航位置">
-              <button
-                v-for="option in [
-                  { id: 'side', label: '侧边', icon: 'left_panel_open' },
-                  { id: 'bottom', label: '底部', icon: 'bottom_panel_open' },
-                ] as Array<{ id: NavigationPosition; label: string; icon: string }>"
-                :key="option.id"
-                class="visual-choice__button state-layer"
-                :class="{
-                  'visual-choice__button--selected': settings.navigationPosition === option.id,
-                }"
-                type="button"
-                role="radio"
-                :aria-checked="settings.navigationPosition === option.id"
-                @click="update({ navigationPosition: option.id })"
-              >
-                <span class="msr">{{ option.icon }}</span
-                >{{ option.label }}
-              </button>
-            </div>
+        <div class="settings-item">
+          <span class="msr settings-item__icon">blur_on</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">壁纸模糊</span>
+            <span class="settings-item__desc">只模糊媒体层</span>
           </div>
-
-          <div class="setting-row">
-            <div class="setting-row__copy">
-              <span class="setting-row__label">导航表面</span>
-              <span class="setting-row__description">贴边显示，或使用与窗口分离的居中胶囊</span>
-            </div>
-            <div class="visual-choice" role="radiogroup" aria-label="导航表面">
-              <button
-                v-for="option in [
-                  { id: 'standard', label: '标准', icon: 'web_asset' },
-                  { id: 'floating', label: '悬浮', icon: 'select_window' },
-                ] as Array<{ id: NavigationStyle; label: string; icon: string }>"
-                :key="option.id"
-                class="visual-choice__button state-layer"
-                :class="{
-                  'visual-choice__button--selected': settings.navigationStyle === option.id,
-                }"
-                type="button"
-                role="radio"
-                :aria-checked="settings.navigationStyle === option.id"
-                @click="update({ navigationStyle: option.id })"
-              >
-                <span class="msr">{{ option.icon }}</span
-                >{{ option.label }}
-              </button>
-            </div>
+          <div class="range-control">
+            <input
+              type="range"
+              min="0"
+              max="20"
+              step="1"
+              :value="settings.wallpaperBlur"
+              :disabled="!hasWallpaper || wallpaperBusy"
+              aria-label="壁纸模糊"
+              @input="updateRange('wallpaperBlur', $event, 0, 20)"
+            />
+            <output>{{ settings.wallpaperBlur }} px</output>
           </div>
+        </div>
 
-          <div class="setting-block">
-            <div class="setting-block__title"><span>界面密度</span></div>
+        <div class="settings-item">
+          <span class="msr settings-item__icon">dark_mode</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">背景压暗</span>
+            <span class="settings-item__desc">增加黑色遮罩</span>
+          </div>
+          <div class="range-control">
+            <input
+              type="range"
+              min="0"
+              max="0.8"
+              step="0.05"
+              :value="settings.wallpaperDim"
+              :disabled="!hasWallpaper || wallpaperBusy"
+              aria-label="背景压暗"
+              @input="updateRange('wallpaperDim', $event, 0, 0.8)"
+            />
+            <output>{{ Math.round(settings.wallpaperDim * 100) }}%</output>
+          </div>
+        </div>
+
+        <div class="settings-item">
+          <span class="msr settings-item__icon">layers</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">内容表面</span>
+            <span class="settings-item__desc">控制前景不透明度</span>
+          </div>
+          <div class="range-control">
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="settings.wallpaperOpacity"
+              :disabled="!hasWallpaper || wallpaperBusy"
+              aria-label="内容表面"
+              @input="updateRange('wallpaperOpacity', $event, 0, 1)"
+            />
+            <output>{{ Math.round(settings.wallpaperOpacity * 100) }}%</output>
+          </div>
+        </div>
+
+        <div class="settings-item">
+          <span class="msr settings-item__icon">blur</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">系统模糊效果</span>
+            <span class="settings-item__desc">
+              无壁纸时启用 Mica 与系统原生模糊材质；关闭后使用纯色背景
+            </span>
+          </div>
+          <div
+            class="md-switch"
+            role="switch"
+            :aria-checked="settings.systemBackdrop"
+            :class="{ 'md-switch--checked': settings.systemBackdrop }"
+            @click="update({ systemBackdrop: !settings.systemBackdrop })"
+          >
+            <div class="md-switch__thumb"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 布局与动态效果 -->
+    <section class="settings-group__card">
+      <div class="settings-group__heading">
+        <span class="msr">dashboard_customize</span>
+        <div>
+          <h2>布局与动态效果</h2>
+          <p>调整主导航、内容密度和全局动画节奏</p>
+        </div>
+      </div>
+      <div class="settings-group__body">
+        <div class="settings-item">
+          <span class="msr settings-item__icon">swap_horiz</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">导航位置</span>
+            <span class="settings-item__desc">在侧边栏和底栏之间切换</span>
+          </div>
+          <div class="visual-choice" role="radiogroup" aria-label="导航位置">
+            <button
+              v-for="option in [
+                { id: 'side', label: '侧边', icon: 'left_panel_open' },
+                { id: 'bottom', label: '底部', icon: 'bottom_panel_open' },
+              ] as Array<{ id: NavigationPosition; label: string; icon: string }>"
+              :key="option.id"
+              class="visual-choice__button state-layer"
+              :class="{
+                'visual-choice__button--selected': settings.navigationPosition === option.id,
+              }"
+              type="button"
+              role="radio"
+              :aria-checked="settings.navigationPosition === option.id"
+              @click="update({ navigationPosition: option.id })"
+            >
+              <span class="msr">{{ option.icon }}</span
+              >{{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-item">
+          <span class="msr settings-item__icon">web_asset</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">导航表面</span>
+            <span class="settings-item__desc">贴边显示，或使用与窗口分离的居中胶囊</span>
+          </div>
+          <div class="visual-choice" role="radiogroup" aria-label="导航表面">
+            <button
+              v-for="option in [
+                { id: 'standard', label: '标准', icon: 'web_asset' },
+                { id: 'floating', label: '悬浮', icon: 'select_window' },
+              ] as Array<{ id: NavigationStyle; label: string; icon: string }>"
+              :key="option.id"
+              class="visual-choice__button state-layer"
+              :class="{ 'visual-choice__button--selected': settings.navigationStyle === option.id }"
+              type="button"
+              role="radio"
+              :aria-checked="settings.navigationStyle === option.id"
+              @click="update({ navigationStyle: option.id })"
+            >
+              <span class="msr">{{ option.icon }}</span
+              >{{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-item settings-item--stack">
+          <span class="msr settings-item__icon">density_medium</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">界面密度</span>
+            <span class="settings-item__desc">调整列表与内容的紧凑程度</span>
             <div class="density-grid" role="radiogroup" aria-label="界面密度">
               <button
                 v-for="option in densityOptions"
@@ -679,9 +701,13 @@ function onLanguageChange(event: Event): void {
               </button>
             </div>
           </div>
+        </div>
 
-          <div class="setting-block">
-            <div class="setting-block__title"><span>动态效果</span></div>
+        <div class="settings-item settings-item--stack">
+          <span class="msr settings-item__icon">animation</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">动态效果</span>
+            <span class="settings-item__desc">全局动画与视频壁纸的表现</span>
             <div class="motion-grid" role="radiogroup" aria-label="动态效果">
               <button
                 v-for="option in motionOptions"
@@ -701,21 +727,23 @@ function onLanguageChange(event: Event): void {
               </button>
             </div>
           </div>
-
-          <label class="setting-row">
-            <div class="setting-row__copy">
-              <span class="setting-row__label">界面语言</span>
-              <span class="setting-row__description">部分页面仍在持续完善本地化</span>
-            </div>
-            <select class="native-select" :value="settings.language" @change="onLanguageChange">
-              <option value="zh-CN">简体中文</option>
-              <option value="en-US">English</option>
-            </select>
-          </label>
         </div>
-      </section>
-    </div>
+
+        <div class="settings-item">
+          <span class="msr settings-item__icon">translate</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">界面语言</span>
+            <span class="settings-item__desc">部分页面仍在持续完善本地化</span>
+          </div>
+          <select class="native-select" :value="settings.language" @change="onLanguageChange">
+            <option value="zh-CN">简体中文</option>
+            <option value="en-US">English</option>
+          </select>
+        </div>
+      </div>
+    </section>
   </section>
 </template>
 
-<style scoped src="./AppearanceSettings.css"></style>
+<style scoped src="./settings-panel.css"></style>
+<style scoped src="./SettingsAppearancePanel.css"></style>
