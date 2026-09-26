@@ -5,6 +5,7 @@ import type { LogEntry } from './domain/logger';
 import type { DownloadProgress } from './domain/download';
 import type {
   Instance,
+  InstanceFolderKind,
   InstanceIntegrityIssue,
   InstanceProcessSource,
   InstanceStats,
@@ -169,7 +170,8 @@ export interface MofoxApi {
   restartInstanceProcess(instanceId: string, source: InstanceProcessSource): Promise<void>;
   /** `mode` 为 `record` 时仅移除启动器记录，`files` 时连磁盘文件一起删除。 */
   removeInstance(instanceId: string, mode: InstanceRemovalMode): Promise<void>;
-  openInstanceFolder(instanceId: string): Promise<void>;
+  /** 在系统文件管理器中打开实例的某个文件夹；子目录缺失时由主进程按需创建。 */
+  openInstanceFolder(instanceId: string, kind: InstanceFolderKind): Promise<void>;
   /** 更新实例的可编辑配置字段，返回持久化后的最新实例。 */
   updateInstance(instanceId: string, patch: EditableInstancePatch): Promise<Instance>;
   getInstanceLogBuffer(instanceId: string, source: InstanceProcessSource): Promise<string>;

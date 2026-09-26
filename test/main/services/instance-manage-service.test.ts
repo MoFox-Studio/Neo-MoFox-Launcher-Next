@@ -452,8 +452,10 @@ describe('InstanceManageService', () => {
     await expect(access(join(platformInstallDir, 'index.mjs'))).resolves.toBeUndefined();
   });
 
-  it('opens the MoFox install directory in the file manager', async () => {
+  it('opens the requested instance folder in the file manager', async () => {
+    const root = await createTemporaryDirectory();
     const instance = createInstance();
+    instance.mofoxInstallDir = await createMofoxDirectory(root);
     const repository = createRepository(instance);
     const openPath = vi.fn(async () => undefined);
     const service = new InstanceManageService(
@@ -464,9 +466,96 @@ describe('InstanceManageService', () => {
       openPath,
     );
 
-    await service.openFolder('one');
+    await service.openFolder(instance.id, 'install');
+    await service.openFolder(instance.id, 'config');
+    await service.openFolder(instance.id, 'plugins');
+    await service.openFolder(instance.id, 'data');
 
-    expect(openPath).toHaveBeenCalledWith(instance.mofoxInstallDir);
+    expect(openPath).toHaveBeenNthCalledWith(1, instance.mofoxInstallDir);
+    expect(openPath).toHaveBeenNthCalledWith(2, join(instance.mofoxInstallDir, 'config'));
+    expect(openPath).toHaveBeenNthCalledWith(3, join(instance.mofoxInstallDir, 'plugins'));
+    expect(openPath).toHaveBeenNthCalledWith(4, join(instance.mofoxInstallDir, 'data'));
+    // 尚未生成的子目录在打开前按需创建，保证快捷打开始终可用。
+    await expect(access(join(instance.mofoxInstallDir, 'config'))).resolves.toBeUndefined();
+    await expect(access(join(instance.mofoxInstallDir, 'plugins'))).resolves.toBeUndefined();
+    await expect(access(join(instance.mofoxInstallDir, 'data'))).resolves.toBeUndefined();
+  });
+
+  it('rejects opening folders when the install directory is missing', async () => {
+    const root = await createTemporaryDirectory();
+    const instance = createInstance();
+    instance.mofoxInstallDir = join(root, 'missing');
+    const repository = createRepository(instance);
+    const openPath = vi.fn(async () => undefined);
+    const service = new InstanceManageService(
+      createRuntime(),
+      repository,
+      createPlatformResolver(),
+      vi.fn(async () => undefined),
+      openPath,
+    );
+
+    await expect(service.openFolder(instance.id, 'config')).rejects.toThrow('主程序目录不存在');
+    expect(openPath).not.toHaveBeenCalled();
+  });
+
+  it('opens the platform adapter directory when installed', async () => {
+    const root = await createTemporaryDirectory();
+    const instance = createInstance();
+    instance.mofoxInstallDir = await createMofoxDirectory(root);
+    instance.platform = {
+      id: 'test',
+      installDir: await createPlatformDirectory(root, 'platform'),
+      version: '1',
+    };
+    const repository = createRepository(instance);
+    const openPath = vi.fn(async () => undefined);
+    const service = new InstanceManageService(
+      createRuntime(),
+      repository,
+      createPlatformResolver(),
+      vi.fn(async () => undefined),
+      openPath,
+    );
+
+    await service.openFolder(instance.id, 'platform');
+
+    expect(openPath).toHaveBeenCalledWith(instance.platform.installDir);
+  });
+
+  it('rejects opening the platform folder when no platform is installed', async () => {
+    const instance = createInstance();
+    instance.platform = { id: null, installDir: null, version: null };
+    const repository = createRepository(instance);
+    const openPath = vi.fn(async () => undefined);
+    const service = new InstanceManageService(
+      createRuntime(),
+      repository,
+      createPlatformResolver(),
+      vi.fn(async () => undefined),
+      openPath,
+    );
+
+    await expect(service.openFolder(instance.id, 'platform')).rejects.toThrow('未安装平台适配器');
+    expect(openPath).not.toHaveBeenCalled();
+  });
+
+  it('rejects opening the platform folder when its directory is missing', async () => {
+    const root = await createTemporaryDirectory();
+    const instance = createInstance();
+    instance.platform = { id: 'test', installDir: join(root, 'gone'), version: '1' };
+    const repository = createRepository(instance);
+    const openPath = vi.fn(async () => undefined);
+    const service = new InstanceManageService(
+      createRuntime(),
+      repository,
+      createPlatformResolver(),
+      vi.fn(async () => undefined),
+      openPath,
+    );
+
+    await expect(service.openFolder(instance.id, 'platform')).rejects.toThrow('平台目录不存在');
+    expect(openPath).not.toHaveBeenCalled();
   });
 
   it('forwards update patches that do not touch paths', async () => {

@@ -51,7 +51,7 @@ describe('registerInstanceManageIpc', () => {
     registerInstanceManageIpc(ipcMain, actions);
 
     await handlers.get(IPC_INVOKE_CHANNELS.removeInstance)?.({}, 'one', 'files');
-    await handlers.get(IPC_INVOKE_CHANNELS.openInstanceFolder)?.({}, 'one');
+    await handlers.get(IPC_INVOKE_CHANNELS.openInstanceFolder)?.({}, 'one', 'plugins');
     const updated = (await handlers.get(IPC_INVOKE_CHANNELS.updateInstance)?.({}, 'one', {
       name: 'Renamed',
     })) as Instance;
@@ -62,9 +62,24 @@ describe('registerInstanceManageIpc', () => {
       IPC_INVOKE_CHANNELS.updateInstance,
     ]);
     expect(actions.remove).toHaveBeenCalledWith('one', 'files');
-    expect(actions.openFolder).toHaveBeenCalledWith('one');
+    expect(actions.openFolder).toHaveBeenCalledWith('one', 'plugins');
     expect(actions.update).toHaveBeenCalledWith('one', { name: 'Renamed' });
     expect(updated.name).toBe('One');
+  });
+
+  it('rejects an unknown folder kind before calling the service', async () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const ipcMain = {
+      handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
+        handlers.set(channel, handler),
+    };
+    const actions = createActions();
+    registerInstanceManageIpc(ipcMain, actions);
+
+    await expect(
+      handlers.get(IPC_INVOKE_CHANNELS.openInstanceFolder)?.({}, 'one', 'cache'),
+    ).rejects.toThrow('MOFOX_ERROR:');
+    expect(actions.openFolder).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown removal mode before calling the service', async () => {

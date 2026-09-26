@@ -358,7 +358,7 @@ export const mockApi: MofoxApi = {
     const idx = instances.findIndex((i) => i.id === id);
     if (idx >= 0) instances.splice(idx, 1);
   },
-  async openInstanceFolder() {},
+  async openInstanceFolder(_instanceId, _kind) {},
   async updateInstance(id, patch) {
     await delay(80);
     const ins = instances.find((i) => i.id === id);

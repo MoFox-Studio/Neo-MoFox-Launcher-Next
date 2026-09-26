@@ -31,7 +31,7 @@ describe('createMofoxApi', () => {
     await api.stopInstanceProcess('instance-1', 'platform');
     await api.restartInstanceProcess('instance-1', 'mofox');
     await api.removeInstance('instance-1', 'files');
-    await api.openInstanceFolder('instance-1');
+    await api.openInstanceFolder('instance-1', 'config');
     await api.updateInstance('instance-1', { name: 'Renamed' });
     await api.getInstanceLogBuffer('instance-1', 'mofox');
     await api.clearInstanceLogBuffer('instance-1', 'platform');

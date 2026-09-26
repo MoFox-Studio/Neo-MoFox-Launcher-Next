@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
-import type { Instance, InstalledPlatform, InstanceRemovalMode } from '@shared/domain/instance';
+import type {
+  Instance,
+  InstanceFolderKind,
+  InstalledPlatform,
+  InstanceRemovalMode,
+} from '@shared/domain/instance';
 import { mofoxApi } from '@/services/mofox-api';
 import { useInstancesStore } from '@/stores/instances';
 import BaseDialog from '@/components/BaseDialog.vue';
@@ -226,8 +231,74 @@ async function browseDirectory(target: 'mofox' | 'venv' | 'platform'): Promise<v
   }
 }
 
-async function openFolder(): Promise<void> {
-  await mofoxApi.openInstanceFolder(props.instance.id);
+/** 快捷打开的实例文件夹条目形状；`disabled` 为 true 时按钮置灰。 */
+interface FolderEntry {
+  kind: InstanceFolderKind;
+  icon: string;
+  label: string;
+  desc: string;
+  disabled: boolean;
+}
+
+/** 固定的实例文件夹入口；具体路径由主进程按安装目录解析，仅做存在性校验。 */
+const FOLDERS: FolderEntry[] = [
+  {
+    kind: 'config',
+    icon: 'settings',
+    label: '打开配置文件夹',
+    desc: '查看 Neo-MoFox 的 config 配置目录（core.toml 等）',
+    disabled: false,
+  },
+  {
+    kind: 'plugins',
+    icon: 'extension',
+    label: '打开插件文件夹',
+    desc: '查看 plugins 插件目录，可放入 .mfp 插件包',
+    disabled: false,
+  },
+  {
+    kind: 'data',
+    icon: 'database',
+    label: '打开数据文件夹',
+    desc: '查看 data 数据目录（运行数据与数据库）',
+    disabled: false,
+  },
+  {
+    kind: 'install',
+    icon: 'folder_open',
+    label: '打开实例文件夹',
+    desc: '查看 Neo-MoFox 本体安装目录（main.py 所在位置）',
+    disabled: false,
+  },
+];
+
+/** 渲染用的完整入口清单；平台目录入口始终展示，未安装平台适配器时置灰。 */
+const folders = computed<FolderEntry[]>(() => {
+  const platform = props.instance.platform;
+  const platformDir = platform?.installDir?.trim() ?? '';
+  const name = platform?.id
+    ? (props.platforms.find((candidate) => candidate.id === platform.id)?.name ?? platform.id)
+    : '';
+  return [
+    ...FOLDERS,
+    {
+      kind: 'platform',
+      icon: 'smart_toy',
+      label: '打开平台文件夹',
+      desc: platformDir
+        ? `查看平台适配器 ${name} 的安装目录`
+        : '未安装平台适配器，可在「修改实例信息」中配置',
+      disabled: !platformDir,
+    },
+  ];
+});
+
+async function openFolder(kind: InstanceFolderKind): Promise<void> {
+  try {
+    await mofoxApi.openInstanceFolder(props.instance.id, kind);
+  } catch (error) {
+    emit('toast', `打开文件夹失败: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 async function toggleAutoStart(): Promise<void> {
@@ -391,14 +462,19 @@ watch(
           </div>
         </div>
 
-        <div class="settings-item">
-          <span class="msr settings-item__icon" aria-hidden="true">folder_open</span>
+        <div v-for="folder in folders" :key="folder.kind" class="settings-item">
+          <span class="msr settings-item__icon" aria-hidden="true">{{ folder.icon }}</span>
           <div class="settings-item__body">
-            <span class="settings-item__label">打开文件夹</span>
-            <span class="settings-item__desc">在系统文件管理器中查看 MoFox 安装目录</span>
+            <span class="settings-item__label">{{ folder.label }}</span>
+            <span class="settings-item__desc">{{ folder.desc }}</span>
           </div>
-          <button class="btn btn--tonal state-layer" type="button" @click="openFolder">
-            打开文件夹
+          <button
+            class="btn btn--tonal state-layer"
+            type="button"
+            :disabled="folder.disabled"
+            @click="openFolder(folder.kind)"
+          >
+            打开
           </button>
         </div>
 

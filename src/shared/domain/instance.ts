@@ -91,6 +91,13 @@ export type InstanceProcessSource = 'mofox' | 'platform';
  */
 export type InstanceRemovalMode = 'record' | 'files';
 
+/**
+ * 实例快捷打开的文件夹种类：`install` 为 Neo-MoFox 本体安装目录，
+ * `config`/`plugins`/`data` 为安装目录下的同名子目录，`platform` 为平台适配器
+ * 的安装目录；具体路径始终由主进程解析。
+ */
+export type InstanceFolderKind = 'install' | 'config' | 'plugins' | 'data' | 'platform';
+
 /** 单个实例子进程的运行统计。 */
 export interface ProcessStats {
   running: boolean;

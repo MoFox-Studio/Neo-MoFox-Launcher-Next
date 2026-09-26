@@ -487,7 +487,7 @@ if (!hasSingleInstanceLock) {
     });
     registerInstanceManageIpc(ipcMain, {
       remove: (instanceId, mode) => manage.remove(instanceId, mode),
-      openFolder: (instanceId) => manage.openFolder(instanceId),
+      openFolder: (instanceId, kind) => manage.openFolder(instanceId, kind),
       update: (instanceId, patch) => manage.update(instanceId, patch),
     });
     registerIntegrityIpc(ipcMain, {

@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import type {
   EditableInstancePatch,
   Instance,
+  InstanceFolderKind,
   InstanceRemovalMode,
   UpdateInstancePatch,
 } from '../../shared/domain/instance';
@@ -14,13 +15,21 @@ import type { InstanceRuntimeService } from './instance-runtime-service';
 import { inferVenvDir } from '../utils/instance-migrations';
 import { requireDirectory, requireFile, requireVenvDir } from '../utils/path-inspection';
 
+/** 安装目录下快捷子目录的可读名称，用于目录缺失时的错误提示。 */
+const SUB_FOLDER_LABELS: Record<Exclude<InstanceFolderKind, 'install' | 'platform'>, string> = {
+  config: '配置目录',
+  plugins: '插件目录',
+  data: '数据目录',
+};
+
 /**
- * 实例管理服务：负责删除、打开安装目录与更新配置。
+ * 实例管理服务：负责删除、快捷打开实例文件夹与更新配置。
  *
  * 删除前先经运行服务优雅停机，再按删除模式处理：仅移除记录或删除
  * MoFox 本体目录、平台目录、外部 venv（安装文件夹仅含本实例文件时一并删除），
  * 最后清理运行时日志缓冲；
- * 打开目录则直接把 MoFox 本体安装目录交给系统文件管理器；
+ * 打开目录则按文件夹种类定位 Neo-MoFox 安装目录、其下的 config/plugins/data
+ * 子目录或平台适配器安装目录，经存在性校验后交给系统文件管理器；
  * 更新配置前会核验主程序与平台目录，确认可被运行时启动后再委托仓库持久化。
  */
 export class InstanceManageService {
@@ -85,13 +94,29 @@ export class InstanceManageService {
   }
 
   /**
-   * 在系统文件管理器中打开 MoFox 本体安装目录。
+   * 在系统文件管理器中打开实例的某个文件夹。
+   *
+   * `install` 打开 MoFox 本体安装目录；`config`/`plugins`/`data` 打开安装目录下的
+   * 同名子目录；`platform` 打开平台适配器的安装目录。所有目录只做存在性校验，
+   * 一律不自动创建；缺失时抛出可读错误而非系统级报错。
    *
    * @param instanceId - 实例 ID。
+   * @param kind - 待打开的文件夹种类。
    */
-  async openFolder(instanceId: string): Promise<void> {
+  async openFolder(instanceId: string, kind: InstanceFolderKind): Promise<void> {
     const instance = await this.find(instanceId);
-    await this.openPath(instance.mofoxInstallDir);
+    if (kind === 'platform') {
+      const platformDir = instance.platform.installDir?.trim();
+      if (!platformDir) throw new MofoxError('NOT_FOUND', '实例未安装平台适配器');
+      await this.openPath(await requireDirectory(platformDir, '平台目录'));
+      return;
+    }
+    const installDir = await requireDirectory(instance.mofoxInstallDir, '主程序目录');
+    if (kind === 'install') {
+      await this.openPath(installDir);
+      return;
+    }
+    await this.openPath(await requireDirectory(join(installDir, kind), SUB_FOLDER_LABELS[kind]));
   }
 
   /**

@@ -2,14 +2,15 @@ import { MofoxError, serializeIpcError } from '../../shared/domain/error';
 import type {
   EditableInstancePatch,
   Instance,
+  InstanceFolderKind,
   InstanceRemovalMode,
 } from '../../shared/domain/instance';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
 
-/** 实例管理 IPC 边界：只暴露删除、打开安装目录与更新配置，进程控制留在运行时 IPC。 */
+/** 实例管理 IPC 边界：只暴露删除、快捷打开实例文件夹与更新配置，进程控制留在运行时 IPC。 */
 interface InstanceManageActions {
   remove(instanceId: string, mode: InstanceRemovalMode): Promise<void>;
-  openFolder(instanceId: string): Promise<void>;
+  openFolder(instanceId: string, kind: InstanceFolderKind): Promise<void>;
   update(instanceId: string, patch: EditableInstancePatch): Promise<Instance>;
 }
 
@@ -33,8 +34,8 @@ export function registerInstanceManageIpc(
   register(ipcMain, IPC_INVOKE_CHANNELS.removeInstance, (id, mode) =>
     actions.remove(requireId(id), requireRemovalMode(mode)),
   );
-  register(ipcMain, IPC_INVOKE_CHANNELS.openInstanceFolder, (id) =>
-    actions.openFolder(requireId(id)),
+  register(ipcMain, IPC_INVOKE_CHANNELS.openInstanceFolder, (id, kind) =>
+    actions.openFolder(requireId(id), requireFolderKind(kind)),
   );
   register(ipcMain, IPC_INVOKE_CHANNELS.updateInstance, (id, patch) =>
     actions.update(requireId(id), requirePatch(patch)),
@@ -63,6 +64,28 @@ function requireId(value: unknown): string {
 function requireRemovalMode(value: unknown): InstanceRemovalMode {
   if (value !== 'record' && value !== 'files') {
     throw new MofoxError('INVALID_ARGUMENT', 'Removal mode must be "record" or "files"');
+  }
+  return value;
+}
+
+/**
+ * 校验快捷打开的文件夹种类，防止任意字符串穿透到文件系统操作。
+ *
+ * @param value - 未经类型约束的 IPC 参数。
+ * @returns 通过校验的文件夹种类。
+ */
+function requireFolderKind(value: unknown): InstanceFolderKind {
+  if (
+    value !== 'install' &&
+    value !== 'config' &&
+    value !== 'plugins' &&
+    value !== 'data' &&
+    value !== 'platform'
+  ) {
+    throw new MofoxError(
+      'INVALID_ARGUMENT',
+      'Folder kind must be "install", "config", "plugins", "data" or "platform"',
+    );
   }
   return value;
 }
