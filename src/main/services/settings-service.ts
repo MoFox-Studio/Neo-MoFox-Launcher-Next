@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   defaultInstallDir: '',
   closeToTray: true,
   trayNotifications: true,
+  autoCheckUpdates: true,
   hardwareAcceleration: true,
   maxLogFileSizeMb: 16,
   maxLogArchiveDays: 14,

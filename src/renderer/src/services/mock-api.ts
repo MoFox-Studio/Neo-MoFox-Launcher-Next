@@ -25,6 +25,7 @@ import type {
   UpdateProgressEvent,
 } from '@shared/domain/update';
 import type { GithubRelease } from '@shared/domain/github';
+import type { LauncherBuildInfo, LauncherUpdateInfo } from '@shared/domain/app-update';
 import type {
   VenvInfo,
   VenvPackage,
@@ -124,6 +125,7 @@ let settings: LauncherSettings = {
   defaultInstallDir: 'D:\\MoFox',
   closeToTray: true,
   trayNotifications: true,
+  autoCheckUpdates: true,
   hardwareAcceleration: true,
   maxLogFileSizeMb: 16,
   maxLogArchiveDays: 14,
@@ -996,6 +998,42 @@ export const mockApi: MofoxApi = {
         Repository: 'https://example.com/repo',
       },
       pypiUrl: `https://pypi.org/project/${normalized}/`,
+    };
+  },
+
+  /** 启动器自身更新：演示构建返回固定的构建信息与一份模拟的可用更新。 */
+  async getLauncherBuildInfo(): Promise<LauncherBuildInfo> {
+    await delay(80);
+    return {
+      version: '20260926',
+      channel: 'nightly',
+      buildDate: '20260926',
+      tag: 'nightly-20260926',
+      commit: '3d68ddc',
+    };
+  },
+
+  async checkLauncherUpdate(): Promise<LauncherUpdateInfo> {
+    await delay(500);
+    const current = await this.getLauncherBuildInfo();
+    return {
+      updateAvailable: true,
+      current,
+      latestVersion: '🌙 每夜构建 20260927',
+      latestTag: 'nightly-20260927',
+      latestBuildDate: '20260927',
+      releaseUrl:
+        'https://github.com/MoFox-Studio/Neo-MoFox-Launcher-Next/releases/tag/nightly-20260927',
+      releaseNotes: [
+        '## 🌙 每夜构建版本 - 20260927',
+        '',
+        '### 📝 最近提交',
+        '- feat: 新增启动器更新检查与版本号展示',
+        '- fix: 修复实例终端在窗口缩放时的渲染抖动',
+        '',
+        '> ⚠️ 这是自动化每夜构建版本，可能存在不稳定因素，仅供测试使用。',
+      ].join('\n'),
+      publishedAt: '2026-09-26T16:05:00Z',
     };
   },
 

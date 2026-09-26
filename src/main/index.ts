@@ -29,6 +29,7 @@ import { registerInstanceManageIpc } from './ipc/instance-manage';
 import { registerInstanceTerminalIpc } from './ipc/instance-terminal';
 import { registerIntegrityIpc } from './ipc/integrity';
 import { registerUpdateIpc } from './ipc/update';
+import { registerLauncherUpdateIpc } from './ipc/launcher-update';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
 import { registerVenvIpc } from './ipc/venv';
@@ -41,6 +42,7 @@ import { InstanceManageService } from './services/instance-manage-service';
 import { InstanceTerminalService } from './services/instance-terminal-service';
 import { InstanceIntegrityService } from './services/instance-integrity-service';
 import { InstanceUpdateService } from './services/instance-update-service';
+import { LauncherUpdateService } from './services/launcher-update-service';
 import {
   inspectImportPath,
   inspectPlatformPath,
@@ -594,6 +596,17 @@ if (!hasSingleInstanceLock) {
       getPlatformInfo: (instanceId) => updates.getPlatformInfo(instanceId),
       updatePlatform: (instanceId, version) =>
         watchInstanceTask(instanceId, updates.updatePlatform(instanceId, version), '平台更新'),
+    });
+    // 启动器自身更新：版本号文件由每夜构建流水线写入 resources 目录，开发环境回退项目根目录。
+    const launcherUpdates = new LauncherUpdateService({
+      mirrors,
+      searchPaths: [process.resourcesPath, app.getAppPath()],
+      appVersion: app.getVersion(),
+      report,
+    });
+    registerLauncherUpdateIpc(ipcMain, {
+      getBuildInfo: () => launcherUpdates.getBuildInfo(),
+      check: () => launcherUpdates.checkForUpdates(),
     });
     const installTasks = new InstallTaskService(
       platforms,

@@ -12,12 +12,14 @@ import IntegrityCheckDialog from '@/components/instance/IntegrityCheckDialog.vue
 import { mofoxApi } from '@/services/mofox-api';
 import { useIntegrityStore } from '@/stores/integrity';
 import { useSettingsStore } from '@/stores/settings';
+import { useLauncherUpdate } from '@/composables/use-launcher-update';
 import { hasNativeBackdrop } from '@/utils/native-backdrop';
 
 const route = useRoute();
 const settingsStore = useSettingsStore();
 const integrityStore = useIntegrityStore();
 const { settings } = storeToRefs(settingsStore);
+const { autoCheckOnStartup } = useLauncherUpdate();
 const windowMaximized = ref(false);
 // 根据路由元数据切换首次引导的沉浸式布局。
 const bare = computed(() => route.meta.bare === true);
@@ -49,6 +51,8 @@ onMounted(async () => {
   } catch {
     /* 校验失败不阻断启动，由用户手动在实例管理页处理 */
   }
+  // 自动检查更新：仅在设置开启时执行，发现新版本弹出轻提示，失败保持静默。
+  void autoCheckOnStartup(settings.value.autoCheckUpdates);
 });
 </script>
 

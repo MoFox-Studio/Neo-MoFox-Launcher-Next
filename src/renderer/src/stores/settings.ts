@@ -30,6 +30,7 @@ export const useSettingsStore = defineStore('settings', () => {
     defaultInstallDir: '',
     closeToTray: true,
     trayNotifications: true,
+    autoCheckUpdates: true,
     hardwareAcceleration: true,
     maxLogFileSizeMb: 16,
     maxLogArchiveDays: 14,

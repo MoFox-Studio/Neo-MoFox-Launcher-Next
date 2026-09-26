@@ -75,6 +75,22 @@ jobs:
       - name: 重编译 node-pty (${{ matrix.arch }})
         run: npx electron-rebuild -f -a ${{ matrix.arch }} -m . -w node-pty
 
+      - name: 写入版本号文件
+        shell: bash
+        run: |
+          COMMIT=$(git rev-parse --short HEAD)
+          cat > version.json << EOF
+          {
+            "version": "$BUILD_DATE",
+            "channel": "nightly",
+            "buildDate": "$BUILD_DATE",
+            "tag": "nightly-$BUILD_DATE",
+            "commit": "$COMMIT"
+          }
+          EOF
+          echo "版本号文件内容："
+          cat version.json
+
       - name: 构建应用 (dist)
         run: npm run build
 
@@ -132,6 +148,22 @@ jobs:
 
       - name: 重编译 node-pty (${{ matrix.arch }})
         run: npx electron-rebuild -f -a ${{ matrix.arch }} --platform linux -m . -w node-pty
+
+      - name: 写入版本号文件
+        shell: bash
+        run: |
+          COMMIT=$(git rev-parse --short HEAD)
+          cat > version.json << EOF
+          {
+            "version": "$BUILD_DATE",
+            "channel": "nightly",
+            "buildDate": "$BUILD_DATE",
+            "tag": "nightly-$BUILD_DATE",
+            "commit": "$COMMIT"
+          }
+          EOF
+          echo "版本号文件内容："
+          cat version.json
 
       - name: 构建应用 (dist)
         run: npm run build

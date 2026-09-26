@@ -61,6 +61,8 @@ export interface LauncherSettings {
   closeToTray: boolean;
   /** 启动器不在前台（失焦、最小化或托盘）时，安装/更新/依赖等任务完成是否弹出系统通知。 */
   trayNotifications: boolean;
+  /** 启动器启动时是否自动检查每夜构建的新版本；发现更新后仅在界面弹出提示，不自动下载。 */
+  autoCheckUpdates: boolean;
   hardwareAcceleration: boolean;
   maxLogFileSizeMb: number;
   maxLogArchiveDays: number;

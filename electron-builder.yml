@@ -17,6 +17,9 @@ extraResources:
     to: icon.ico
   - from: assets/images/icon.png
     to: icon.png
+  # 版本号文件：每夜构建流水线在打包前重写，运行期用于展示构建信息与更新比较
+  - from: version.json
+    to: version.json
 win:
   target:
     - nsis

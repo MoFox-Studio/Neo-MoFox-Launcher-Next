@@ -46,6 +46,7 @@ import type {
   VenvPathInspection,
   VenvProgressEvent,
 } from './domain/venv';
+import type { LauncherBuildInfo, LauncherUpdateInfo } from './domain/app-update';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
@@ -128,6 +129,8 @@ export const IPC_INVOKE_CHANNELS = {
   updateVenvPackage: 'venv:update',
   queryVenvPackageVersions: 'venv:versions',
   getVenvPackageInfo: 'venv:package-info',
+  getLauncherBuildInfo: 'launcher-update:build-info',
+  checkLauncherUpdate: 'launcher-update:check',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -300,6 +303,12 @@ export interface MofoxApi {
   queryVenvPackageVersions(instanceId: string, name: string): Promise<string[]>;
   /** 从 pip 镜像获取指定包的介绍、作者与 PyPI 跳转地址等信息。 */
   getVenvPackageInfo(instanceId: string, name: string): Promise<VenvPackageInfo>;
+
+  /** 启动器自身更新：本地构建信息与远端发行版检查。 */
+  /** 读取打包阶段写入的本地构建版本信息；开发环境回退为源码构建描述。 */
+  getLauncherBuildInfo(): Promise<LauncherBuildInfo>;
+  /** 查询 GitHub 最新发行版并与本地构建比较，返回是否可用更新及发行说明。 */
+  checkLauncherUpdate(): Promise<LauncherUpdateInfo>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

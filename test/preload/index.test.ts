@@ -107,6 +107,8 @@ describe('createMofoxApi', () => {
     await api.updateVenvPackage('instance-1', 'numpy');
     await api.queryVenvPackageVersions('instance-1', 'napcat');
     await api.getVenvPackageInfo('instance-1', 'napcat');
+    await api.getLauncherBuildInfo();
+    await api.checkLauncherUpdate();
 
     expect(ipcRenderer.invoke.mock.calls.map(([channel]) => channel)).toEqual(
       Object.values(IPC_INVOKE_CHANNELS),

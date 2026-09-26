@@ -129,6 +129,8 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
       invoke(IPC_INVOKE_CHANNELS.queryVenvPackageVersions, instanceId, name),
     getVenvPackageInfo: (instanceId, name) =>
       invoke(IPC_INVOKE_CHANNELS.getVenvPackageInfo, instanceId, name),
+    getLauncherBuildInfo: () => invoke(IPC_INVOKE_CHANNELS.getLauncherBuildInfo),
+    checkLauncherUpdate: () => invoke(IPC_INVOKE_CHANNELS.checkLauncherUpdate),
     on: <K extends keyof MofoxEventMap>(
       event: K,
       listener: (payload: MofoxEventMap[K]) => void,

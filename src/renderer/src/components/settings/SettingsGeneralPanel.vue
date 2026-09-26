@@ -138,6 +138,25 @@ function handleInstallDirInput(event: Event): void {
           </div>
         </div>
 
+        <div class="settings-item">
+          <span class="msr settings-item__icon">system_update_alt</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">自动检查更新</span>
+            <span class="settings-item__desc">
+              启动时检查新版本，发现更新后弹出提示；更新始终需要手动前往「关于」页面下载
+            </span>
+          </div>
+          <div
+            class="md-switch"
+            role="switch"
+            :aria-checked="settings.autoCheckUpdates"
+            :class="{ 'md-switch--checked': settings.autoCheckUpdates }"
+            @click="update({ autoCheckUpdates: !settings.autoCheckUpdates })"
+          >
+            <div class="md-switch__thumb"></div>
+          </div>
+        </div>
+
         <div v-if="false" class="settings-item">
           <span class="msr settings-item__icon">speed</span>
           <div class="settings-item__body">
