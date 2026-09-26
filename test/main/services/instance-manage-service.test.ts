@@ -456,6 +456,9 @@ describe('InstanceManageService', () => {
     const root = await createTemporaryDirectory();
     const instance = createInstance();
     instance.mofoxInstallDir = await createMofoxDirectory(root);
+    for (const kind of ['config', 'plugins', 'data'] as const) {
+      await mkdir(join(instance.mofoxInstallDir, kind));
+    }
     const repository = createRepository(instance);
     const openPath = vi.fn(async () => undefined);
     const service = new InstanceManageService(
@@ -475,10 +478,28 @@ describe('InstanceManageService', () => {
     expect(openPath).toHaveBeenNthCalledWith(2, join(instance.mofoxInstallDir, 'config'));
     expect(openPath).toHaveBeenNthCalledWith(3, join(instance.mofoxInstallDir, 'plugins'));
     expect(openPath).toHaveBeenNthCalledWith(4, join(instance.mofoxInstallDir, 'data'));
-    // 尚未生成的子目录在打开前按需创建，保证快捷打开始终可用。
-    await expect(access(join(instance.mofoxInstallDir, 'config'))).resolves.toBeUndefined();
-    await expect(access(join(instance.mofoxInstallDir, 'plugins'))).resolves.toBeUndefined();
-    await expect(access(join(instance.mofoxInstallDir, 'data'))).resolves.toBeUndefined();
+  });
+
+  it('rejects opening a missing quick sub-folder without creating it', async () => {
+    const root = await createTemporaryDirectory();
+    const instance = createInstance();
+    instance.mofoxInstallDir = await createMofoxDirectory(root);
+    const repository = createRepository(instance);
+    const openPath = vi.fn(async () => undefined);
+    const service = new InstanceManageService(
+      createRuntime(),
+      repository,
+      createPlatformResolver(),
+      vi.fn(async () => undefined),
+      openPath,
+    );
+
+    await expect(service.openFolder(instance.id, 'config')).rejects.toThrow('配置目录不存在');
+    expect(openPath).not.toHaveBeenCalled();
+    // 目录只做存在性校验，一律不自动创建。
+    await expect(access(join(instance.mofoxInstallDir, 'config'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
   });
 
   it('rejects opening folders when the install directory is missing', async () => {
