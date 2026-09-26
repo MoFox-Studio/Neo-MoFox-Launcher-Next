@@ -1,0 +1,289 @@
+/* 终端面板：与虚拟环境面板同构的分组卡片，终端窗口占满剩余高度。 */
+.manage-group {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.manage-group__card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--app-glass-border);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
+}
+
+/* 卡片头部：分区图标 + 标题描述 + 清屏 / 重启会话 */
+.manage-group__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 22px 14px;
+}
+
+.manage-group__heading > .msr {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-primary);
+  font-size: 26px;
+}
+
+.manage-group__heading h2 {
+  margin: 0;
+  font: var(--md-sys-typescale-title-large);
+  color: var(--md-sys-color-on-surface);
+}
+
+.manage-group__heading p {
+  margin: 4px 0 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.terminal-heading__actions {
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* 主体：目录切换 + 终端窗口，终端在剩余空间内伸展 */
+.manage-group__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 10px 10px;
+}
+
+/* 工作目录卡片组：点选即切换，选中项以主色描边与浅色底强调 */
+.terminal-dirs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.terminal-dir {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px;
+  background: var(--app-glass-row);
+  color: var(--md-sys-color-on-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.terminal-dir:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.terminal-dir--active {
+  border-color: var(--md-sys-color-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 10%, var(--app-glass-row));
+}
+
+.terminal-dir__icon {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-primary);
+  font-size: 22px;
+}
+
+.terminal-dir__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.terminal-dir__label {
+  font: var(--md-sys-typescale-label-large);
+  color: var(--md-sys-color-on-surface);
+}
+
+.terminal-dir__path {
+  overflow: hidden;
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 11px;
+  color: var(--md-sys-color-on-surface-variant);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-dir__check {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-primary);
+  font-size: 18px;
+}
+
+/* 终端程序选择行：MD3 下拉框切换 shell，切换即重启会话 */
+.terminal-shell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--app-glass-row);
+}
+
+.terminal-shell__icon {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-primary);
+  font-size: 22px;
+}
+
+.terminal-shell__select {
+  width: 260px;
+  max-width: 100%;
+}
+
+/* 终端窗口：暗色内嵌区域承载 xterm，末位元素放大底部圆角呼应外层卡片轮廓 */
+.terminal-panel__shell {
+  position: relative;
+  flex: 1;
+  min-height: 280px;
+  padding: 6px;
+  border-radius: 7px 7px 18px 18px;
+  background: var(--app-glass-row);
+}
+
+.terminal-panel__terminal {
+  position: absolute;
+  inset: 6px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #101416;
+  overflow: hidden;
+}
+
+.terminal-panel__terminal :deep(.xterm) {
+  height: 100%;
+}
+
+/* 会话结束覆盖层：压暗终端并居中展示重新打开入口 */
+.terminal-panel__overlay {
+  position: absolute;
+  inset: 6px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 14px;
+  background: color-mix(in srgb, #101416 86%, transparent);
+  color: #d8e3e7;
+  text-align: center;
+}
+
+.terminal-panel__overlay .msr {
+  font-size: 34px;
+  opacity: 0.8;
+}
+
+.terminal-panel__overlay p {
+  margin: 0;
+  font: var(--md-sys-typescale-body-medium);
+  opacity: 0.85;
+}
+
+.terminal-panel__hint {
+  margin: 0;
+  padding: 0 8px;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-small);
+}
+
+/* 覆盖层淡入淡出 */
+.terminal-fade-enter-active,
+.terminal-fade-leave-active {
+  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.terminal-fade-enter-from,
+.terminal-fade-leave-to {
+  opacity: 0;
+}
+
+/* 面板自带按钮样式：与各视图 scoped 约定一致，不依赖全局类 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  font: var(--md-sys-typescale-label-large);
+  cursor: pointer;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.btn__icon {
+  font-size: 18px;
+}
+
+.btn--filled {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.btn--tonal {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.icon-btn .msr {
+  font-size: 20px;
+}
+
+@media (max-width: 720px) {
+  .terminal-dirs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .terminal-shell {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .terminal-shell__select {
+    width: 100%;
+  }
+
+  .terminal-heading__actions {
+    align-self: flex-start;
+  }
+}

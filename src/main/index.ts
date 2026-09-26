@@ -26,6 +26,7 @@ import { registerManualImportIpc } from './ipc/manual-import';
 import { registerOobeIpc } from './ipc/oobe';
 import { registerInstanceIpc } from './ipc/instances';
 import { registerInstanceManageIpc } from './ipc/instance-manage';
+import { registerInstanceTerminalIpc } from './ipc/instance-terminal';
 import { registerIntegrityIpc } from './ipc/integrity';
 import { registerUpdateIpc } from './ipc/update';
 import { registerWindowIpc } from './ipc/window';
@@ -37,6 +38,7 @@ import { InstallTaskService } from './services/install-task-service';
 import { InstanceRepository } from './services/instance-repository';
 import { InstanceRuntimeService } from './services/instance-runtime-service';
 import { InstanceManageService } from './services/instance-manage-service';
+import { InstanceTerminalService } from './services/instance-terminal-service';
 import { InstanceIntegrityService } from './services/instance-integrity-service';
 import { InstanceUpdateService } from './services/instance-update-service';
 import {
@@ -489,6 +491,20 @@ if (!hasSingleInstanceLock) {
       remove: (instanceId, mode) => manage.remove(instanceId, mode),
       openFolder: (instanceId, kind) => manage.openFolder(instanceId, kind),
       update: (instanceId, patch) => manage.update(instanceId, patch),
+    });
+    // 实例终端：与实例进程共享同一 ProcessHelper，但键空间独立（terminal:<id>）。
+    const terminals = new InstanceTerminalService(instances, processHelper, {
+      data: (instanceId, data) =>
+        send(IPC_EVENT_CHANNELS['instance-terminal-data'], { instanceId, data }),
+      exited: (instanceId, exitCode) =>
+        send(IPC_EVENT_CHANNELS['instance-terminal-exited'], { instanceId, exitCode }),
+    });
+    registerInstanceTerminalIpc(ipcMain, {
+      listShells: () => terminals.listShells(),
+      open: (instanceId, kind, options) => terminals.open(instanceId, kind, options),
+      write: (instanceId, data) => terminals.write(instanceId, data),
+      resize: (instanceId, cols, rows) => terminals.resize(instanceId, cols, rows),
+      close: (instanceId) => terminals.close(instanceId),
     });
     registerIntegrityIpc(ipcMain, {
       check: () => new InstanceIntegrityService(instances, platforms).check(),

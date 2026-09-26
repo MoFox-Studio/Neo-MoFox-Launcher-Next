@@ -7,11 +7,12 @@ import { mofoxApi } from '@/services/mofox-api';
 import { useWindowTitle } from '@/composables/use-window-title';
 import InstanceInfoPanel from '@/components/instance-manage/InstanceInfoPanel.vue';
 import InstanceMorePanel from '@/components/instance-manage/InstanceMorePanel.vue';
+import InstanceTerminalPanel from '@/components/instance-manage/InstanceTerminalPanel.vue';
 import InstanceUpdatePanel from '@/components/instance-manage/InstanceUpdatePanel.vue';
 import InstanceVenvPanel from '@/components/instance-manage/InstanceVenvPanel.vue';
 
-// 实例管理页：内容分区抽为独立面板，新增「更新」与「虚拟环境」分区。
-type ManageTab = 'info' | 'more' | 'venv' | 'update';
+// 实例管理页：内容分区抽为独立面板，新增「更新」「虚拟环境」与「终端」分区。
+type ManageTab = 'info' | 'more' | 'venv' | 'terminal' | 'update';
 
 const route = useRoute();
 const router = useRouter();
@@ -27,6 +28,12 @@ const NAV_ITEMS: { id: ManageTab; label: string; description: string; icon: stri
   { id: 'info', label: '信息查看', description: '实例的运行状态与目录信息', icon: 'info' },
   { id: 'more', label: '更多', description: '文件系统操作与实例信息修改', icon: 'more_horiz' },
   { id: 'venv', label: '虚拟环境', description: 'Python 环境与依赖包管理', icon: 'science' },
+  {
+    id: 'terminal',
+    label: '终端',
+    description: '内置终端与实例目录切换',
+    icon: 'terminal',
+  },
   { id: 'update', label: '更新', description: '主程序与平台版本管理', icon: 'system_update' },
 ];
 
@@ -147,6 +154,12 @@ function returnToDashboard(): void {
       />
       <InstanceVenvPanel
         v-else-if="instance && activeTab === 'venv'"
+        :instance="instance"
+        @toast="showToast"
+      />
+      <!-- 终端面板：v-if 挂载，离开分区即卸载并销毁终端会话 -->
+      <InstanceTerminalPanel
+        v-else-if="instance && activeTab === 'terminal'"
         :instance="instance"
         @toast="showToast"
       />

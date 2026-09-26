@@ -37,6 +37,14 @@ describe('createMofoxApi', () => {
     await api.clearInstanceLogBuffer('instance-1', 'platform');
     await api.writeInstancePty('instance-1', 'mofox', 'help\r');
     await api.resizeInstancePty('instance-1', 'platform', 120, 30);
+    await api.openInstanceTerminal('instance-1', 'mofox', {
+      shellId: 'bash',
+      size: { cols: 120, rows: 30 },
+    });
+    await api.listInstanceTerminalShells();
+    await api.writeInstanceTerminal('instance-1', 'ls\r');
+    await api.resizeInstanceTerminal('instance-1', 100, 24);
+    await api.closeInstanceTerminal('instance-1');
     await api.getInstanceStats('instance-1');
     await api.exportInstanceLogs('instance-1', 'mofox');
     await api.checkInstancesIntegrity();

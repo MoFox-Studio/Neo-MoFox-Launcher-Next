@@ -98,6 +98,13 @@ export type InstanceRemovalMode = 'record' | 'files';
  */
 export type InstanceFolderKind = 'install' | 'config' | 'plugins' | 'data' | 'platform';
 
+/**
+ * 实例终端面板可切换的工作目录种类：`mofox` 为 Neo-MoFox 主程序目录（实例目录），
+ * `venv` 为虚拟环境目录，`platform` 为平台适配器安装目录。
+ * 具体路径始终由主进程解析，且同一实例同时只允许存在一个终端会话。
+ */
+export type InstanceTerminalDirKind = 'mofox' | 'venv' | 'platform';
+
 /** 单个实例子进程的运行统计。 */
 export interface ProcessStats {
   running: boolean;

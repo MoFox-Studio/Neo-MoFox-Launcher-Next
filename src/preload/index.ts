@@ -62,6 +62,15 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
       invoke(IPC_INVOKE_CHANNELS.writeInstancePty, instanceId, source, data),
     resizeInstancePty: (instanceId, source, cols, rows) =>
       invoke(IPC_INVOKE_CHANNELS.resizeInstancePty, instanceId, source, cols, rows),
+    openInstanceTerminal: (instanceId, kind, options) =>
+      invoke(IPC_INVOKE_CHANNELS.openInstanceTerminal, instanceId, kind, options),
+    listInstanceTerminalShells: () => invoke(IPC_INVOKE_CHANNELS.listInstanceTerminalShells),
+    writeInstanceTerminal: (instanceId, data) =>
+      invoke(IPC_INVOKE_CHANNELS.writeInstanceTerminal, instanceId, data),
+    resizeInstanceTerminal: (instanceId, cols, rows) =>
+      invoke(IPC_INVOKE_CHANNELS.resizeInstanceTerminal, instanceId, cols, rows),
+    closeInstanceTerminal: (instanceId) =>
+      invoke(IPC_INVOKE_CHANNELS.closeInstanceTerminal, instanceId),
     getInstanceStats: (instanceId) => invoke(IPC_INVOKE_CHANNELS.getInstanceStats, instanceId),
     exportInstanceLogs: (instanceId, source) =>
       invoke(IPC_INVOKE_CHANNELS.exportInstanceLogs, instanceId, source),

@@ -3,7 +3,7 @@
  * 以可控延迟、事件和内存状态复现渲染进程依赖的主进程交互。
  */
 import type { MofoxApi, MofoxEventMap, Unsubscribe } from '@shared/ipc';
-import type { Instance } from '@shared/domain/instance';
+import type { Instance, InstanceTerminalDirKind } from '@shared/domain/instance';
 import type { InstallTaskSnapshot, InstallStepId } from '@shared/domain/install';
 const mockInstallTasks = new Map<string, InstallTaskSnapshot>();
 import {
@@ -50,6 +50,18 @@ function emit<K extends keyof MofoxEventMap>(event: K, payload: MofoxEventMap[K]
  * @returns 延迟结束后兑现的 Promise。
  */
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// ── 实例终端（演示用假 shell）────────────────────────────────────────
+// 每个实例同时最多一个演示会话；输入回显并在回车时输出占位提示，模拟最小交互循环。
+const terminalSessions = new Map<string, { kind: InstanceTerminalDirKind; cwd: string }>();
+
+function mockTerminalCwd(id: string, kind: InstanceTerminalDirKind): string {
+  const ins = instances.find((i) => i.id === id);
+  if (!ins) throw new Error(`unknown instance ${id}`);
+  if (kind === 'venv') return ins.venvDir || ins.mofoxInstallDir;
+  if (kind === 'platform') return ins.platform.installDir ?? ins.mofoxInstallDir;
+  return ins.mofoxInstallDir;
+}
 
 // 演示数据保持在内存中，API 对外返回副本以模拟 IPC 序列化边界。
 // `demoReady=1` 仅供浏览器视觉验收直接进入主界面，不影响 Electron 正式运行。
@@ -391,6 +403,46 @@ export const mockApi: MofoxApi = {
     appendMockLog(id, source, data.replace(/\r/g, '\r\n'));
   },
   async resizeInstancePty() {},
+  async openInstanceTerminal(id, kind, options) {
+    await delay(60);
+    const cwd = mockTerminalCwd(id, kind);
+    terminalSessions.set(id, { kind, cwd });
+    const shell = options?.shellId ?? '系统默认';
+    emit('instance-terminal-data', {
+      instanceId: id,
+      data: `\x1b[90m[Mock] 演示终端已就绪 · ${shell}（虚拟环境始终激活）\x1b[0m\r\ncwd: ${cwd}\r\n> `,
+    });
+    return { cwd };
+  },
+  async listInstanceTerminalShells() {
+    return [
+      {
+        id: 'powershell',
+        label: 'PowerShell',
+        command: 'powershell.exe',
+        args: ['-NoLogo'],
+        isDefault: true,
+      },
+      { id: 'cmd', label: 'CMD', command: 'cmd.exe', args: [], isDefault: false },
+      { id: 'gitbash', label: 'Git Bash', command: 'bash.exe', args: [], isDefault: false },
+    ];
+  },
+  async writeInstanceTerminal(id, data) {
+    if (!terminalSessions.has(id)) return;
+    // 回显输入并在回车时输出占位响应，让演示终端保持可交互的观感。
+    emit('instance-terminal-data', { instanceId: id, data: data.replace(/\r/g, '\r\n') });
+    if (data.includes('\r')) {
+      await delay(40);
+      emit('instance-terminal-data', {
+        instanceId: id,
+        data: 'mock: 命令仅在真实环境执行\r\n> ',
+      });
+    }
+  },
+  async resizeInstanceTerminal() {},
+  async closeInstanceTerminal(id) {
+    terminalSessions.delete(id);
+  },
   async getInstanceStats(id) {
     /**
      * 根据进程源的运行标记生成指定进程的模拟运行统计。

@@ -11,6 +11,7 @@ import type {
   InstanceStats,
   InstanceRemovalMode,
   InstanceStatus,
+  InstanceTerminalDirKind,
   EditableInstancePatch,
 } from './domain/instance';
 import type {
@@ -37,6 +38,7 @@ import type {
 } from './domain/file-picker';
 import type { WallpaperAsset } from './domain/wallpaper';
 import type { InstallTargetCheck } from './domain/install';
+import type { TerminalShellOption } from './domain/terminal-shell';
 import type {
   VenvInfo,
   VenvPackageInfo,
@@ -74,6 +76,11 @@ export const IPC_INVOKE_CHANNELS = {
   clearInstanceLogBuffer: 'instances:log-clear',
   writeInstancePty: 'instances:pty-write',
   resizeInstancePty: 'instances:pty-resize',
+  openInstanceTerminal: 'instances:terminal-open',
+  listInstanceTerminalShells: 'instances:terminal-shells',
+  writeInstanceTerminal: 'instances:terminal-write',
+  resizeInstanceTerminal: 'instances:terminal-resize',
+  closeInstanceTerminal: 'instances:terminal-close',
   getInstanceStats: 'instances:stats',
   exportInstanceLogs: 'instances:export-logs',
   checkInstancesIntegrity: 'instances:integrity-check',
@@ -127,6 +134,8 @@ export const IPC_EVENT_CHANNELS = {
   'log-output': 'event:log-output',
   'install-progress': 'event:install-progress',
   'instance-pty-data': 'event:instance-pty-data',
+  'instance-terminal-data': 'event:instance-terminal-data',
+  'instance-terminal-exited': 'event:instance-terminal-exited',
   'instance-status-changed': 'event:instance-status-changed',
   'window-maximize-changed': 'event:window-maximize-changed',
   'download-progress': 'event:download-progress',
@@ -141,6 +150,8 @@ export interface MofoxEventMap {
   'log-output': LogEntry;
   'install-progress': InstallProgressEvent;
   'instance-pty-data': { instanceId: string; source: InstanceProcessSource; data: string };
+  'instance-terminal-data': { instanceId: string; data: string };
+  'instance-terminal-exited': { instanceId: string; exitCode: number };
   'instance-status-changed': { instanceId: string; status: InstanceStatus };
   'window-maximize-changed': boolean;
   'download-progress': DownloadProgress;
@@ -183,6 +194,22 @@ export interface MofoxApi {
     cols: number,
     rows: number,
   ): Promise<void>;
+  /**
+   * 打开（或在切换工作目录/终端程序时重启）实例终端会话；同一实例同时只有一个会话。
+   * 终端始终激活实例的虚拟环境；`options.shellId` 缺省时使用系统默认 shell，
+   * `options.size` 为终端初始列高。返回主进程校验后的实际工作目录。
+   */
+  openInstanceTerminal(
+    instanceId: string,
+    kind: InstanceTerminalDirKind,
+    options?: { shellId?: string; size?: { cols: number; rows: number } },
+  ): Promise<{ cwd: string }>;
+  /** 列出当前系统可用的终端程序，供终端面板下拉框选择。 */
+  listInstanceTerminalShells(): Promise<TerminalShellOption[]>;
+  writeInstanceTerminal(instanceId: string, data: string): Promise<void>;
+  resizeInstanceTerminal(instanceId: string, cols: number, rows: number): Promise<void>;
+  /** 关闭并销毁实例终端会话；离开终端面板时由渲染端调用。 */
+  closeInstanceTerminal(instanceId: string): Promise<void>;
   getInstanceStats(instanceId: string): Promise<InstanceStats>;
   /** 导出完成后返回生成文件的绝对路径。 */
   exportInstanceLogs(instanceId: string, source: InstanceProcessSource): Promise<string>;
