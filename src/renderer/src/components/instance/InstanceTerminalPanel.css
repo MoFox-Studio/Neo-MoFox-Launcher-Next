@@ -210,6 +210,17 @@
   font: var(--md-sys-typescale-body-small);
 }
 
+/* 快捷键提示：以键帽样式突出组合键，帮助用户发现终端快捷键。 */
+.terminal-panel__hint kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 0.6875rem;
+}
+
 /* 覆盖层淡入淡出 */
 .terminal-fade-enter-active,
 .terminal-fade-leave-active {

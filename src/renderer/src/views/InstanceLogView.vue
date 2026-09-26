@@ -11,6 +11,11 @@ import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
 import { useWindowTitle } from '@/composables/use-window-title';
 import { useToast } from '@/composables/use-toast';
+import type { TerminalShortcutActions } from '@/composables/use-terminal-shortcuts';
+import {
+  createTerminalShortcutHandler,
+  handleTerminalShortcut,
+} from '@/composables/use-terminal-shortcuts';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 
 // 实例日志页维护双终端、实时输出、进程控制和日志工具操作。
@@ -84,6 +89,9 @@ const SEARCH_DECORATIONS = {
   activeMatchColorOverviewRuler: '#367bf0',
 };
 
+/** 视为可编辑元素的标签名；焦点位于这些元素时不触发终端快捷键兜底。 */
+const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+
 const TERMINAL_THEME = {
   background: '#101416',
   foreground: '#d8e3e7',
@@ -110,6 +118,48 @@ const TERMINAL_THEME = {
 function activeBundle(): TerminalBundle | undefined {
   return bundles.get(activeTab.value);
 }
+
+/** 焦点位于输入框等可编辑元素时跳过终端快捷键，交给元素自身的按键处理。 */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return EDITABLE_TAGS.has(target.tagName);
+}
+
+function onWindowKeydown(event: KeyboardEvent): void {
+  // xterm 内部的按键已由 attachCustomKeyEventHandler 处理，这里只兜底其余焦点位置。
+  const target = event.target;
+  if (target instanceof HTMLElement && target.closest('.xterm')) return;
+  if (isEditableTarget(target)) return;
+  if (handleTerminalShortcut(event, shortcutActions)) event.preventDefault();
+}
+
+/** 终端快捷键动作：终端内由 xterm 处理器触发，焦点在终端外时由窗口监听兜底触发。 */
+const shortcutActions: TerminalShortcutActions = {
+  copy: () => void copyLogs(),
+  paste: () => void pasteToTerminal(activeBundle()?.terminal),
+  selectAll: () => {
+    const bundle = activeBundle();
+    if (!bundle) return;
+    bundle.terminal.selectAll();
+    showToast('已全选终端内容，Ctrl+Shift+C 复制');
+  },
+  clear: () => void clearLogs(),
+  search: () => toggleSearch(),
+  escape: () => {
+    // 搜索打开时 Esc 关闭搜索；否则放行给终端 / 页面。
+    if (!searchVisible.value) return false;
+    toggleSearch();
+    return true;
+  },
+  switchTab: (index) => {
+    // Alt+序号切换日志来源；目标与当前一致时也消费按键，避免透传给进程。
+    const target = SOURCES[index];
+    if (!target || target === activeTab.value) return true;
+    activeTab.value = target;
+    return true;
+  },
+};
 
 function createBundle(source: InstanceProcessSource): TerminalBundle | undefined {
   // 每个来源拥有独立 xterm 实例，并将输入、尺寸和滚动状态同步到桥接层。
@@ -139,6 +189,9 @@ function createBundle(source: InstanceProcessSource): TerminalBundle | undefined
   );
   terminal.open(container);
   fit.fit();
+
+  // 终端快捷键：复制、粘贴、全选、搜索、清屏与 Alt+序号切换来源。
+  terminal.attachCustomKeyEventHandler(createTerminalShortcutHandler(shortcutActions));
 
   terminal.onData((data) => {
     void mofoxApi.writeInstancePty(instanceId.value, source, data);
@@ -196,6 +249,9 @@ onMounted(async () => {
     if (autoScroll.value && source === activeTab.value) bundle.terminal.scrollToBottom();
   });
 
+  // 焦点不在终端 / 输入框时（如刚点击工具栏按钮、关闭搜索后），快捷键经窗口监听兜底生效。
+  window.addEventListener('keydown', onWindowKeydown);
+
   resizeObserver = new ResizeObserver(() => activeBundle()?.fit.fit());
   for (const source of SOURCES) {
     const container = terminalRefs[source].value;
@@ -208,6 +264,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   // 释放 IPC 订阅、浏览器观察器、定时器和终端资源。
+  window.removeEventListener('keydown', onWindowKeydown);
   unsubscribePty?.();
   resizeObserver?.disconnect();
   if (statsTimer) clearInterval(statsTimer);
@@ -344,6 +401,8 @@ function toggleSearch(): void {
   } else {
     searchQuery.value = '';
     for (const bundle of bundles.values()) bundle.search.clearDecorations();
+    // 关闭搜索后焦点回到终端，保证 Ctrl+Shift+F 随时可以再次打开搜索。
+    activeBundle()?.terminal.focus();
   }
 }
 
@@ -368,6 +427,12 @@ function searchPrev(): void {
 }
 
 function onSearchKeydown(event: KeyboardEvent): void {
+  // Ctrl+Shift+F 在搜索框内同样切换开关，保证快捷键是真正意义上的打开 / 关闭。
+  if (event.ctrlKey && event.shiftKey && event.code === 'KeyF') {
+    event.preventDefault();
+    toggleSearch();
+    return;
+  }
   if (event.key === 'Enter') {
     if (event.shiftKey) searchPrev();
     else searchNext();
@@ -382,17 +447,35 @@ async function copyLogs(): Promise<void> {
   if (!bundle) return;
   const selection = bundle.terminal.getSelection();
   let text = selection;
+  let wholeBuffer = false;
   if (!text) {
     bundle.terminal.selectAll();
     text = bundle.terminal.getSelection();
     bundle.terminal.clearSelection();
+    wholeBuffer = true;
   }
   if (!text.trim()) {
     showToast('没有可复制的内容');
     return;
   }
   await navigator.clipboard.writeText(text);
-  showToast('已复制到剪贴板');
+  showToast(wholeBuffer ? '已复制全部日志' : '已复制选中内容');
+}
+
+async function pasteToTerminal(target: Terminal | undefined): Promise<void> {
+  if (!target) return;
+  // 读取系统剪贴板并经 xterm 的 paste 写入 PTY，自动处理括号粘贴模式。
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) {
+      showToast('剪贴板为空');
+      return;
+    }
+    target.paste(text);
+    showToast('已粘贴到终端');
+  } catch (error) {
+    showToast(`无法读取剪贴板: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 function toggleAutoScroll(): void {
@@ -411,6 +494,7 @@ async function clearLogs(): Promise<void> {
   } catch {
     /* 日志缓冲不可用时仅完成本地清理 */
   }
+  showToast('已清空当前日志');
 }
 
 async function exportLogs(): Promise<void> {
@@ -535,13 +619,14 @@ function goBack(): void {
       <!-- 日志来源标签与搜索、复制、导出等工具栏 -->
       <div class="log-view__tabs" role="tablist" aria-label="日志来源">
         <button
-          v-for="source in SOURCES"
+          v-for="(source, index) in SOURCES"
           :key="source"
           class="log-tab state-layer"
           type="button"
           role="tab"
           :aria-selected="activeTab === source"
           :class="{ 'log-tab--active': activeTab === source }"
+          :title="`${sourceLabel(source)} 日志（Alt+${index + 1}）`"
           @click="activeTab = source"
         >
           <span class="msr log-tab__icon" aria-hidden="true">
@@ -556,8 +641,8 @@ function goBack(): void {
         <button
           class="icon-btn state-layer"
           type="button"
-          title="搜索"
-          aria-label="搜索"
+          title="搜索（Ctrl+Shift+F）"
+          aria-label="搜索（Ctrl+Shift+F）"
           :class="{ 'icon-btn--active': searchVisible }"
           @click="toggleSearch"
         >
@@ -566,8 +651,8 @@ function goBack(): void {
         <button
           class="icon-btn state-layer"
           type="button"
-          title="复制日志"
-          aria-label="复制日志"
+          title="复制日志（Ctrl+Shift+C）"
+          aria-label="复制日志（Ctrl+Shift+C）"
           @click="copyLogs"
         >
           <span class="msr" aria-hidden="true">content_copy</span>
@@ -594,12 +679,22 @@ function goBack(): void {
         <button
           class="icon-btn state-layer"
           type="button"
-          title="清空当前日志"
-          aria-label="清空当前日志"
+          title="清空当前日志（Ctrl+Shift+K）"
+          aria-label="清空当前日志（Ctrl+Shift+K）"
           @click="clearLogs"
         >
           <span class="msr" aria-hidden="true">delete_sweep</span>
         </button>
+      </div>
+
+      <!-- 常驻快捷键提示：独立成行、自动换行，确保每一项都完整可见 -->
+      <div class="log-view__shortcuts" aria-label="终端快捷键">
+        <span class="log-view__shortcut"><kbd>Ctrl+Shift+C</kbd> 复制</span>
+        <span class="log-view__shortcut"><kbd>Ctrl+Shift+V</kbd> 粘贴</span>
+        <span class="log-view__shortcut"><kbd>Ctrl+Shift+A</kbd> 全选</span>
+        <span class="log-view__shortcut"><kbd>Ctrl+Shift+F</kbd> 搜索</span>
+        <span class="log-view__shortcut"><kbd>Ctrl+Shift+K</kbd> 清空</span>
+        <span class="log-view__shortcut"><kbd>Alt+1/2</kbd> 切换来源</span>
       </div>
 
       <!-- 当前终端的增量搜索框 -->

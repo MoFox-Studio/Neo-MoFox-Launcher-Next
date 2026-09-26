@@ -173,6 +173,34 @@
   flex: 1;
 }
 
+/* 常驻快捷键提示：独立成行、自动换行，确保每一项都完整可见 */
+.log-view__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 4px 12px 6px;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-label-small);
+}
+
+.log-view__shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.log-view__shortcut kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 0.6875rem;
+}
+
 /* 搜索输入区与终端显示层 */
 .log-view__search {
   display: flex;
@@ -303,6 +331,10 @@
 @media (max-width: 720px) {
   .log-view__command-surface {
     margin: 12px 14px 8px;
+  }
+
+  .log-view__shortcuts {
+    display: none;
   }
 
   .log-view__header {

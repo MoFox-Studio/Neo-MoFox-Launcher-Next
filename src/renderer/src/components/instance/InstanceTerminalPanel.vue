@@ -8,6 +8,7 @@ import type { Instance, InstanceTerminalDirKind } from '@shared/domain/instance'
 import type { TerminalShellOption } from '@shared/domain/terminal-shell';
 import { mofoxApi } from '@/services/mofox-api';
 import { useToast } from '@/composables/use-toast';
+import { createTerminalShortcutHandler } from '@/composables/use-terminal-shortcuts';
 
 // 实例终端面板：内置交互式 shell，可在实例目录、虚拟环境目录与平台目录之间切换，
 // 并通过下拉框选择终端程序（Bash、PowerShell 等）。
@@ -175,6 +176,34 @@ function restartSession(): void {
 function clearScreen(): void {
   terminal?.clear();
   terminal?.focus();
+  showToast('已清屏');
+}
+
+async function copySelection(): Promise<void> {
+  // 复制终端选区；交互式终端不回退全选，避免误复制整个回滚缓冲。
+  if (!terminal) return;
+  const text = terminal.getSelection();
+  if (!text) {
+    showToast('请先选中要复制的内容');
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+  showToast('已复制到剪贴板');
+}
+
+async function pasteToTerminal(): Promise<void> {
+  // 读取系统剪贴板并经 xterm 的 paste 写入 PTY，自动处理括号粘贴模式。
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) {
+      showToast('剪贴板为空');
+      return;
+    }
+    terminal?.paste(text);
+    showToast('已粘贴到终端');
+  } catch (error) {
+    showToast(`无法读取剪贴板: ${describeError(error)}`);
+  }
 }
 
 function createTerminal(): boolean {
@@ -200,6 +229,20 @@ function createTerminal(): boolean {
   );
   terminal.open(container);
   fit.fit();
+
+  // 终端快捷键：复制、粘贴、全选与清屏；动作结果通过轻提示反馈。
+  terminal.attachCustomKeyEventHandler(
+    createTerminalShortcutHandler({
+      copy: () => void copySelection(),
+      paste: () => void pasteToTerminal(),
+      selectAll: () => {
+        terminal?.selectAll();
+        showToast('已全选终端内容，Ctrl+Shift+C 复制');
+      },
+      clear: () => clearScreen(),
+    }),
+  );
+
   terminal.onData((data) => {
     void mofoxApi.writeInstanceTerminal(props.instance.id, data);
   });
@@ -259,8 +302,8 @@ onBeforeUnmount(() => {
           <button
             class="icon-btn state-layer"
             type="button"
-            title="清屏"
-            aria-label="清屏"
+            title="清屏（Ctrl+Shift+K）"
+            aria-label="清屏（Ctrl+Shift+K）"
             @click="clearScreen"
           >
             <span class="msr" aria-hidden="true">mop</span>
@@ -343,7 +386,10 @@ onBeforeUnmount(() => {
         </div>
 
         <p class="terminal-panel__hint">
-          切换目录或终端程序都会重启终端会话；实例虚拟环境始终处于激活状态。
+          <kbd>Ctrl+Shift+C</kbd> 复制 · <kbd>Ctrl+Shift+V</kbd> 粘贴 · <kbd>Ctrl+Shift+A</kbd> 全选
+          ·
+          <kbd>Ctrl+Shift+K</kbd>
+          清屏；切换目录或终端程序都会重启终端会话，实例虚拟环境始终处于激活状态。
         </p>
       </div>
     </div>
