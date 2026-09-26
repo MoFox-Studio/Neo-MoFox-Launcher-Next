@@ -28,8 +28,12 @@ afterEach(async () => {
 /** 构造带 venv 解释器的虚拟环境目录，触发 venv 激活分支。 */
 async function createVenvDirectory(root: string, name = '.venv'): Promise<string> {
   const directory = join(root, name);
-  await mkdir(join(directory, 'bin'), { recursive: true });
-  await writeFile(join(directory, 'bin', 'python3'), '#!/bin/sh\n');
+  const binDir = join(directory, process.platform === 'win32' ? 'Scripts' : 'bin');
+  await mkdir(binDir, { recursive: true });
+  await writeFile(
+    join(binDir, process.platform === 'win32' ? 'python.exe' : 'python3'),
+    '#!/bin/sh\n',
+  );
   return directory;
 }
 
@@ -130,7 +134,7 @@ describe('InstanceTerminalService', () => {
 
     const { env } = helper.spawns[0];
     expect(env.VIRTUAL_ENV).toBe(venvDir);
-    const binDir = join(venvDir, 'bin');
+    const binDir = join(venvDir, process.platform === 'win32' ? 'Scripts' : 'bin');
     expect(env.PATH?.startsWith(binDir)).toBe(true);
     expect(env.PATH).toContain(process.env.PATH ?? '');
   });
