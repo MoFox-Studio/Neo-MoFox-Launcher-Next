@@ -3,7 +3,7 @@ import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useInstancesStore } from '@/stores/instances';
 import { useWindowTitle } from '@/composables/use-window-title';
-import InstanceCard from '@/components/InstanceCard.vue';
+import InstanceCard from '@/components/instance/InstanceCard.vue';
 
 const router = useRouter();
 const instancesStore = useInstancesStore();

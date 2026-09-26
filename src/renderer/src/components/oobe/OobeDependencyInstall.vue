@@ -4,8 +4,8 @@ import { useOobeStore } from '@/stores/oobe';
 import { mofoxApi } from '@/services/mofox-api';
 import { MofoxError } from '@shared/domain/error';
 import type { OobeDependencyStatus } from '@shared/domain/oobe';
-import ErrorDialog from '@/components/ErrorDialog.vue';
-import BaseDialog from '@/components/BaseDialog.vue';
+import ErrorDialog from '@/components/ui/ErrorDialog.vue';
+import BaseDialog from '@/components/ui/BaseDialog.vue';
 
 const oobe = useOobeStore();
 const emit = defineEmits<{ (e: 'next'): void; (e: 'back'): void; (e: 'skip'): void }>();

@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
 import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
 import { useWindowTitle } from '@/composables/use-window-title';
-import InstanceInfoPanel from '@/components/instance-manage/InstanceInfoPanel.vue';
-import InstanceMorePanel from '@/components/instance-manage/InstanceMorePanel.vue';
-import InstanceTerminalPanel from '@/components/instance-manage/InstanceTerminalPanel.vue';
-import InstanceUpdatePanel from '@/components/instance-manage/InstanceUpdatePanel.vue';
-import InstanceVenvPanel from '@/components/instance-manage/InstanceVenvPanel.vue';
+import { useToast } from '@/composables/use-toast';
+import InstanceInfoPanel from '@/components/instance/InstanceInfoPanel.vue';
+import InstanceMorePanel from '@/components/instance/InstanceMorePanel.vue';
+import InstanceTerminalPanel from '@/components/instance/InstanceTerminalPanel.vue';
+import InstanceUpdatePanel from '@/components/instance/InstanceUpdatePanel.vue';
+import InstanceVenvPanel from '@/components/instance/InstanceVenvPanel.vue';
 
 // 实例管理页：内容分区抽为独立面板，新增「更新」「虚拟环境」与「终端」分区。
 type ManageTab = 'info' | 'more' | 'venv' | 'terminal' | 'update';
@@ -40,16 +41,8 @@ const NAV_ITEMS: { id: ManageTab; label: string; description: string; icon: stri
 const activeTab = ref<ManageTab>('info');
 
 const platforms = ref<BotPlatformMetadata[]>([]);
-const toast = ref('');
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
-
-function showToast(message: string): void {
-  toast.value = message;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.value = '';
-  }, 2600);
-}
+// 轻提示走全局单例，面板内的操作反馈也直接调用它，无需逐层上报。
+const { show: showToast } = useToast();
 
 // 首次刷新完成前不触发「实例消失」跳转，避免与初始加载竞态。
 let initialLoadDone = false;
@@ -74,10 +67,6 @@ watch(instance, (value) => {
   if (initialLoadDone && !value && route.name === 'instance-manage') {
     returnToDashboard();
   }
-});
-
-onBeforeUnmount(() => {
-  if (toastTimer) clearTimeout(toastTimer);
 });
 
 function openLogs(): void {
@@ -142,32 +131,21 @@ function returnToDashboard(): void {
         v-if="instance && activeTab === 'info'"
         :instance="instance"
         @back="goBack"
-        @toast="showToast"
       />
       <InstanceMorePanel
         v-else-if="instance && activeTab === 'more'"
         :instance="instance"
         :platforms="platforms"
-        @toast="showToast"
         @deleted="returnToDashboard"
         @home="returnToDashboard"
       />
-      <InstanceVenvPanel
-        v-else-if="instance && activeTab === 'venv'"
-        :instance="instance"
-        @toast="showToast"
-      />
+      <InstanceVenvPanel v-else-if="instance && activeTab === 'venv'" :instance="instance" />
       <!-- 终端面板：v-if 挂载，离开分区即卸载并销毁终端会话 -->
       <InstanceTerminalPanel
         v-else-if="instance && activeTab === 'terminal'"
         :instance="instance"
-        @toast="showToast"
       />
-      <InstanceUpdatePanel
-        v-else-if="instance && activeTab === 'update'"
-        :instance="instance"
-        @toast="showToast"
-      />
+      <InstanceUpdatePanel v-else-if="instance && activeTab === 'update'" :instance="instance" />
       <!-- 实例不存在时的兜底状态：整卡居中展示，仅在列表刷新完成后出现 -->
       <div v-else-if="!instancesStore.loading" class="manage-missing" role="status">
         <span class="manage-missing__mark" aria-hidden="true">
@@ -180,10 +158,6 @@ function returnToDashboard(): void {
         </button>
       </div>
     </main>
-
-    <transition name="toast">
-      <div v-if="toast" class="manage-view__toast" role="status">{{ toast }}</div>
-    </transition>
   </div>
 </template>
 
@@ -388,49 +362,6 @@ function returnToDashboard(): void {
   color: var(--md-sys-color-on-secondary-container);
   font: var(--md-sys-typescale-label-large);
   cursor: pointer;
-}
-
-.manage-view__toast {
-  position: fixed;
-  left: 50%;
-  bottom: 40px;
-  transform: translateX(-50%);
-  max-width: min(560px, calc(100% - 64px));
-  padding: 12px 20px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-inverse-surface);
-  color: var(--md-sys-color-inverse-on-surface);
-  font: var(--md-sys-typescale-body-medium);
-  box-shadow: var(--md-sys-elevation-level3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  z-index: 30;
-}
-
-.toast-enter-active,
-.toast-leave-active {
-  transition:
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(8px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .toast-enter-active,
-  .toast-leave-active {
-    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-  }
-
-  .toast-enter-from,
-  .toast-leave-to {
-    transform: translateX(-50%);
-  }
 }
 
 @media (max-width: 900px) {

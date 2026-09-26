@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch, type Component } from 'vue';
-import BaseDialog from '@/components/BaseDialog.vue';
-import ErrorDialog from '@/components/ErrorDialog.vue';
+import BaseDialog from '@/components/ui/BaseDialog.vue';
+import ErrorDialog from '@/components/ui/ErrorDialog.vue';
 import { useSmartEnter } from '@/composables/use-smart-enter';
 import { useInstallDraftStore } from '@/stores/install-draft';
 import { useInstallStore } from '@/stores/install';

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
 import type { Instance } from '@shared/domain/instance';
-import StatusBadge from '@/components/StatusBadge.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import { useInstancesStore } from '@/stores/instances';
+import { useToast } from '@/composables/use-toast';
 
 // 信息查看面板：实例名称、运行状态与只读元数据集中展示；名称支持标题旁内联重命名，其余条目点击即复制。
 const props = defineProps<{
@@ -11,10 +12,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   back: [];
-  toast: [message: string];
 }>();
 
 const instancesStore = useInstancesStore();
+const { show: showToast } = useToast();
 
 const MAX_NAME_LENGTH = 32;
 
@@ -128,14 +129,14 @@ async function copyRow(row: InfoRow): Promise<void> {
   if (row.badge) return;
   const text = (row.copyText ?? '').trim();
   if (!text) {
-    emit('toast', '没有可复制的内容');
+    showToast('没有可复制的内容');
     return;
   }
   try {
     await navigator.clipboard.writeText(text);
-    emit('toast', '已复制到剪贴板');
+    showToast('已复制到剪贴板');
   } catch (error) {
-    emit('toast', `复制失败: ${error instanceof Error ? error.message : String(error)}`);
+    showToast(`复制失败: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -186,7 +187,7 @@ async function confirmRename(): Promise<void> {
     await instancesStore.update(props.instance.id, { name });
     editingName.value = false;
     nameError.value = '';
-    emit('toast', '实例名称已更新');
+    showToast('实例名称已更新');
   } catch (error) {
     nameError.value = error instanceof Error ? error.message : String(error);
   } finally {

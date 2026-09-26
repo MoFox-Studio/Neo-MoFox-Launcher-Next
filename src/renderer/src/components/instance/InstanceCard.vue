@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Instance } from '@shared/domain/instance';
-import StatusBadge from './StatusBadge.vue';
-import LinearProgress from '@/components/LinearProgress.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
+import LinearProgress from '@/components/ui/LinearProgress.vue';
 
 const props = defineProps<{ instance: Instance }>();
 

@@ -2,12 +2,13 @@
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
-import AppTitleBar from '@/components/AppTitleBar.vue';
-import AddInstanceDialog from '@/components/AddInstanceDialog.vue';
-import IntegrityCheckDialog from '@/components/IntegrityCheckDialog.vue';
-import NavRail from '@/components/NavRail.vue';
-import WallpaperLayer from '@/components/WallpaperLayer.vue';
-import DesktopBackdropLayer from '@/components/DesktopBackdropLayer.vue';
+import AppTitleBar from '@/components/layout/AppTitleBar.vue';
+import NavRail from '@/components/layout/NavRail.vue';
+import WallpaperLayer from '@/components/layout/WallpaperLayer.vue';
+import DesktopBackdropLayer from '@/components/layout/DesktopBackdropLayer.vue';
+import AppToast from '@/components/ui/AppToast.vue';
+import AddInstanceDialog from '@/components/instance/AddInstanceDialog.vue';
+import IntegrityCheckDialog from '@/components/instance/IntegrityCheckDialog.vue';
 import { mofoxApi } from '@/services/mofox-api';
 import { useIntegrityStore } from '@/stores/integrity';
 import { useSettingsStore } from '@/stores/settings';
@@ -87,6 +88,8 @@ onMounted(async () => {
     </div>
     <AddInstanceDialog v-if="!bare" />
     <IntegrityCheckDialog />
+    <!-- 全局轻提示：任何模块调用 showToast 都渲染到这里。 -->
+    <AppToast />
   </div>
 </template>
 

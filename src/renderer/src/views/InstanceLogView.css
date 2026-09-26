@@ -235,50 +235,6 @@
   height: 100%;
 }
 
-/* 操作反馈提示与过渡动画 */
-.log-view__toast {
-  position: absolute;
-  left: 50%;
-  bottom: 40px;
-  transform: translateX(-50%);
-  max-width: min(560px, calc(100% - 64px));
-  padding: 12px 20px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-inverse-surface);
-  color: var(--md-sys-color-inverse-on-surface);
-  font: var(--md-sys-typescale-body-medium);
-  box-shadow: var(--md-sys-elevation-level3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  z-index: 30;
-}
-
-.toast-enter-active,
-.toast-leave-active {
-  transition:
-    opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(8px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .toast-enter-active,
-  .toast-leave-active {
-    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-  }
-
-  .toast-enter-from,
-  .toast-leave-to {
-    transform: translateX(-50%);
-  }
-}
-
 /* 进程操作按钮与图标按钮 */
 .btn {
   display: inline-flex;

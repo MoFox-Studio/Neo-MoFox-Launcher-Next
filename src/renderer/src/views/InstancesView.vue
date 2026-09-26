@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import type { InstanceStatus } from '@shared/domain/instance';
 import { useInstancesStore } from '@/stores/instances';
 import { useWindowTitle } from '@/composables/use-window-title';
-import InstanceCard from '@/components/InstanceCard.vue';
+import InstanceCard from '@/components/instance/InstanceCard.vue';
 
 type FilterKey = 'all' | 'running' | 'stopped' | 'error';
 

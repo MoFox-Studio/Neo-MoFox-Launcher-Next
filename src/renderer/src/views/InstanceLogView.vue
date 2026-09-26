@@ -10,7 +10,8 @@ import type { InstanceProcessSource, InstanceStatus } from '@shared/domain/insta
 import { useInstancesStore } from '@/stores/instances';
 import { mofoxApi } from '@/services/mofox-api';
 import { useWindowTitle } from '@/composables/use-window-title';
-import StatusBadge from '@/components/StatusBadge.vue';
+import { useToast } from '@/composables/use-toast';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 
 // 实例日志页维护双终端、实时输出、进程控制和日志工具操作。
 const route = useRoute();
@@ -45,7 +46,8 @@ const searchVisible = ref(false);
 const searchQuery = ref('');
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const autoScroll = ref(true);
-const toast = ref('');
+// 轻提示走全局单例，由 App 根节点的 AppToast 宿主统一渲染。
+const { show: showToast } = useToast();
 const uptimes = reactive<Record<InstanceProcessSource, string>>({
   mofox: '--:--:--',
   platform: '--:--:--',
@@ -71,7 +73,6 @@ const bundles = new Map<InstanceProcessSource, TerminalBundle>();
 let unsubscribePty: (() => void) | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
 const resizeThrottles = new Map<InstanceProcessSource, ReturnType<typeof setTimeout>>();
 
 const SEARCH_DECORATIONS = {
@@ -210,7 +211,6 @@ onBeforeUnmount(() => {
   unsubscribePty?.();
   resizeObserver?.disconnect();
   if (statsTimer) clearInterval(statsTimer);
-  if (toastTimer) clearTimeout(toastTimer);
   for (const pending of resizeThrottles.values()) clearTimeout(pending);
   for (const bundle of bundles.values()) bundle.terminal.dispose();
   bundles.clear();
@@ -253,14 +253,6 @@ function formatUptime(ms: number): string {
   const minutes = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
   const seconds = String(total % 60).padStart(2, '0');
   return `${hours}:${minutes}:${seconds}`;
-}
-
-function showToast(message: string): void {
-  toast.value = message;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.value = '';
-  }, 2600);
 }
 
 async function onStart(): Promise<void> {
@@ -664,10 +656,6 @@ function goBack(): void {
         :class="{ 'log-view__terminal--hidden': activeTab !== 'platform' }"
       ></div>
     </div>
-
-    <transition name="toast">
-      <div v-if="toast" class="log-view__toast" role="status">{{ toast }}</div>
-    </transition>
   </div>
 </template>
 

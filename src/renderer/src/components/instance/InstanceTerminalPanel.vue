@@ -7,6 +7,7 @@ import '@xterm/xterm/css/xterm.css';
 import type { Instance, InstanceTerminalDirKind } from '@shared/domain/instance';
 import type { TerminalShellOption } from '@shared/domain/terminal-shell';
 import { mofoxApi } from '@/services/mofox-api';
+import { useToast } from '@/composables/use-toast';
 
 // 实例终端面板：内置交互式 shell，可在实例目录、虚拟环境目录与平台目录之间切换，
 // 并通过下拉框选择终端程序（Bash、PowerShell 等）。
@@ -16,9 +17,7 @@ const props = defineProps<{
   instance: Instance;
 }>();
 
-const emit = defineEmits<{
-  toast: [message: string];
-}>();
+const { show: showToast } = useToast();
 
 type SessionState = 'starting' | 'running' | 'exited';
 
@@ -132,7 +131,7 @@ async function openSession(kind: InstanceTerminalDirKind, announce: string): Pro
     sessionState.value = 'exited';
     const message = describeError(error);
     terminal.write(`\x1b[31m[Launcher] 终端打开失败: ${message}\x1b[0m\r\n`);
-    emit('toast', `终端打开失败: ${message}`);
+    showToast(`终端打开失败: ${message}`);
   } finally {
     switching.value = false;
   }
@@ -196,7 +195,7 @@ function createTerminal(): boolean {
       event.preventDefault();
       mofoxApi
         .openExternal(uri)
-        .catch((error: unknown) => emit('toast', `无法打开链接: ${describeError(error)}`));
+        .catch((error: unknown) => showToast(`无法打开链接: ${describeError(error)}`));
     }),
   );
   terminal.open(container);

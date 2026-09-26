@@ -5,8 +5,9 @@ import type { Instance } from '@shared/domain/instance';
 import type { VenvInfo, VenvPackageInfo, VenvProgressEvent } from '@shared/domain/venv';
 import { MofoxError } from '@shared/domain/error';
 import { mofoxApi } from '@/services/mofox-api';
-import BaseDialog from '@/components/BaseDialog.vue';
-import ErrorDialog from '@/components/ErrorDialog.vue';
+import { useToast } from '@/composables/use-toast';
+import BaseDialog from '@/components/ui/BaseDialog.vue';
+import ErrorDialog from '@/components/ui/ErrorDialog.vue';
 
 // 虚拟环境面板：展示实例 venv 目录下的包列表与可升级依赖，
 // 支持安装、卸载与升级单个包，并提供「升级全部」与镜像轮询安装。
@@ -16,9 +17,7 @@ const props = defineProps<{
   instance: Instance;
 }>();
 
-const emit = defineEmits<{
-  toast: [message: string];
-}>();
+const { show: showToast } = useToast();
 
 const info = ref<VenvInfo | null>(null);
 const loading = ref(false);
@@ -95,10 +94,7 @@ async function load(): Promise<void> {
   try {
     info.value = await mofoxApi.getVenvInfo(props.instance.id);
   } catch (error) {
-    emit(
-      'toast',
-      `虚拟环境信息加载失败: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    showToast(`虚拟环境信息加载失败: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     loading.value = false;
   }
@@ -109,7 +105,7 @@ async function refresh(): Promise<void> {
   try {
     info.value = await mofoxApi.getVenvInfo(props.instance.id);
   } catch (error) {
-    emit('toast', `刷新失败: ${error instanceof Error ? error.message : String(error)}`);
+    showToast(`刷新失败: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     refreshing.value = false;
   }
@@ -126,7 +122,7 @@ async function installPackage(name: string, version: string): Promise<void> {
       throw new Error(result.message ?? `安装 ${name} 失败`);
     }
     installOpen.value = false;
-    emit('toast', `已安装 ${name} ${version}`);
+    showToast(`已安装 ${name} ${version}`);
     await refresh();
   } catch (error) {
     installError.value = error instanceof Error ? error.message : String(error);
@@ -175,7 +171,7 @@ async function uninstall(name: string): Promise<void> {
   try {
     const result = await mofoxApi.uninstallVenvPackage(props.instance.id, name);
     if (!result.ok) throw new Error(result.message ?? `卸载 ${name} 失败`);
-    emit('toast', `已卸载 ${name}`);
+    showToast(`已卸载 ${name}`);
     await refresh();
   } catch (error) {
     errorDialog.value = {
@@ -192,7 +188,7 @@ async function upgrade(name: string): Promise<void> {
   try {
     const result = await mofoxApi.updateVenvPackage(props.instance.id, name);
     if (!result.ok) throw new Error(result.message ?? `升级 ${name} 失败`);
-    emit('toast', `已升级 ${name}`);
+    showToast(`已升级 ${name}`);
     await refresh();
   } catch (error) {
     venvProgress.value = null;
@@ -210,7 +206,7 @@ async function upgradeAll(): Promise<void> {
   try {
     const result = await mofoxApi.updateVenvPackage(props.instance.id);
     if (!result.ok) throw new Error(result.message ?? '升级全部依赖失败');
-    emit('toast', '已升级全部可升级依赖');
+    showToast('已升级全部可升级依赖');
     await refresh();
   } catch (error) {
     venvProgress.value = null;

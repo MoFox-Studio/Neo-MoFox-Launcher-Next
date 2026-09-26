@@ -4,7 +4,7 @@ import { useInstancesStore } from '@/stores/instances';
 import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
 import { useSmartEnter } from '@/composables/use-smart-enter';
-import ErrorDialog from '@/components/ErrorDialog.vue';
+import ErrorDialog from '@/components/ui/ErrorDialog.vue';
 import type { BotPlatformMetadata } from '@shared/domain/bot-platform';
 import InstallerTaskShell, { type TaskPhase } from './InstallerTaskShell.vue';
 import '@/components/install/install-wizard.css';

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { Instance } from '@shared/domain/instance';
-import ErrorDialog from '@/components/ErrorDialog.vue';
-import LinearProgress from '@/components/LinearProgress.vue';
+import ErrorDialog from '@/components/ui/ErrorDialog.vue';
+import LinearProgress from '@/components/ui/LinearProgress.vue';
 import { useInstanceUpdates } from '@/composables/use-instance-updates';
+import { useToast } from '@/composables/use-toast';
 const props = defineProps<{ instance: Instance }>();
-const emit = defineEmits<{ toast: [message: string] }>();
+const { show: showToast } = useToast();
 const {
   errorDialog,
   target,
@@ -33,7 +34,7 @@ const {
   doUpdateMofox,
   doUpdatePlatform,
   openRepository,
-} = useInstanceUpdates(props, emit);
+} = useInstanceUpdates(props, showToast);
 </script>
 
 <template>

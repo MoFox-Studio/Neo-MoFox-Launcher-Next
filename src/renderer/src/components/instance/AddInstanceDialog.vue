@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
-import BaseDialog from '@/components/BaseDialog.vue';
+import BaseDialog from '@/components/ui/BaseDialog.vue';
 import { useAddInstanceStore } from '@/stores/add-instance';
 
 type InstallMode = 'fresh' | 'import';

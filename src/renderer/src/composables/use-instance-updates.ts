@@ -10,7 +10,8 @@ import { mofoxApi } from '@/services/mofox-api';
 
 export function useInstanceUpdates(
   props: { instance: Instance },
-  emit: (event: 'toast', message: string) => void,
+  /** 轻提示回调：由调用方注入（通常来自全局 useToast）。 */
+  showToast: (message: string) => void,
 ) {
   // 更新面板：用一个连续任务画布承载目标切换、版本状态与更新操作。
   // 仅提交历史这类长列表保留局部滚动，页面本身由实例管理画布统一滚动。
@@ -84,8 +85,7 @@ export function useInstanceUpdates(
         selectedBranch.value = mofoxInfo.value.branch;
       }
     } catch (error) {
-      emit(
-        'toast',
+      showToast(
         `主程序版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
@@ -98,10 +98,7 @@ export function useInstanceUpdates(
     try {
       platformInfo.value = await mofoxApi.getPlatformUpdateInfo(props.instance.id);
     } catch (error) {
-      emit(
-        'toast',
-        `平台版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      showToast(`平台版本信息加载失败: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       loadingPlatform.value = false;
     }
@@ -120,7 +117,7 @@ export function useInstanceUpdates(
     switchingBranch.value = true;
     try {
       mofoxInfo.value = await mofoxApi.switchMofoxBranch(props.instance.id, selectedBranch.value);
-      emit('toast', `已切换到分支 ${selectedBranch.value}`);
+      showToast(`已切换到分支 ${selectedBranch.value}`);
     } catch (error) {
       showUpdateError('分支切换失败', error);
     } finally {
@@ -134,7 +131,7 @@ export function useInstanceUpdates(
     checkingOut.value = true;
     try {
       mofoxInfo.value = await mofoxApi.checkoutMofoxCommit(props.instance.id, commitHash);
-      emit('toast', `已回退到提交 ${commitHash}`);
+      showToast(`已回退到提交 ${commitHash}`);
     } catch (error) {
       showUpdateError('回退失败', error);
     } finally {
@@ -148,7 +145,7 @@ export function useInstanceUpdates(
     updatingMofox.value = true;
     try {
       mofoxInfo.value = await mofoxApi.updateMofox(props.instance.id);
-      emit('toast', '主程序已更新到最新提交');
+      showToast('主程序已更新到最新提交');
     } catch (error) {
       showUpdateError('主程序更新失败', error);
     } finally {
@@ -162,7 +159,7 @@ export function useInstanceUpdates(
     updatingPlatform.value = true;
     try {
       platformInfo.value = await mofoxApi.updatePlatform(props.instance.id, version);
-      emit('toast', version ? `平台已更改到 ${version}` : '平台已更新到最新版本');
+      showToast(version ? `平台已更改到 ${version}` : '平台已更新到最新版本');
     } catch (error) {
       showUpdateError('平台更新失败', error);
     } finally {

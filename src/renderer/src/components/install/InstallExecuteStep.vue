@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useInstallStore } from '@/stores/install';
-import LinearProgress from '@/components/LinearProgress.vue';
-import ErrorDialog from '@/components/ErrorDialog.vue';
+import LinearProgress from '@/components/ui/LinearProgress.vue';
+import ErrorDialog from '@/components/ui/ErrorDialog.vue';
 import type { InstallStepId } from '@shared/domain/install';
 
 const props = defineProps<{

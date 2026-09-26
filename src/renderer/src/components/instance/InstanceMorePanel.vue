@@ -9,8 +9,9 @@ import type {
 } from '@shared/domain/instance';
 import { mofoxApi } from '@/services/mofox-api';
 import { useInstancesStore } from '@/stores/instances';
-import BaseDialog from '@/components/BaseDialog.vue';
-import ErrorDialog from '@/components/ErrorDialog.vue';
+import { useToast } from '@/composables/use-toast';
+import BaseDialog from '@/components/ui/BaseDialog.vue';
+import ErrorDialog from '@/components/ui/ErrorDialog.vue';
 
 // 更多面板：文件系统操作、自动启动开关与实例信息修改入口。
 const props = defineProps<{
@@ -19,12 +20,12 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  toast: [message: string];
   deleted: [];
   home: [];
 }>();
 
 const instancesStore = useInstancesStore();
+const { show: showToast } = useToast();
 
 const editOpen = ref(false);
 const mofoxDir = ref('');
@@ -297,7 +298,7 @@ async function openFolder(kind: InstanceFolderKind): Promise<void> {
   try {
     await mofoxApi.openInstanceFolder(props.instance.id, kind);
   } catch (error) {
-    emit('toast', `打开文件夹失败: ${error instanceof Error ? error.message : String(error)}`);
+    showToast(`打开文件夹失败: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -306,10 +307,10 @@ async function toggleAutoStart(): Promise<void> {
   autoStart.value = next;
   try {
     await instancesStore.update(props.instance.id, { autoStart: next });
-    emit('toast', next ? '已开启自动运行' : '已关闭自动运行');
+    showToast(next ? '已开启自动运行' : '已关闭自动运行');
   } catch (error) {
     autoStart.value = !next;
-    emit('toast', `保存失败: ${error instanceof Error ? error.message : String(error)}`);
+    showToast(`保存失败: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -317,9 +318,9 @@ async function toggleFavorite(): Promise<void> {
   const next = !(props.instance.extra?.isLike === true);
   try {
     await instancesStore.update(props.instance.id, { extra: { isLike: next } });
-    emit('toast', next ? '已加入收藏' : '已取消收藏');
+    showToast(next ? '已加入收藏' : '已取消收藏');
   } catch (error) {
-    emit('toast', `保存失败: ${error instanceof Error ? error.message : String(error)}`);
+    showToast(`保存失败: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -405,9 +406,9 @@ async function save(): Promise<void> {
     });
     editOpen.value = false;
     syncForm();
-    emit('toast', '实例配置已保存');
+    showToast('实例配置已保存');
   } catch (error) {
-    emit('toast', `保存失败: ${error instanceof Error ? error.message : String(error)}`);
+    showToast(`保存失败: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     saving.value = false;
   }

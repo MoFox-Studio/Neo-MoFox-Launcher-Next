@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, watch } from 'vue';
-import BaseDialog from '@/components/BaseDialog.vue';
+import BaseDialog from '@/components/ui/BaseDialog.vue';
 import { useIntegrityStore } from '@/stores/integrity';
 import type { InstanceIntegrityProblem } from '@shared/domain/instance';
 
