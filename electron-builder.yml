@@ -9,6 +9,9 @@ asar: true
 asarUnpack:
   - node_modules/node-pty/**
   - node_modules/@lydell/node-pty/**
+# 便携版 NSIS 加固钩子：把解包目录的无条件 RMDir /r 改为占用探测，
+# 修复运行中实例的 node-pty 原生模块被删导致的启动失败（见 scripts/portable-nsis-patch.cjs）
+afterPack: ./scripts/portable-nsis-patch.cjs
 extraResources:
   - from: assets/images/icon.ico
     to: icon.ico
