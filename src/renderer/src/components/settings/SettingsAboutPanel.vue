@@ -357,6 +357,7 @@ const CREDIT_GROUPS: {
             <span class="msr settings-item__icon">rocket_launch</span>
             <div class="settings-item__body">
               <span class="settings-item__label">Neo-MoFox Launcher</span>
+              <span class="settings-item__desc">基于 Electron · Vue 3 · Material Design 3</span>
               <span class="settings-item__desc settings-item__desc--mono">
                 {{ versionLine }}
               </span>
@@ -373,12 +374,10 @@ const CREDIT_GROUPS: {
             <span>检查更新失败：{{ lastError }}</span>
           </div>
 
-          <!-- 可用更新：发行说明 + 前往发布页 -->
-          <template v-if="updateInfo">
-            <div class="settings-item about-update-item">
-              <span class="msr settings-item__icon about-update-item__icon">
-                system_update_alt
-              </span>
+          <!-- 可用更新：头部行与发行说明被同一边框包裹，形成嵌套小卡片 -->
+          <div v-if="updateInfo" class="about-update-block">
+            <div class="about-update-block__header">
+              <span class="msr settings-item__icon">system_update_alt</span>
               <div class="settings-item__body">
                 <span class="settings-item__label">
                   发现新版本 {{ updateInfo.latestVersion }}
@@ -391,13 +390,6 @@ const CREDIT_GROUPS: {
               <!-- 内容来自 GitHub Release，已经 renderRemoteMarkdown 净化，仅保留白名单标签 -->
               <!-- eslint-disable-next-line vue/no-v-html -->
               <div class="about-release-notes__body" v-html="releaseNotesHtml"></div>
-            </div>
-          </template>
-
-          <div class="settings-item">
-            <span class="msr settings-item__icon">description</span>
-            <div class="settings-item__body">
-              <span class="settings-item__desc">基于 Electron · Vue 3 · Material Design 3</span>
             </div>
           </div>
         </div>
@@ -604,20 +596,27 @@ const CREDIT_GROUPS: {
   font: var(--md-sys-typescale-label-small);
 }
 
-/* 更新提示行：用主色图标与浅色底强调“有新版本”。 */
-.about-update-item {
-  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--app-glass-row));
+/* 更新提示块：头部行与发行说明同框，样式与普通设置行一致。 */
+.about-update-block {
+  border-radius: 7px;
+  background: var(--app-glass-row);
+  overflow: hidden;
 }
 
-.about-update-item__icon {
-  color: var(--md-sys-color-primary);
+.about-update-block__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--app-density-row-min-height);
+  padding: var(--app-density-row-padding-block) 18px;
 }
 
-/* 发行说明容器：限高滚动，避免长说明撑爆设置卡片。 */
+/* 发行说明：位于更新块内部，限高滚动，避免长说明撑爆设置卡片。 */
 .about-release-notes {
   max-height: 340px;
   padding: 8px 18px 12px;
   overflow-y: auto;
+  border-top: 1px solid var(--app-glass-border);
 }
 
 .about-release-notes__body {
