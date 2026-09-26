@@ -6,6 +6,7 @@ import {
   DEFAULT_WALLPAPER_OPACITY,
   type LauncherSettings,
 } from '@shared/domain/settings';
+import { DEFAULT_HOME_SETTINGS, normalizeHomeSettings } from '@shared/domain/home';
 import { mofoxApi } from '@/services/mofox-api';
 import { applyAppearancePreferences, applyTheme } from '@/services/theme';
 
@@ -41,6 +42,7 @@ export const useSettingsStore = defineStore('settings', () => {
     wallpaperDim: DEFAULT_WALLPAPER_DIM,
     wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     oobeCompleted: false,
+    home: normalizeHomeSettings(DEFAULT_HOME_SETTINGS),
   });
   const systemAccentColor = ref<string | null>(null);
   const loaded = ref(false);
@@ -79,8 +81,10 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   async function update(patch: Partial<LauncherSettings>): Promise<void> {
+    // 补丁先深拷贝为纯 JSON 数据：响应式代理无法通过 IPC 的结构化克隆。
+    const plain = JSON.parse(JSON.stringify(patch)) as Partial<LauncherSettings>;
     // 以后端返回的规范化结果为准；设置量很小，统一重放可避免遗漏新增外观字段。
-    settings.value = await mofoxApi.updateSettings(patch);
+    settings.value = await mofoxApi.updateSettings(plain);
     applyCurrentAppearance();
   }
 

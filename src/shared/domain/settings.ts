@@ -1,4 +1,5 @@
 import type { WallpaperType } from './wallpaper';
+import type { HomeSettings } from './home';
 
 /** 外观模式；`system` 跟随操作系统的颜色偏好。 */
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -79,4 +80,6 @@ export interface LauncherSettings {
   wallpaperOpacity: number;
   /** 首次引导是否已完成；未完成时应用强制停在 OOBE 路由，直到 OOBE 服务将其置为 true。 */
   oobeCompleted: boolean;
+  /** 主页小部件布局：开关、顺序与各部件专属配置。 */
+  home: HomeSettings;
 }

@@ -1,11 +1,16 @@
 import { serializeIpcError } from '../../shared/domain/error';
 import { IPC_INVOKE_CHANNELS } from '../../shared/ipc';
-import type { LauncherBuildInfo, LauncherUpdateInfo } from '../../shared/domain/app-update';
+import type {
+  LauncherBuildInfo,
+  LauncherReleaseNotes,
+  LauncherUpdateInfo,
+} from '../../shared/domain/app-update';
 
-/** 启动器更新 IPC 边界：渲染端只能读取本地构建信息或触发一次远端检查，无额外参数。 */
+/** 启动器更新 IPC 边界：渲染端只能读取构建信息、发行说明或触发一次远端检查，无额外参数。 */
 interface LauncherUpdateActions {
   getBuildInfo(): Promise<LauncherBuildInfo>;
   check(): Promise<LauncherUpdateInfo>;
+  getReleaseNotes(): Promise<LauncherReleaseNotes>;
 }
 
 interface IpcMainRegistrar {
@@ -26,6 +31,7 @@ export function registerLauncherUpdateIpc(
 ): void {
   register(ipcMain, IPC_INVOKE_CHANNELS.getLauncherBuildInfo, () => actions.getBuildInfo());
   register(ipcMain, IPC_INVOKE_CHANNELS.checkLauncherUpdate, () => actions.check());
+  register(ipcMain, IPC_INVOKE_CHANNELS.getLauncherReleaseNotes, () => actions.getReleaseNotes());
 }
 
 /**

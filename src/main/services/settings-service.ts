@@ -6,6 +6,11 @@ import {
   DEFAULT_WALLPAPER_OPACITY,
   type LauncherSettings,
 } from '../../shared/domain/settings';
+import {
+  DEFAULT_HOME_SETTINGS,
+  isHomeSettingsShape,
+  normalizeHomeSettings,
+} from '../../shared/domain/home';
 import { MofoxError } from '../../shared/domain/error';
 import { writeJsonAtomic } from '../utils/atomic-json';
 
@@ -37,6 +42,7 @@ export const DEFAULT_SETTINGS: LauncherSettings = {
   wallpaperDim: DEFAULT_WALLPAPER_DIM,
   wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
   oobeCompleted: false,
+  home: normalizeHomeSettings(DEFAULT_HOME_SETTINGS),
 };
 
 type DiagnosticReporter = (message: string, error: Error) => void;
@@ -211,10 +217,13 @@ function normalizeSettings(source: unknown): LauncherSettings {
   };
   const result = { ...DEFAULT_SETTINGS };
   for (const key of Object.keys(DEFAULT_SETTINGS) as Array<keyof LauncherSettings>) {
+    // 主页布局为嵌套结构，统一走深度归一化以补齐缺失部件并丢弃未知条目。
+    if (key === 'home') continue;
     if (isValidSettingValue(key, candidate[key])) {
       (result as Record<string, unknown>)[key] = candidate[key];
     }
   }
+  (result as Record<string, unknown>).home = normalizeHomeSettings(candidate.home);
   return result;
 }
 
@@ -282,6 +291,8 @@ function isValidSettingValue(key: keyof LauncherSettings, value: unknown): boole
       return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
     case 'oobeCompleted':
       return typeof value === 'boolean';
+    case 'home':
+      return isHomeSettingsShape(value);
     default:
       return typeof value === 'boolean';
   }

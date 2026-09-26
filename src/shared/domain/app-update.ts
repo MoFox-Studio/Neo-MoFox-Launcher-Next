@@ -44,3 +44,18 @@ export interface LauncherUpdateInfo {
   /** 发行时间 ISO 字符串；未知时为空字符串。 */
   publishedAt: string;
 }
+
+/** 当前构建对应发行版的更新日志；`found` 为 false 表示该构建没有对应的已发布发行版。 */
+export interface LauncherReleaseNotes {
+  found: boolean;
+  /** 发行标签；与本地构建的 tag 一致。 */
+  tag: string;
+  /** 发行版显示名（发布标题或标签）。 */
+  name: string;
+  /** 发行说明 Markdown 原文；渲染前必须经过净化处理。 */
+  notes: string;
+  /** 发行时间 ISO 字符串；未知时为空字符串。 */
+  publishedAt: string;
+  /** 发行版页面地址，用于跳转系统浏览器查看。 */
+  url: string;
+}

@@ -1,0 +1,199 @@
+/* 主页小部件共享外壳样式：由 DashboardView 以全局方式引入，供各部件复用。 */
+.home-widget {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--app-glass-border);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--app-glass-card);
+  box-shadow: var(--app-glass-card-shadow);
+  backdrop-filter: var(--app-glass-card-filter);
+  -webkit-backdrop-filter: var(--app-glass-card-filter);
+  color: var(--md-sys-color-on-surface);
+}
+
+.home-widget__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 22px 0;
+}
+
+.home-widget__icon {
+  color: var(--md-sys-color-primary);
+  font-size: 22px;
+}
+
+.home-widget__header h2 {
+  margin: 0;
+  font: var(--md-sys-typescale-title-medium);
+}
+
+.home-widget__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.home-widget__body {
+  flex: 1;
+  padding: 14px 22px 20px;
+}
+
+/* 小部件头部与内容中的圆形图标按钮（刷新等动作）。 */
+.home-widget__icon-button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.home-widget__icon-button:hover:not(:disabled) {
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
+
+.home-widget__icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.home-widget__icon-button .msr {
+  font-size: 20px;
+}
+
+/* 小部件内的居中占位（加载与错误状态）。 */
+.home-widget__placeholder {
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
+}
+
+.home-widget__placeholder .msr {
+  font-size: 26px;
+}
+
+.home-widget__placeholder-error {
+  color: var(--md-sys-color-error);
+}
+
+/* 占位内的行内文本按钮（重试等）。 */
+.home-widget__text-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font: var(--md-sys-typescale-label-large);
+  cursor: pointer;
+}
+
+/* 净化后 Markdown 正文的基础排版；文档部件、阅读弹窗与更新日志共用。
+   必须放在全局样式表中：v-html 注入的内容不带 scoped 属性，:deep 覆盖不到。 */
+.home-markdown {
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-medium);
+  line-height: 1.7;
+}
+
+.home-markdown h1,
+.home-markdown h2,
+.home-markdown h3,
+.home-markdown h4,
+.home-markdown h5,
+.home-markdown h6 {
+  margin: 18px 0 8px;
+  color: var(--md-sys-color-on-surface);
+}
+
+.home-markdown h1 {
+  font: var(--md-sys-typescale-headline-small);
+}
+
+.home-markdown h2 {
+  font: var(--md-sys-typescale-title-large);
+}
+
+.home-markdown h3 {
+  font: var(--md-sys-typescale-title-medium);
+}
+
+.home-markdown p {
+  margin: 8px 0;
+}
+
+.home-markdown ul,
+.home-markdown ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.home-markdown li {
+  margin: 4px 0;
+}
+
+.home-markdown blockquote {
+  margin: 10px 0;
+  padding: 6px 14px;
+  border-left: 3px solid var(--md-sys-color-primary);
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.home-markdown code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container-highest);
+  font-family: var(--md-ref-typeface-mono);
+  font-size: 0.9em;
+}
+
+.home-markdown pre {
+  margin: 10px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--md-sys-color-surface-container-highest);
+  overflow-x: auto;
+}
+
+.home-markdown pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.home-markdown a {
+  color: var(--md-sys-color-primary);
+}
+
+.home-markdown table {
+  margin: 10px 0;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.home-markdown th,
+.home-markdown td {
+  padding: 6px 10px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  text-align: left;
+}
+
+.home-markdown hr {
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}

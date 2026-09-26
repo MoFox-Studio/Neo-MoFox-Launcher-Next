@@ -46,7 +46,13 @@ import type {
   VenvPathInspection,
   VenvProgressEvent,
 } from './domain/venv';
-import type { LauncherBuildInfo, LauncherUpdateInfo } from './domain/app-update';
+import type { LauncherBuildInfo, LauncherReleaseNotes, LauncherUpdateInfo } from './domain/app-update';
+import type {
+  HomeDocContent,
+  HomeDocEntry,
+  Quote,
+  QuoteProviderId,
+} from './domain/home';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
@@ -131,6 +137,11 @@ export const IPC_INVOKE_CHANNELS = {
   getVenvPackageInfo: 'venv:package-info',
   getLauncherBuildInfo: 'launcher-update:build-info',
   checkLauncherUpdate: 'launcher-update:check',
+  getLauncherReleaseNotes: 'launcher-update:release-notes',
+  pickHomeDocs: 'home-docs:pick',
+  readHomeDoc: 'home-docs:read',
+  fetchHomeRemoteDoc: 'home-docs:fetch-remote',
+  fetchQuote: 'home-quotes:fetch',
 } as const satisfies Record<Exclude<keyof MofoxApi, 'on'>, string>;
 
 export const IPC_EVENT_CHANNELS = {
@@ -309,6 +320,17 @@ export interface MofoxApi {
   getLauncherBuildInfo(): Promise<LauncherBuildInfo>;
   /** 查询 GitHub 最新发行版并与本地构建比较，返回是否可用更新及发行说明。 */
   checkLauncherUpdate(): Promise<LauncherUpdateInfo>;
+  /** 读取当前构建对应发行版的更新日志；开发构建（无标签）返回 `found: false`。 */
+  getLauncherReleaseNotes(): Promise<LauncherReleaseNotes>;
+
+  /** 主页文档部件：选择本地 Markdown/文本文档，返回可持久化的条目元数据。 */
+  pickHomeDocs(): Promise<HomeDocEntry[]>;
+  /** 读取主页本地文档的正文；仅接受文档扩展名且不超过大小上限的文件。 */
+  readHomeDoc(path: string): Promise<HomeDocContent>;
+  /** 经主进程拉取远程文档正文；仅接受无凭据的 HTTPS 链接。 */
+  fetchHomeRemoteDoc(url: string): Promise<HomeDocContent>;
+  /** 从在线一言服务获取一条名言；分类过滤仅对一言来源生效。 */
+  fetchQuote(provider: QuoteProviderId, categories?: readonly string[]): Promise<Quote>;
 
   /**
    * 按事件名关联载荷类型的订阅入口。

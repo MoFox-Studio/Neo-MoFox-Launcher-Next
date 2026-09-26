@@ -30,6 +30,7 @@ import { registerInstanceTerminalIpc } from './ipc/instance-terminal';
 import { registerIntegrityIpc } from './ipc/integrity';
 import { registerUpdateIpc } from './ipc/update';
 import { registerLauncherUpdateIpc } from './ipc/launcher-update';
+import { registerHomeIpc } from './ipc/home';
 import { registerWindowIpc } from './ipc/window';
 import { registerWallpaperIpc } from './ipc/wallpaper';
 import { registerVenvIpc } from './ipc/venv';
@@ -61,6 +62,8 @@ import { PlatformMetadataService } from './services/platform-metadata-service';
 import { SettingsService } from './services/settings-service';
 import { WallpaperService } from './services/wallpaper-service';
 import { VenvService } from './services/venv-service';
+import { fetchHomeRemoteDoc, pickHomeDocs, readHomeDoc } from './services/home-docs-service';
+import { fetchQuote } from './services/quote-service';
 import { createWallpaperProtocolHandler } from './wallpaper-protocol';
 import type { VenvPackageResult } from '../shared/domain/venv';
 import { EnvironmentService } from './utils/environment-service';
@@ -607,6 +610,14 @@ if (!hasSingleInstanceLock) {
     registerLauncherUpdateIpc(ipcMain, {
       getBuildInfo: () => launcherUpdates.getBuildInfo(),
       check: () => launcherUpdates.checkForUpdates(),
+      getReleaseNotes: () => launcherUpdates.getReleaseNotes(),
+    });
+    // 主页部件：本地/远程文档读取与在线名言代理，全部经服务层安全校验。
+    registerHomeIpc(ipcMain, {
+      pickDocs: () => pickHomeDocs(() => mainWindow),
+      readDoc: (path) => readHomeDoc(path),
+      fetchRemoteDoc: (url) => fetchHomeRemoteDoc(url),
+      fetchQuote: (provider, categories) => fetchQuote(provider, categories),
     });
     const installTasks = new InstallTaskService(
       platforms,

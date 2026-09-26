@@ -115,4 +115,160 @@ describe('SettingsService', () => {
 
     await expect(service.update(patch)).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
   });
+
+  it('fills in the default home layout when the field is missing from storage', async () => {
+    const directory = await createTempDirectory();
+    // 模拟旧版设置文件：不含 home 字段。
+    await writeFile(
+      join(directory, 'launcher-settings.json'),
+      JSON.stringify({ themeMode: 'dark' }),
+      'utf8',
+    );
+    const service = new SettingsService(directory);
+    await expect(service.get()).resolves.toMatchObject({
+      themeMode: 'dark',
+      home: DEFAULT_SETTINGS.home,
+    });
+  });
+
+  it('normalizes a stored home layout: unknown widgets dropped, missing appended', async () => {
+    const directory = await createTempDirectory();
+    await writeFile(
+      join(directory, 'launcher-settings.json'),
+      JSON.stringify({
+        home: {
+          version: 1,
+          widgets: [
+            { id: 'totally-unknown', enabled: true, config: {} },
+            { id: 'quotes', enabled: true, config: { provider: 'jinrishici', rotation: '5m' } },
+            { id: 'clock', enabled: false, config: { hour24: false } },
+            { id: 'clock', enabled: true, config: {} },
+          ],
+        },
+      }),
+      'utf8',
+    );
+    const service = new SettingsService(directory);
+    const settings = await service.get();
+    const ids = settings.home.widgets.map((widget) => widget.id);
+    // 未知部件被丢弃、重复 ID 去重、缺失部件按默认顺序补齐。
+    expect(ids).toEqual([
+      'quotes',
+      'clock',
+      'metrics',
+      'favorites',
+      'quickActions',
+      'changelog',
+      'docs',
+    ]);
+    // 非法/缺失的配置字段回退默认值。
+    expect(settings.home.widgets[0]).toMatchObject({
+      id: 'quotes',
+      enabled: true,
+      config: { provider: 'jinrishici', rotation: '5m', showAuthor: true, showSource: true },
+    });
+    expect(settings.home.widgets[1]).toMatchObject({
+      id: 'clock',
+      enabled: false,
+      config: { hour24: false, showDate: true, showGreeting: true },
+    });
+  });
+
+  it('keeps custom docs entries and metric selections through patch validation', async () => {
+    const directory = await createTempDirectory();
+    const service = new SettingsService(directory);
+    const updated = await service.update({
+      home: {
+        version: 1,
+        widgets: [
+          {
+            id: 'docs',
+            enabled: true,
+            config: {
+              documents: [
+                { id: 'a', kind: 'local', name: '指南.md', path: 'C:\\Docs\\指南.md' },
+                { id: 'b', kind: 'remote', name: '手册', url: 'https://example.com/manual.md' },
+              ],
+            },
+          },
+          {
+            id: 'metrics',
+            enabled: true,
+            config: { items: ['error', 'error', 'running'] },
+          },
+        ],
+      },
+    });
+    const docs = updated.home.widgets.find((widget) => widget.id === 'docs');
+    expect(docs).toMatchObject({
+      enabled: true,
+      config: {
+        documents: [
+          { id: 'a', kind: 'local', name: '指南.md', path: 'C:\\Docs\\指南.md' },
+          { id: 'b', kind: 'remote', name: '手册', url: 'https://example.com/manual.md' },
+        ],
+      },
+    });
+    const metrics = updated.home.widgets.find((widget) => widget.id === 'metrics');
+    expect(metrics).toMatchObject({ config: { items: ['error', 'running'] } });
+    // 其余部件按默认值补齐在尾部。
+    expect(updated.home.widgets.map((widget) => widget.id).slice(-1)).toEqual(['changelog']);
+  });
+
+  it('sanitizes invalid docs entries and metric ids when loading from storage', async () => {
+    const directory = await createTempDirectory();
+    await writeFile(
+      join(directory, 'launcher-settings.json'),
+      JSON.stringify({
+        home: {
+          version: 1,
+          widgets: [
+            {
+              id: 'docs',
+              enabled: true,
+              config: {
+                documents: [
+                  { id: 'a', kind: 'local', name: '指南.md', path: 'C:\\Docs\\指南.md' },
+                  { id: 'c', kind: 'remote', name: '坏链接', url: 'http://example.com/x.md' },
+                  { id: 'd', kind: 'local', name: '缺路径', path: '' },
+                ],
+              },
+            },
+            {
+              id: 'metrics',
+              enabled: true,
+              config: { items: ['error', 'error', 'nope', 'running'] },
+            },
+          ],
+        },
+      }),
+      'utf8',
+    );
+    const service = new SettingsService(directory);
+    const settings = await service.get();
+    const docs = settings.home.widgets.find((widget) => widget.id === 'docs');
+    expect(docs).toMatchObject({
+      enabled: true,
+      config: {
+        documents: [{ id: 'a', kind: 'local', name: '指南.md', path: 'C:\\Docs\\指南.md' }],
+      },
+    });
+    const metrics = settings.home.widgets.find((widget) => widget.id === 'metrics');
+    expect(metrics).toMatchObject({ config: { items: ['error', 'running'] } });
+  });
+
+  it('rejects home patches that do not satisfy the strict shape', async () => {
+    const service = new SettingsService(await createTempDirectory());
+    await expect(
+      service.update({ home: { version: 1, widgets: 'nope' } as unknown as never }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(
+      service.update({
+        home: {
+          version: 1,
+          widgets: [{ id: 'clock', enabled: true, config: { hour24: 'yes' } }],
+        } as unknown as never,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
 });

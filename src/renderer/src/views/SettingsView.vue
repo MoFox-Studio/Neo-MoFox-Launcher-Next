@@ -5,12 +5,14 @@ import { useWindowTitle } from '@/composables/use-window-title';
 import SettingsAboutPanel from '@/components/settings/SettingsAboutPanel.vue';
 import SettingsAppearancePanel from '@/components/settings/SettingsAppearancePanel.vue';
 import SettingsGeneralPanel from '@/components/settings/SettingsGeneralPanel.vue';
+import SettingsHomePanel from '@/components/settings/SettingsHomePanel.vue';
 import SettingsMigrationPanel from '@/components/settings/SettingsMigrationPanel.vue';
 
-type SettingsTab = 'appearance' | 'general' | 'migration' | 'about';
+type SettingsTab = 'appearance' | 'home' | 'general' | 'migration' | 'about';
 
 const SETTING_SECTIONS: { id: SettingsTab; label: string; description: string; icon: string }[] = [
   { id: 'appearance', label: '外观', description: '主题、颜色与语言', icon: 'palette' },
+  { id: 'home', label: '主页', description: '小部件开关、排序与配置', icon: 'dashboard_customize' },
   { id: 'general', label: '通用', description: '目录、运行行为与日志', icon: 'tune' },
   {
     id: 'migration',
@@ -63,6 +65,7 @@ useWindowTitle({ title: '设置', subtitle: '调整启动器的外观、行为�
     <!-- 内容画布：按选中分区渲染对应独立面板 -->
     <main class="settings-view__content">
       <SettingsAppearancePanel v-if="activeTab === 'appearance'" />
+      <SettingsHomePanel v-else-if="activeTab === 'home'" />
       <SettingsGeneralPanel v-else-if="activeTab === 'general'" />
       <SettingsMigrationPanel v-else-if="activeTab === 'migration'" />
       <SettingsAboutPanel v-else />

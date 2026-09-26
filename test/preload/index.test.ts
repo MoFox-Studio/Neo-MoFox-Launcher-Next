@@ -109,6 +109,11 @@ describe('createMofoxApi', () => {
     await api.getVenvPackageInfo('instance-1', 'napcat');
     await api.getLauncherBuildInfo();
     await api.checkLauncherUpdate();
+    await api.getLauncherReleaseNotes();
+    await api.pickHomeDocs();
+    await api.readHomeDoc('C:\\Docs\\guide.md');
+    await api.fetchHomeRemoteDoc('https://example.com/guide.md');
+    await api.fetchQuote('hitokoto', ['a']);
 
     expect(ipcRenderer.invoke.mock.calls.map(([channel]) => channel)).toEqual(
       Object.values(IPC_INVOKE_CHANNELS),

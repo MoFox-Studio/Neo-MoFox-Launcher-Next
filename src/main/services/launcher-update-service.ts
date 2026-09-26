@@ -5,9 +5,10 @@ import type { GithubRelease } from '../../shared/domain/github';
 import type {
   LauncherBuildChannel,
   LauncherBuildInfo,
+  LauncherReleaseNotes,
   LauncherUpdateInfo,
 } from '../../shared/domain/app-update';
-import { fetchReleases } from '../utils/git/github';
+import { fetchReleaseByTag, fetchReleases } from '../utils/git/github';
 
 /** 启动器自身所在的 GitHub 仓库；更新检查与发行页跳转均指向此仓库。 */
 export const LAUNCHER_REPOSITORY = 'MoFox-Studio/Neo-MoFox-Launcher-Next';
@@ -26,6 +27,14 @@ type FetchReleases = (
   limit?: number,
 ) => Promise<GithubRelease[]>;
 
+/** 注入的按标签查询发行版实现签名；默认使用 GitHub 镜像轮询，测试可替换。 */
+type FetchReleaseByTag = (
+  mirrors: readonly MirrorSource[],
+  repository: string,
+  tag: string,
+  signal?: AbortSignal,
+) => Promise<GithubRelease>;
+
 type DiagnosticReporter = (message: string, error: Error) => void;
 
 export interface LauncherUpdateServiceOptions {
@@ -37,6 +46,8 @@ export interface LauncherUpdateServiceOptions {
   appVersion: string;
   /** 注入的 Release 查询实现；缺省使用镜像轮询实现。 */
   fetchReleasesImpl?: FetchReleases;
+  /** 注入的按标签查询实现；缺省使用镜像轮询实现。 */
+  fetchReleaseImpl?: FetchReleaseByTag;
   /** 可选诊断回调；版本号文件读取失败等非致命问题在此上报。 */
   report?: DiagnosticReporter;
 }
@@ -53,14 +64,17 @@ export class LauncherUpdateService {
   private readonly searchPaths: readonly string[];
   private readonly appVersion: string;
   private readonly fetchReleasesImpl: FetchReleases;
+  private readonly fetchReleaseImpl: FetchReleaseByTag;
   private readonly report: DiagnosticReporter;
   private buildInfo?: LauncherBuildInfo;
+  private releaseNotes?: LauncherReleaseNotes;
 
   constructor(options: LauncherUpdateServiceOptions) {
     this.mirrors = options.mirrors;
     this.searchPaths = options.searchPaths;
     this.appVersion = options.appVersion;
     this.fetchReleasesImpl = options.fetchReleasesImpl ?? fetchReleases;
+    this.fetchReleaseImpl = options.fetchReleaseImpl ?? fetchReleaseByTag;
     this.report = options.report ?? ((message, error) => console.error(message, error));
   }
 
@@ -111,6 +125,34 @@ export class LauncherUpdateService {
       releaseNotes: newest.body ?? '',
       publishedAt: newest.published_at ?? '',
     };
+  }
+
+  /**
+   * 读取当前构建对应发行版的更新日志。
+   *
+   * 开发构建没有发布标签，直接返回 `found: false`；有标签时按标签查询
+   * 发行版并缓存（进程生命周期内构建不变，缓存键即当前标签）。
+   *
+   * @returns 当前发行版的更新日志。
+   * @throws {MofoxError} 所有镜像均无法获取发行版信息时抛出最后一个错误。
+   */
+  async getReleaseNotes(): Promise<LauncherReleaseNotes> {
+    const current = await this.getBuildInfo();
+    if (!current.tag) {
+      return { found: false, tag: '', name: '', notes: '', publishedAt: '', url: '' };
+    }
+    if (this.releaseNotes?.tag === current.tag) return { ...this.releaseNotes };
+    const release = await this.fetchReleaseImpl(this.mirrors.list(), LAUNCHER_REPOSITORY, current.tag);
+    const result: LauncherReleaseNotes = {
+      found: true,
+      tag: release.tag_name,
+      name: release.name?.trim() || release.tag_name,
+      notes: release.body ?? '',
+      publishedAt: release.published_at ?? '',
+      url: buildReleaseUrl(release.tag_name),
+    };
+    this.releaseNotes = result;
+    return { ...result };
   }
 
   /**

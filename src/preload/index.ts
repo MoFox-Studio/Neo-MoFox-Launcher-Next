@@ -131,6 +131,12 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
       invoke(IPC_INVOKE_CHANNELS.getVenvPackageInfo, instanceId, name),
     getLauncherBuildInfo: () => invoke(IPC_INVOKE_CHANNELS.getLauncherBuildInfo),
     checkLauncherUpdate: () => invoke(IPC_INVOKE_CHANNELS.checkLauncherUpdate),
+    getLauncherReleaseNotes: () => invoke(IPC_INVOKE_CHANNELS.getLauncherReleaseNotes),
+    pickHomeDocs: () => invoke(IPC_INVOKE_CHANNELS.pickHomeDocs),
+    readHomeDoc: (path) => invoke(IPC_INVOKE_CHANNELS.readHomeDoc, path),
+    fetchHomeRemoteDoc: (url) => invoke(IPC_INVOKE_CHANNELS.fetchHomeRemoteDoc, url),
+    fetchQuote: (provider, categories) =>
+      invoke(IPC_INVOKE_CHANNELS.fetchQuote, provider, categories),
     on: <K extends keyof MofoxEventMap>(
       event: K,
       listener: (payload: MofoxEventMap[K]) => void,

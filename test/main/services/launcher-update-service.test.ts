@@ -95,20 +95,28 @@ describe('LauncherUpdateService', () => {
 
   /** 依赖与 fetch 替身的组装工具。 */
   function createService(options: {
-    releases: GithubRelease[];
+    releases?: GithubRelease[];
+    releaseByTag?: GithubRelease | null;
     searchPaths?: string[];
     appVersion?: string;
   }) {
-    const fetchReleasesImpl = vi.fn(async () => options.releases);
+    const fetchReleasesImpl = vi.fn(async () => options.releases ?? []);
+    const fetchReleaseImpl = vi.fn(async () => {
+      if (options.releaseByTag === null) {
+        throw Object.assign(new Error('HTTP 404'), { name: 'MofoxError' });
+      }
+      return options.releaseByTag as GithubRelease;
+    });
     const report = vi.fn();
     const service = new LauncherUpdateService({
       mirrors: { list: () => [] },
       searchPaths: options.searchPaths ?? [buildInfoDir],
       appVersion: options.appVersion ?? '0.1.0',
       fetchReleasesImpl,
+      fetchReleaseImpl,
       report,
     });
-    return { service, fetchReleasesImpl, report };
+    return { service, fetchReleasesImpl, fetchReleaseImpl, report };
   }
 
   it('reports an update with release notes when a newer nightly exists', async () => {
@@ -293,11 +301,11 @@ describe('LauncherUpdateService', () => {
       const { service, report } = createService({
         releases: [],
         searchPaths: [directory],
-        appVersion: '0.1.0',
+        appVersion: '0.2.0',
       });
       const info = await service.getBuildInfo();
       expect(info).toEqual({
-        version: '0.1.0',
+        version: '0.2.0',
         channel: 'dev',
         buildDate: '',
         tag: '',
@@ -307,5 +315,55 @@ describe('LauncherUpdateService', () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it('returns found=false without querying mirrors for dev builds without a tag', async () => {
+    const missingDirectory = join(tmpdir(), `mofox-missing-${Date.now()}`);
+    const { service, fetchReleaseImpl } = createService({
+      searchPaths: [missingDirectory],
+      appVersion: '0.1.0',
+    });
+    await expect(service.getReleaseNotes()).resolves.toEqual({
+      found: false,
+      tag: '',
+      name: '',
+      notes: '',
+      publishedAt: '',
+      url: '',
+    });
+    expect(fetchReleaseImpl).not.toHaveBeenCalled();
+  });
+
+  it('fetches release notes by the current build tag and caches them', async () => {
+    await writeFile(join(buildInfoDir, 'version.json'), nightlyVersionFile('20260926'), 'utf8');
+    const { service, fetchReleaseImpl } = createService({
+      releaseByTag: release('nightly-20260926', '🌙 每夜构建 20260926', '## 本次更新'),
+    });
+    const first = await service.getReleaseNotes();
+    expect(first).toEqual({
+      found: true,
+      tag: 'nightly-20260926',
+      name: '🌙 每夜构建 20260926',
+      notes: '## 本次更新',
+      publishedAt: '2026-09-26T16:05:00Z',
+      url: 'https://github.com/MoFox-Studio/Neo-MoFox-Launcher-Next/releases/tag/nightly-20260926',
+    });
+    expect(fetchReleaseImpl).toHaveBeenCalledTimes(1);
+    expect(fetchReleaseImpl).toHaveBeenCalledWith([], 'MoFox-Studio/Neo-MoFox-Launcher-Next', 'nightly-20260926');
+
+    // 会话内缓存：第二次读取不再查询镜像。
+    const second = await service.getReleaseNotes();
+    expect(second).toEqual(first);
+    expect(fetchReleaseImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the tag name when the release has no display name', async () => {
+    await writeFile(join(buildInfoDir, 'version.json'), nightlyVersionFile('20260926'), 'utf8');
+    const { service } = createService({
+      releaseByTag: release('nightly-20260926', null, null),
+    });
+    const notes = await service.getReleaseNotes();
+    expect(notes.name).toBe('nightly-20260926');
+    expect(notes.notes).toBe('');
   });
 });

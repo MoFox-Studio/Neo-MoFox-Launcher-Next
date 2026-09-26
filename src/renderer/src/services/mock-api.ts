@@ -25,7 +25,14 @@ import type {
   UpdateProgressEvent,
 } from '@shared/domain/update';
 import type { GithubRelease } from '@shared/domain/github';
-import type { LauncherBuildInfo, LauncherUpdateInfo } from '@shared/domain/app-update';
+import type { LauncherBuildInfo, LauncherReleaseNotes, LauncherUpdateInfo } from '@shared/domain/app-update';
+import type {
+  HomeDocContent,
+  HomeDocEntry,
+  Quote,
+  QuoteProviderId,
+} from '@shared/domain/home';
+import { DEFAULT_HOME_SETTINGS, normalizeHomeSettings } from '@shared/domain/home';
 import type {
   VenvInfo,
   VenvPackage,
@@ -136,12 +143,43 @@ let settings: LauncherSettings = {
   wallpaperDim: DEFAULT_WALLPAPER_DIM,
   wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
   oobeCompleted: demoStartsReady,
+  home: normalizeHomeSettings(DEFAULT_HOME_SETTINGS),
 };
 
 let maximized = false;
 
 type MockSource = 'mofox' | 'platform';
 const MOCK_SOURCES: MockSource[] = ['mofox', 'platform'];
+
+// 主页部件演示数据：示例文档、一言与诗词句子池。
+const DEMO_DOC_MARKDOWN = [
+  '# Neo-MoFox 启动器演示文档',
+  '',
+  '这是**演示模式**下的示例文档正文，用于预览主页文档部件的阅读体验。',
+  '',
+  '## 快速上手',
+  '',
+  '1. 在主导航点击「添加实例」',
+  '2. 跟随安装向导完成部署',
+  '3. 回到主页查看实例状态',
+  '',
+  '> 提示：正式使用时可在「设置 → 主页」添加本地或远程文档。',
+].join('\n');
+
+const DEMO_HITOKOTO: Array<{ text: string; author: string; source: string; category: string }> = [
+  { text: '哪里会有人喜欢孤独，不过是不喜欢失望罢了。', author: '村上春树', source: '挪威的森林', category: 'c' },
+  { text: '我们仍未知道那天所看见的花的名字。', author: '', source: '未闻花名', category: 'a' },
+  { text: '适合自己的才是最好的。', author: '', source: '网络', category: 'e' },
+  { text: '纸上得来终觉浅，绝知此事要躬行。', author: '陆游', source: '冬夜读书示子聿', category: 'h' },
+  { text: '人是一根能思想的苇草。', author: '帕斯卡', source: '思想录', category: 'j' },
+];
+
+const DEMO_POEMS: Array<{ text: string; author: string; source: string }> = [
+  { text: '海上生明月，天涯共此时。', author: '张九龄', source: '望月怀远' },
+  { text: '春风又绿江南岸，明月何时照我还。', author: '王安石', source: '泊船瓜洲' },
+  { text: '落霞与孤鹜齐飞，秋水共长天一色。', author: '王勃', source: '滕王阁序' },
+  { text: '小荷才露尖尖角，早有蜻蜓立上头。', author: '杨万里', source: '小池' },
+];
 
 // 更新演示数据：模拟主程序分支/提交信息与平台 Release 列表。
 const mockCommits: MofoxCommit[] = [
@@ -1034,6 +1072,70 @@ export const mockApi: MofoxApi = {
         '> ⚠️ 这是自动化每夜构建版本，可能存在不稳定因素，仅供测试使用。',
       ].join('\n'),
       publishedAt: '2026-09-26T16:05:00Z',
+    };
+  },
+
+  /** 主页文档部件：演示模式返回两篇虚构文档条目。 */
+  async pickHomeDocs(): Promise<HomeDocEntry[]> {
+    await delay(300);
+    return [
+      { id: crypto.randomUUID(), kind: 'local', name: '机器人配置说明.md', path: 'D:\\Docs\\配置说明.md' },
+      { id: crypto.randomUUID(), kind: 'local', name: '常见问题.txt', path: 'D:\\Docs\\常见问题.txt' },
+    ];
+  },
+
+  async readHomeDoc(path: string): Promise<HomeDocContent> {
+    await delay(200);
+    return { name: path.split(/[\\/]/).pop() ?? '文档', content: DEMO_DOC_MARKDOWN };
+  },
+
+  /** 主页文档部件：演示模式仅接受 HTTPS 链接并返回示例正文。 */
+  async fetchHomeRemoteDoc(url: string): Promise<HomeDocContent> {
+    await delay(500);
+    if (!url.startsWith('https://')) {
+      throw Object.assign(new Error('远程文档链接必须使用无凭据的 HTTPS 地址'), { code: 'INVALID_ARGUMENT' });
+    }
+    const name = url.split('/').filter(Boolean).pop() ?? '远程文档';
+    return { name, content: DEMO_DOC_MARKDOWN };
+  },
+
+  /** 主页名言部件：按来源返回示例句子。 */
+  async fetchQuote(provider: QuoteProviderId, categories?: readonly string[]): Promise<Quote> {
+    await delay(400);
+    if (provider === 'jinrishici') {
+      const poem = DEMO_POEMS[Math.floor(Math.random() * DEMO_POEMS.length)]!;
+      return { text: poem.text, author: poem.author, source: poem.source };
+    }
+    const pool = categories && categories.length > 0
+      ? DEMO_HITOKOTO.filter((quote) => categories.includes(quote.category))
+      : DEMO_HITOKOTO;
+    const candidates = pool.length > 0 ? pool : DEMO_HITOKOTO;
+    const quote = candidates[Math.floor(Math.random() * candidates.length)]!;
+    return { text: quote.text, author: quote.author, source: quote.source };
+  },
+
+  /** 启动器更新日志：演示构建返回当前标签对应的示例发行说明。 */
+  async getLauncherReleaseNotes(): Promise<LauncherReleaseNotes> {
+    await delay(400);
+    const current = await this.getLauncherBuildInfo();
+    if (!current.tag) {
+      return { found: false, tag: '', name: '', notes: '', publishedAt: '', url: '' };
+    }
+    return {
+      found: true,
+      tag: current.tag,
+      name: `🌙 每夜构建 ${current.buildDate}`,
+      notes: [
+        `## 🌙 每夜构建版本 - ${current.buildDate}`,
+        '',
+        '### ✨ 新功能',
+        '- 主页支持小部件自定义：名言、文档、更新日志与快捷操作',
+        '- 新增时钟与日期部件，可配置 12/24 小时制',
+        '',
+        '> ⚠️ 这是演示模式的示例更新日志。',
+      ].join('\n'),
+      publishedAt: `${current.buildDate.slice(0, 4)}-${current.buildDate.slice(4, 6)}-${current.buildDate.slice(6, 8)}T16:05:00Z`,
+      url: `https://github.com/MoFox-Studio/Neo-MoFox-Launcher-Next/releases/tag/${current.tag}`,
     };
   },
 

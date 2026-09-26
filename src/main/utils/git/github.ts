@@ -181,6 +181,25 @@ async function fetchRelease(
 }
 
 /**
+ * 顺序尝试每个镜像获取 GitHub 发行版元数据，首个成功即采用。
+ *
+ * @param mirrors - 仅消费 `github` 类型的镜像列表。
+ * @param repository - GitHub 仓库的 `owner/repo` 字符串。
+ * @param version - `latest` 表示最新发行版，其余值按 tag 拉取对应发行版。
+ * @param signal - 可选的取消信号；触发后立即抛出当前错误。
+ * @returns 解析后的 GitHub Release 元数据。
+ * @throws {MofoxError} 镜像列表为空或所有镜像均失败时抛出最后一个错误。
+ */
+export async function fetchReleaseByTag(
+  mirrors: readonly MirrorSource[],
+  repository: string,
+  version: string,
+  signal?: AbortSignal,
+): Promise<Release> {
+  return fetchRelease(mirrors, repository, version, signal);
+}
+
+/**
  * 顺序尝试每个镜像下载指定资产，首个成功即采用。
  *
  * @param mirrors - 仅消费 `github` 类型的镜像列表。
