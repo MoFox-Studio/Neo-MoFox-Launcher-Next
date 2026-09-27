@@ -349,7 +349,11 @@ describe('LauncherUpdateService', () => {
       url: 'https://github.com/MoFox-Studio/Neo-MoFox-Launcher-Next/releases/tag/nightly-20260926',
     });
     expect(fetchReleaseImpl).toHaveBeenCalledTimes(1);
-    expect(fetchReleaseImpl).toHaveBeenCalledWith([], 'MoFox-Studio/Neo-MoFox-Launcher-Next', 'nightly-20260926');
+    expect(fetchReleaseImpl).toHaveBeenCalledWith(
+      [],
+      'MoFox-Studio/Neo-MoFox-Launcher-Next',
+      'nightly-20260926',
+    );
 
     // 会话内缓存：第二次读取不再查询镜像。
     const second = await service.getReleaseNotes();

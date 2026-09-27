@@ -40,11 +40,12 @@ describe('quote-service', () => {
   });
 
   it('maps jinrishici fields to text/author/source', async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({ content: '海上生明月', origin: '望月怀远', author: '张九龄' }),
-        { status: 200 },
-      ),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ content: '海上生明月', origin: '望月怀远', author: '张九龄' }),
+          { status: 200 },
+        ),
     );
     vi.stubGlobal('fetch', fetchImpl);
 
@@ -56,7 +57,10 @@ describe('quote-service', () => {
   });
 
   it('surfaces HTTP failures as IO errors with the provider label', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('error', { status: 503 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('error', { status: 503 })),
+    );
     await expect(fetchQuote('hitokoto')).rejects.toMatchObject({
       code: 'IO_ERROR',
       message: expect.stringContaining('一言'),
@@ -64,12 +68,20 @@ describe('quote-service', () => {
   });
 
   it('surfaces network failures as IO errors', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNREFUSED'); }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('ECONNREFUSED');
+      }),
+    );
     await expect(fetchQuote('jinrishici')).rejects.toMatchObject({ code: 'IO_ERROR' });
   });
 
   it('rejects non-object or empty payloads', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('[1,2,3]', { status: 200 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('[1,2,3]', { status: 200 })),
+    );
     await expect(fetchQuote('hitokoto')).rejects.toMatchObject({ code: 'IO_ERROR' });
 
     vi.stubGlobal(

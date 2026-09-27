@@ -59,10 +59,19 @@ function handleBodyClick(event: MouseEvent): void {
     </div>
 
     <template #actions>
-      <button v-if="error" type="button" class="doc-reader__button doc-reader__button--filled state-layer" @click="emit('retry')">
+      <button
+        v-if="error"
+        type="button"
+        class="doc-reader__button doc-reader__button--filled state-layer"
+        @click="emit('retry')"
+      >
         重试
       </button>
-      <button type="button" class="doc-reader__button doc-reader__button--text state-layer" @click="emit('close')">
+      <button
+        type="button"
+        class="doc-reader__button doc-reader__button--text state-layer"
+        @click="emit('close')"
+      >
         关闭
       </button>
     </template>

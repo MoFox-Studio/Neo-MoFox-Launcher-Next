@@ -27,9 +27,7 @@ const counts = computed<Record<HomeMetricId, number>>(() => {
     favorites: instances.filter((instance) => instance.extra?.isLike === true).length,
     running: instances.filter((instance) => instance.status === 'running').length,
     error: instances.filter((instance) => instance.status === 'error').length,
-    platforms: new Set(
-      instances.map((instance) => instance.platform?.id).filter(Boolean),
-    ).size,
+    platforms: new Set(instances.map((instance) => instance.platform?.id).filter(Boolean)).size,
   };
 });
 

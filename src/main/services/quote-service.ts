@@ -32,7 +32,8 @@ export async function fetchQuote(
 async function fetchHitokoto(categories: readonly string[]): Promise<Quote> {
   const query = new URLSearchParams();
   for (const category of categories) {
-    if ((HITOKOTO_CATEGORY_IDS as readonly string[]).includes(category)) query.append('c', category);
+    if ((HITOKOTO_CATEGORY_IDS as readonly string[]).includes(category))
+      query.append('c', category);
   }
   const suffix = [...query.keys()].length > 0 ? `?${query.toString()}` : '';
   const data = await requestJson(`https://v1.hitokoto.cn/${suffix}`, '一言');

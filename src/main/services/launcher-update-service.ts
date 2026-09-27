@@ -142,7 +142,11 @@ export class LauncherUpdateService {
       return { found: false, tag: '', name: '', notes: '', publishedAt: '', url: '' };
     }
     if (this.releaseNotes?.tag === current.tag) return { ...this.releaseNotes };
-    const release = await this.fetchReleaseImpl(this.mirrors.list(), LAUNCHER_REPOSITORY, current.tag);
+    const release = await this.fetchReleaseImpl(
+      this.mirrors.list(),
+      LAUNCHER_REPOSITORY,
+      current.tag,
+    );
     const result: LauncherReleaseNotes = {
       found: true,
       tag: release.tag_name,

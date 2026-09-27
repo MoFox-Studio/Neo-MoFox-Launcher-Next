@@ -180,8 +180,14 @@ function openSettings(): void {
       </div>
 
       <!-- 内容已在加载后经 renderRemoteMarkdown 净化，仅保留白名单标签。 -->
-      <!-- eslint-disable-next-line vue/no-v-html -->
-      <div v-else-if="contentHtml" class="home-markdown docs-widget__markdown" v-html="contentHtml" @click="handleBodyClick"></div>
+      <!-- eslint-disable vue/no-v-html -->
+      <div
+        v-else-if="contentHtml"
+        class="home-markdown docs-widget__markdown"
+        v-html="contentHtml"
+        @click="handleBodyClick"
+      ></div>
+      <!-- eslint-enable vue/no-v-html -->
     </div>
 
     <WidgetDocReaderDialog

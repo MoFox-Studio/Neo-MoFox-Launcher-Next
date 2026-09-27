@@ -13,8 +13,18 @@ export interface QuoteProviderOption {
 /** 全部名言来源选项。 */
 export const QUOTE_PROVIDER_OPTIONS: QuoteProviderOption[] = [
   { id: 'random', label: '随机', description: '在全部来源间随机挑选', icon: 'shuffle' },
-  { id: 'hitokoto', label: '一言', description: 'hitokoto.cn 聚合句子，支持分类筛选', icon: 'format_quote' },
-  { id: 'jinrishici', label: '今日诗词', description: '每次一句应景的古诗词', icon: 'auto_stories' },
+  {
+    id: 'hitokoto',
+    label: '一言',
+    description: 'hitokoto.cn 聚合句子，支持分类筛选',
+    icon: 'format_quote',
+  },
+  {
+    id: 'jinrishici',
+    label: '今日诗词',
+    description: '每次一句应景的古诗词',
+    icon: 'auto_stories',
+  },
 ];
 
 /** 轮换间隔选项，供设置界面渲染。 */

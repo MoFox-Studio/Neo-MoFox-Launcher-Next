@@ -44,7 +44,9 @@ onMounted(() => {
 const buildInfoLine = computed(() => {
   const info = buildInfo.value;
   if (!info) return '';
-  const parts = [info.channel === 'nightly' ? `每夜构建 ${info.version}` : `开发构建 ${info.version}`];
+  const parts = [
+    info.channel === 'nightly' ? `每夜构建 ${info.version}` : `开发构建 ${info.version}`,
+  ];
   if (info.commit) parts.push(info.commit);
   return parts.join(' · ');
 });
@@ -135,15 +137,17 @@ function handleNotesClick(event: MouseEvent): void {
         </header>
 
         <!-- 内容来自 GitHub Release，已经 renderRemoteMarkdown 净化，仅保留白名单标签。 -->
-        <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-if="notesHtml" class="home-markdown changelog-widget__notes" v-html="notesHtml" @click="handleNotesClick"></div>
+        <!-- eslint-disable vue/no-v-html -->
+        <div
+          v-if="notesHtml"
+          class="home-markdown changelog-widget__notes"
+          v-html="notesHtml"
+          @click="handleNotesClick"
+        ></div>
+        <!-- eslint-enable vue/no-v-html -->
         <p v-else class="changelog-widget__missing">该发行版没有填写更新说明。</p>
 
-        <button
-          type="button"
-          class="changelog-widget__link state-layer"
-          @click="openReleasePage"
-        >
+        <button type="button" class="changelog-widget__link state-layer" @click="openReleasePage">
           在 GitHub 查看发行版
           <span class="msr" aria-hidden="true">open_in_new</span>
         </button>
@@ -152,11 +156,7 @@ function handleNotesClick(event: MouseEvent): void {
       <div v-else-if="notes" class="changelog-widget__dev">
         <span class="msr" aria-hidden="true">construction</span>
         <p>当前为开发构建，没有对应的已发布发行版；每次构建的说明可在 GitHub Releases 页查看。</p>
-        <button
-          type="button"
-          class="changelog-widget__link state-layer"
-          @click="openReleasePage"
-        >
+        <button type="button" class="changelog-widget__link state-layer" @click="openReleasePage">
           打开 Releases 页面
           <span class="msr" aria-hidden="true">open_in_new</span>
         </button>

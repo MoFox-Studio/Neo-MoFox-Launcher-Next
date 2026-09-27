@@ -71,8 +71,14 @@ function syncRotation(): void {
 }
 
 watch(() => props.config.rotation, syncRotation);
-watch(() => props.config.provider, () => void refresh());
-watch(() => props.config.categories.join(','), () => void refresh());
+watch(
+  () => props.config.provider,
+  () => void refresh(),
+);
+watch(
+  () => props.config.categories.join(','),
+  () => void refresh(),
+);
 
 onMounted(() => {
   syncRotation();

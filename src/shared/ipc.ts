@@ -46,13 +46,12 @@ import type {
   VenvPathInspection,
   VenvProgressEvent,
 } from './domain/venv';
-import type { LauncherBuildInfo, LauncherReleaseNotes, LauncherUpdateInfo } from './domain/app-update';
 import type {
-  HomeDocContent,
-  HomeDocEntry,
-  Quote,
-  QuoteProviderId,
-} from './domain/home';
+  LauncherBuildInfo,
+  LauncherReleaseNotes,
+  LauncherUpdateInfo,
+} from './domain/app-update';
+import type { HomeDocContent, HomeDocEntry, Quote, QuoteProviderId } from './domain/home';
 
 /** 事件订阅的释放函数；必须由调用方在不再监听时执行。 */
 export type Unsubscribe = () => void;
