@@ -5,6 +5,7 @@ import type {
   ChangelogWidgetConfig,
   ClockWidgetConfig,
   HomeDocEntry,
+  HomeLinkEntry,
   HomeMetricId,
   HomeWidgetConfigMap,
   HomeWidgetId,
@@ -62,27 +63,29 @@ const changelogConfig = computed(() => widgetConfig('changelog'));
 const docsConfig = computed(() => widgetConfig('docs'));
 const notesConfig = computed(() => widgetConfig('notes'));
 const linksConfig = computed(() => widgetConfig('links'));
-const linkName = ref('');
-const linkUrl = ref('');
-const linkError = ref('');
 function addLink(): void {
-  const entry = {
-    id: globalThis.crypto.randomUUID(),
-    name: linkName.value.trim(),
-    url: linkUrl.value.trim(),
-  };
-  if (!isHomeLinkEntry(entry)) {
-    linkError.value = '请填写名称和无账号密码的 HTTPS 网址';
-    return;
-  }
-  if (linksConfig.value.links.length >= MAX_HOME_LINKS) {
-    linkError.value = '最多添加 12 个链接';
-    return;
-  }
-  updateWidget('links', { config: { links: [...linksConfig.value.links, entry] } });
-  linkName.value = '';
-  linkUrl.value = '';
-  linkError.value = '';
+  if (linksConfig.value.links.length >= MAX_HOME_LINKS) return;
+  updateWidget('links', {
+    config: {
+      links: [
+        ...linksConfig.value.links,
+        { id: globalThis.crypto.randomUUID(), name: '', url: '' },
+      ],
+    },
+  });
+}
+function editLink(id: string, field: 'name' | 'url', value: string): void {
+  updateWidget('links', {
+    config: {
+      links: linksConfig.value.links.map((entry) =>
+        entry.id === id ? { ...entry, [field]: value } : entry,
+      ),
+    },
+  });
+}
+function linkError(entry: HomeLinkEntry): string {
+  if (!entry.name.trim()) return '请填写链接名称';
+  return isHomeLinkEntry(entry) ? '' : '请输入无账号密码的 HTTPS 网址';
 }
 function removeLink(id: string): void {
   updateWidget('links', {
@@ -344,43 +347,61 @@ function addRemoteDoc(): void {
       </p>
     </template>
     <template v-else-if="widget.id === 'links'">
-      <div v-for="entry in linksConfig.links" :key="entry.id" class="docs-list__item">
-        <span class="docs-list__name" :title="entry.url">{{ entry.name }}</span>
+      <div class="links-editor">
+        <p class="home-config__hint">直接修改下方内容，保存布局后生效。取消布局可撤销所有修改。</p>
+        <div v-for="(entry, index) in linksConfig.links" :key="entry.id" class="links-editor__card">
+          <div class="links-editor__heading">
+            <strong>链接 {{ index + 1 }}</strong>
+            <button
+              type="button"
+              class="links-editor__delete"
+              :aria-label="`删除链接 ${index + 1}${entry.name ? '：' + entry.name : ''}`"
+              @click="removeLink(entry.id)"
+            >
+              <span class="msr" aria-hidden="true">delete</span>删除
+            </button>
+          </div>
+          <label
+            >链接名称<input
+              class="home-text-input"
+              :value="entry.name"
+              maxlength="60"
+              placeholder="例如：项目文档"
+              @input="editLink(entry.id, 'name', ($event.target as HTMLInputElement).value)"
+          /></label>
+          <label
+            >网址<input
+              class="home-text-input"
+              :value="entry.url"
+              type="url"
+              maxlength="2048"
+              placeholder="https://…"
+              :aria-invalid="!isHomeLinkEntry(entry)"
+              :aria-describedby="`link-error-${entry.id}`"
+              @input="editLink(entry.id, 'url', ($event.target as HTMLInputElement).value)"
+          /></label>
+          <p
+            v-if="linkError(entry)"
+            :id="`link-error-${entry.id}`"
+            class="links-editor__error"
+            role="status"
+          >
+            <span class="msr" aria-hidden="true">error</span>{{ linkError(entry) }}
+          </p>
+        </div>
+        <p v-if="!linksConfig.links.length" class="links-editor__empty">
+          还没有常用链接，添加一个试试。
+        </p>
         <button
           type="button"
-          class="home-row__icon-button"
-          :aria-label="`移除${entry.name}`"
-          @click="removeLink(entry.id)"
+          class="docs-add-button"
+          :disabled="linksConfig.links.length >= MAX_HOME_LINKS"
+          @click="addLink"
         >
-          <span class="msr">close</span>
+          <span class="msr" aria-hidden="true">add_link</span>添加链接 ·
+          {{ linksConfig.links.length }}/{{ MAX_HOME_LINKS }}
         </button>
       </div>
-      <label
-        >链接名称<input
-          v-model="linkName"
-          class="home-text-input"
-          maxlength="60"
-          placeholder="例如：项目文档"
-      /></label>
-      <label
-        >网址<input
-          v-model="linkUrl"
-          class="home-text-input"
-          type="url"
-          maxlength="2048"
-          placeholder="https://…"
-          @keydown.enter.prevent="addLink"
-      /></label>
-      <button
-        type="button"
-        class="docs-add-button"
-        :disabled="linksConfig.links.length >= MAX_HOME_LINKS"
-        @click="addLink"
-      >
-        添加链接
-      </button>
-      <p class="home-config__hint">最多 12 个，通过默认浏览器打开。</p>
-      <p v-if="linkError" role="alert">{{ linkError }}</p>
     </template>
 
     <!-- 名人名言 -->
@@ -866,5 +887,57 @@ function addRemoteDoc(): void {
   background: transparent;
   border: 1px solid var(--md-sys-color-outline-variant);
   color: var(--md-sys-color-on-surface-variant);
+}
+</style>
+
+<style scoped>
+.links-editor {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.links-editor__card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 16px;
+  background: var(--md-sys-color-surface-container);
+}
+.links-editor__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.links-editor__delete {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  cursor: pointer;
+}
+.links-editor__error {
+  display: flex;
+  align-items: start;
+  gap: 6px;
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font: var(--md-sys-typescale-body-small);
+}
+.links-editor__error .msr {
+  font-size: 18px;
+}
+.links-editor__empty {
+  padding: 20px 12px;
+  text-align: center;
+  background: var(--md-sys-color-surface-container);
+  border-radius: 16px;
 }
 </style>

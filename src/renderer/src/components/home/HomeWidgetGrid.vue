@@ -61,23 +61,60 @@ function repaint(ids: string[], animate = false): void {
     const element = elements.find((child) => child.dataset.id === placement.widget.id);
     if (element) Object.assign(element.style, placementStyle(placement));
   }
-  if (!animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  // FLIP animates actual grid displacement, including new bands and stacked tiles.
-  for (const element of elements) {
+  if (animate) animateLayout(previous);
+}
+function animateLayout(
+  previous: Map<HTMLElement, ReturnType<HTMLElement['getBoundingClientRect']>>,
+): void {
+  const theme = window.getComputedStyle(document.documentElement);
+  const durationValue = theme.getPropertyValue('--app-motion-duration-spatial').trim();
+  const duration = parseFloat(durationValue) * (durationValue.endsWith('ms') ? 1 : 1000);
+  if (!duration || duration <= 1) return;
+  const easing = theme.getPropertyValue('--app-motion-easing-spatial').trim() || 'ease-out';
+  for (const element of tiles()) {
     if (element.dataset.id === dragging.value) continue;
-    const before = previous.get(element)!;
+    const before = previous.get(element);
     const after = element.getBoundingClientRect();
-    const x = before.left - after.left;
-    const y = before.top - after.top;
-    if (!x && !y) continue;
-    const animation = element.animate(
-      [{ transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0, 0)' }],
-      { duration: 180, easing: 'cubic-bezier(.2, 0, 0, 1)' },
-    );
+    const frames = before
+      ? [
+          {
+            transform: `translate(${before.left - after.left}px, ${before.top - after.top}px)`,
+            height: `${before.height}px`,
+            width: `${before.width}px`,
+          },
+          { transform: 'translate(0, 0)', height: `${after.height}px`, width: `${after.width}px` },
+        ]
+      : [
+          { opacity: 0, transform: 'translateY(8px)' },
+          { opacity: 1, transform: 'translateY(0)' },
+        ];
+    if (
+      before &&
+      before.left === after.left &&
+      before.top === after.top &&
+      before.height === after.height &&
+      before.width === after.width
+    )
+      continue;
+    const animation = element.animate(frames, { duration, easing });
     animations.set(element, animation);
-    animation.onfinish = () => animations.delete(element);
+    animation.onfinish = () => {
+      if (animations.get(element) === animation) animations.delete(element);
+    };
   }
 }
+watch(
+  () => placements.value.map((entry) => [entry.widget.id, placementStyle(entry)]),
+  async () => {
+    if (dragging.value || !grid.value) return;
+    const previous = new Map(tiles().map((element) => [element, element.getBoundingClientRect()]));
+    animations.forEach((animation) => animation.cancel());
+    animations.clear();
+    await nextTick();
+    if (grid.value && !dragging.value) animateLayout(previous);
+  },
+);
+
 function initializeSortable(): void {
   sortable?.destroy();
   sortable = undefined;
@@ -119,7 +156,7 @@ function initializeSortable(): void {
         originalEvent?.type === 'touchcancel';
       const ids = cancelled ? original : sortable!.toArray();
       sortable!.sort(original);
-      repaint(original);
+      repaint(ids);
       previewOrder.value = null;
       dragging.value = null;
       emit('reorder', ids as HomeWidgetId[]);
@@ -243,6 +280,7 @@ function move(id: HomeWidgetId, direction: number): void {
 .widget-slot__content {
   height: 100%;
   min-width: 0;
+  container: widget / size;
 }
 .widget-slot__content > :deep(*) {
   height: 100%;
@@ -250,21 +288,36 @@ function move(id: HomeWidgetId, direction: number): void {
   box-sizing: border-box;
 }
 .widget-slot--selected {
-  outline: 3px solid var(--md-sys-color-primary);
-  outline-offset: -3px;
+  box-shadow: 0 0 0 2px var(--md-sys-color-primary);
 }
 .widget-slot__toolbar {
   position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   gap: 2px;
   padding: 3px;
-  border-radius: 14px;
-  background: var(--md-sys-color-secondary-container);
+  border-radius: 20px 20px 0 0;
+  background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-secondary-container);
-  box-shadow: var(--md-sys-elevation-level1);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.home-grid-container--editing .widget-slot {
+  padding-top: 37px;
+  box-sizing: border-box;
+  background: var(--md-sys-color-surface-container);
+  overflow: hidden;
+  transition: box-shadow var(--app-motion-duration-spatial) ease;
+}
+.home-grid-container--editing .widget-slot__content {
+  height: 100%;
+}
+.widget-slot--selected .widget-slot__toolbar {
+  background: var(--md-sys-color-secondary-container);
+}
+.widget-slot__toolbar button:hover:not(:disabled) {
+  background: var(--md-sys-color-secondary-container);
 }
 .widget-slot__toolbar button {
   border: 0;
@@ -275,6 +328,10 @@ function move(id: HomeWidgetId, direction: number): void {
   display: flex;
   align-items: center;
   cursor: pointer;
+}
+.widget-slot__toolbar button:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -3px;
 }
 .widget-slot__toolbar button:disabled {
   opacity: 0.3;

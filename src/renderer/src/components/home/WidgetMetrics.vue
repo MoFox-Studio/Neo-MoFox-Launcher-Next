@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 仪表盘部件：按用户配置的指标集合展示实例状态概览，点击跳转实例列表。
 import { computed } from 'vue';
+import HomeWidgetCard from './HomeWidgetCard.vue';
 import { useRouter } from 'vue-router';
 import type { HomeMetricId, MetricsWidgetConfig } from '@shared/domain/home';
 import { HOME_METRIC_IDS } from '@shared/domain/home';
@@ -42,46 +43,53 @@ function openInstances(): void {
 </script>
 
 <template>
-  <section class="metric-widget" aria-label="实例状态概览">
-    <button
-      v-for="metric in visibleMetrics"
-      :key="metric"
-      type="button"
-      class="metric-widget__item state-layer"
-      :class="{ 'metric-widget__item--accent': METRIC_META[metric].accent }"
-      @click="openInstances"
-    >
-      <span class="metric-widget__icon">
-        <span class="msr" :class="{ 'msr--fill': metric === 'favorites' || metric === 'running' }">
-          {{ METRIC_META[metric].icon }}
+  <HomeWidgetCard title="实例概览" icon="monitoring">
+    <div class="metric-widget" aria-label="实例状态概览">
+      <button
+        v-for="metric in visibleMetrics"
+        :key="metric"
+        type="button"
+        class="metric-widget__item state-layer"
+        :class="{ 'metric-widget__item--accent': METRIC_META[metric].accent }"
+        @click="openInstances"
+      >
+        <span class="metric-widget__icon">
+          <span
+            class="msr"
+            :class="{ 'msr--fill': metric === 'favorites' || metric === 'running' }"
+          >
+            {{ METRIC_META[metric].icon }}
+          </span>
         </span>
-      </span>
-      <span class="metric-widget__copy">
-        <strong>{{ counts[metric] }}</strong>
-        <small>{{ METRIC_META[metric].label }}</small>
-      </span>
-    </button>
+        <span class="metric-widget__copy">
+          <strong>{{ counts[metric] }}</strong>
+          <small>{{ METRIC_META[metric].label }}</small>
+        </span>
+      </button>
 
-    <p v-if="visibleMetrics.length === 0" class="metric-widget__empty">
-      尚未选择任何指标，可在「设置 → 主页」中配置。
-    </p>
-  </section>
+      <p v-if="visibleMetrics.length === 0" class="metric-widget__empty">
+        尚未选择任何指标，可在「设置 → 主页」中配置。
+      </p>
+    </div>
+  </HomeWidgetCard>
 </template>
 
 <style scoped>
 .metric-widget {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: 10px;
+  align-content: center;
+  min-height: 100%;
 }
 
 .metric-widget__item {
   flex: 1 1 180px;
-  min-height: 86px;
+  min-height: 72px;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 20px;
+  padding: 12px;
   border: 0;
   border-radius: 14px;
   background: var(--app-glass-row);

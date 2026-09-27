@@ -67,22 +67,75 @@ function openInstances(): void {
       </button>
     </div>
 
-    <div v-else class="favorites-widget__grid">
-      <InstanceCard
-        v-for="instance in favoriteInstances"
-        :key="instance.id"
-        :instance="instance"
-        @start="onStart"
-        @stop="onStop"
-        @restart="onRestart"
-        @logs="openLogs"
-        @manage="onManage"
-      />
-    </div>
+    <template v-else>
+      <div class="favorites-widget__compact">
+        <div
+          v-for="instance in favoriteInstances"
+          :key="instance.id"
+          class="favorites-widget__compact-row"
+        >
+          <span class="msr" aria-hidden="true">dns</span>
+          <button
+            type="button"
+            class="favorites-widget__compact-name"
+            @click="onManage(instance.id)"
+          >
+            {{ instance.name }}
+          </button>
+          <button
+            type="button"
+            class="favorites-widget__link"
+            @click="instance.status === 'running' ? onStop(instance.id) : onStart(instance.id)"
+          >
+            {{ instance.status === 'running' ? '停止' : '启动' }}
+          </button>
+        </div>
+      </div>
+      <div class="favorites-widget__grid">
+        <InstanceCard
+          v-for="instance in favoriteInstances"
+          :key="instance.id"
+          :instance="instance"
+          @start="onStart"
+          @stop="onStop"
+          @restart="onRestart"
+          @logs="openLogs"
+          @manage="onManage"
+        />
+      </div>
+    </template>
   </HomeWidgetCard>
 </template>
 
 <style scoped>
+.favorites-widget__compact {
+  display: none;
+}
+.favorites-widget__compact-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--app-glass-row);
+}
+.favorites-widget__compact-row > .msr {
+  color: var(--md-sys-color-primary);
+}
+.favorites-widget__compact-name {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  font: inherit;
+}
+
 .favorites-widget__link {
   min-height: 38px;
   padding: 0 14px;

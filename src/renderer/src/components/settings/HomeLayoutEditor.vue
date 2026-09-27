@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { isHomeLinkEntry } from '@shared/domain/home';
 import type { HomeWidgetId, HomeWidgetState } from '@shared/domain/home';
 import { useSettingsStore } from '@/stores/settings';
 import { useHomeGeometryStore } from '@/stores/home-geometry';
@@ -60,6 +61,12 @@ function close(): void {
   if (!busy.value) emit('close');
 }
 async function save(): Promise<void> {
+  const links = widgets.value.find((widget) => widget.id === 'links');
+  if (links?.id === 'links' && links.config.links.some((entry) => !isHomeLinkEntry(entry))) {
+    selected.value = 'links';
+    error.value = '常用链接尚未填写完整，请修正标出的名称或网址后保存。';
+    return;
+  }
   busy.value = true;
   error.value = '';
   const previousGeometry = JSON.parse(JSON.stringify(geometryStore.geometry)) as HomeGeometry;
