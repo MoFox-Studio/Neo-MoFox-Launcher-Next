@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 主页：固定的状态 Hero + 按用户配置渲染的小部件行；布局由设置中的 home 字段驱动。
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useInstancesStore } from '@/stores/instances';
 import { useWindowTitle } from '@/composables/use-window-title';
@@ -12,7 +12,15 @@ const router = useRouter();
 const instancesStore = useInstancesStore();
 const { widgets } = useHomeWidgets();
 
-const greeting = computed(() => greetingByHour(new Date().getHours()));
+const hour = ref(new Date().getHours());
+const greeting = computed(() => {
+  const clock = widgets.value.find((widget) => widget.id === 'clock');
+  return greetingByHour(hour.value, clock?.config.customGreeting);
+});
+const greetingTimer = window.setInterval(() => {
+  hour.value = new Date().getHours();
+}, 30_000);
+onBeforeUnmount(() => window.clearInterval(greetingTimer));
 
 useWindowTitle({ title: '概览', subtitle: greeting });
 

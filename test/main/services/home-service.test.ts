@@ -9,10 +9,10 @@ import {
   hasDocExtension,
   isPrivateHostname,
   readHomeDoc,
-} from '../../../src/main/services/home-docs-service';
+} from '../../../src/main/services/home-service';
 
 /** 文档读取与远程拉取的安全边界：扩展名白名单、大小上限与内网地址拦截。 */
-describe('home-docs-service', () => {
+describe('home-service', () => {
   let directory: string;
 
   afterEach(async () => {
@@ -137,13 +137,19 @@ describe('home-docs-service', () => {
     });
 
     it('falls back to the hostname when the URL has no file segment', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => new Response('内容', { status: 200 })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('内容', { status: 200 })),
+      );
       const result = await fetchHomeRemoteDoc('https://example.com/');
       expect(result.name).toBe('example.com');
     });
 
     it('reports HTTP failures as IO errors', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 404 })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('nope', { status: 404 })),
+      );
       await expect(fetchHomeRemoteDoc('https://example.com/a.md')).rejects.toMatchObject({
         code: 'IO_ERROR',
       });
@@ -164,16 +170,21 @@ describe('home-docs-service', () => {
       const fetchImpl = vi
         .fn()
         .mockResolvedValueOnce(
-          new Response(null, { status: 302, headers: { location: 'https://internal.example/a.md' } }),
+          new Response(null, {
+            status: 302,
+            headers: { location: 'https://internal.example/a.md' },
+          }),
         )
         .mockResolvedValueOnce(new Response('内容', { status: 200 }));
       vi.stubGlobal('fetch', fetchImpl);
       const result = await fetchHomeRemoteDoc('https://example.com/a.md');
       expect(result.content).toBe('内容');
 
-      const redirecting = vi.fn().mockResolvedValue(
-        new Response(null, { status: 301, headers: { location: 'https://192.168.0.10/a.md' } }),
-      );
+      const redirecting = vi
+        .fn()
+        .mockResolvedValue(
+          new Response(null, { status: 301, headers: { location: 'https://192.168.0.10/a.md' } }),
+        );
       vi.stubGlobal('fetch', redirecting);
       await expect(fetchHomeRemoteDoc('https://example.com/a.md')).rejects.toMatchObject({
         code: 'IO_ERROR',

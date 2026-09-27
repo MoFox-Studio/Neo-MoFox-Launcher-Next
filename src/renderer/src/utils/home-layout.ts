@@ -16,7 +16,7 @@ export type HomeGeometry = Record<string, WidgetGeometry>;
 
 export function defaultGeometry(id: string): WidgetGeometry {
   return {
-    span: ['clock', 'quotes', 'docs'].includes(id) ? 'half' : 'full',
+    span: ['clock', 'quotes', 'docs', 'notes', 'links'].includes(id) ? 'half' : 'full',
     height: ['favorites', 'changelog', 'docs'].includes(id) ? 'full' : 'half',
     solo: false,
     side: 'left',

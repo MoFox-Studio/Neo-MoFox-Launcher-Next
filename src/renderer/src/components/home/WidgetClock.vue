@@ -37,7 +37,7 @@ const dateText = computed(() =>
   }),
 );
 
-const greeting = computed(() => greetingByHour(now.value.getHours()));
+const greeting = computed(() => greetingByHour(now.value.getHours(), props.config.customGreeting));
 </script>
 
 <template>

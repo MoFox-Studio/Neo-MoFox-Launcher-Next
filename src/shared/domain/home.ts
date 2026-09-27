@@ -14,7 +14,9 @@ export type HomeWidgetId =
   | 'favorites'
   | 'quickActions'
   | 'changelog'
-  | 'docs';
+  | 'docs'
+  | 'notes'
+  | 'links';
 
 /** 时钟部件配置。 */
 export interface ClockWidgetConfig {
@@ -22,6 +24,8 @@ export interface ClockWidgetConfig {
   hour24: boolean;
   showDate: boolean;
   showGreeting: boolean;
+  /** 留空时使用按时段自动变化的问候语，同时用于主页顶部。 */
+  customGreeting?: string;
 }
 
 /** 仪表盘部件可展示的指标。 */
@@ -46,7 +50,19 @@ export type QuoteRotationInterval = 'off' | '10s' | '30s' | '1m' | '5m' | '15m';
 export const QUOTE_ROTATION_INTERVALS = ['off', '10s', '30s', '1m', '5m', '15m'] as const;
 
 /** 一言（hitokoto.cn）支持的句子分类，与接口的 `c` 参数一一对应。 */
-export const HITOKOTO_CATEGORY_IDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'] as const;
+export const HITOKOTO_CATEGORY_IDS = [
+  'a',
+  'b',
+  'c',
+  'd',
+  'e',
+  'f',
+  'g',
+  'h',
+  'i',
+  'j',
+  'k',
+] as const;
 
 /** 一言分类的中文标签，供设置界面渲染。 */
 export const HITOKOTO_CATEGORIES: ReadonlyArray<{ id: string; label: string }> = [
@@ -114,6 +130,21 @@ export interface ChangelogWidgetConfig {
 /** 收藏实例部件当前没有配置项；保留对象形状以便未来扩展。 */
 export type FavoritesWidgetConfig = Record<string, never>;
 
+export interface NotesWidgetConfig {
+  text: string;
+}
+export interface HomeLinkEntry {
+  id: string;
+  name: string;
+  url: string;
+}
+export interface LinksWidgetConfig {
+  links: HomeLinkEntry[];
+}
+export const MAX_HOME_NOTE_LENGTH = 4000;
+export const MAX_HOME_LINKS = 12;
+export const MAX_GREETING_LENGTH = 120;
+
 /** 各部件配置的映射，是配置类型的唯一来源。 */
 export interface HomeWidgetConfigMap {
   clock: ClockWidgetConfig;
@@ -123,6 +154,8 @@ export interface HomeWidgetConfigMap {
   quickActions: QuickActionsWidgetConfig;
   changelog: ChangelogWidgetConfig;
   docs: DocsWidgetConfig;
+  notes: NotesWidgetConfig;
+  links: LinksWidgetConfig;
 }
 
 /** 单个部件的持久化状态；数组顺序即主页展示顺序。 */
@@ -142,7 +175,7 @@ export interface HomeSettings {
 
 /** 各部件的默认配置。 */
 export const HOME_WIDGET_DEFAULT_CONFIG: Readonly<HomeWidgetConfigMap> = {
-  clock: { hour24: true, showDate: true, showGreeting: true },
+  clock: { hour24: true, showDate: true, showGreeting: true, customGreeting: '' },
   quotes: {
     provider: 'random',
     categories: [],
@@ -157,6 +190,8 @@ export const HOME_WIDGET_DEFAULT_CONFIG: Readonly<HomeWidgetConfigMap> = {
   },
   changelog: { showBuildInfo: true },
   docs: { documents: [] },
+  notes: { text: '' },
+  links: { links: [] },
 };
 
 /** 默认主页布局：时钟与名言并排，文档部件默认关闭。 */
@@ -174,6 +209,8 @@ export const DEFAULT_HOME_SETTINGS: HomeSettings = {
     },
     { id: 'changelog', enabled: true, config: { ...HOME_WIDGET_DEFAULT_CONFIG.changelog } },
     { id: 'docs', enabled: false, config: { ...HOME_WIDGET_DEFAULT_CONFIG.docs } },
+    { id: 'notes', enabled: false, config: { text: '' } },
+    { id: 'links', enabled: false, config: { links: [] } },
   ],
 };
 
@@ -265,7 +302,10 @@ function sanitizeDocEntries(value: unknown): HomeDocEntry[] {
 }
 
 /** 逐字段归一化单个部件的配置；字段缺失或非法时回退默认值。 */
-function normalizeWidgetConfig(id: HomeWidgetId, value: unknown): HomeWidgetConfigMap[HomeWidgetId] {
+function normalizeWidgetConfig(
+  id: HomeWidgetId,
+  value: unknown,
+): HomeWidgetConfigMap[HomeWidgetId] {
   const source = isRecord(value) ? value : {};
   const defaults = HOME_WIDGET_DEFAULT_CONFIG;
   switch (id) {
@@ -274,6 +314,10 @@ function normalizeWidgetConfig(id: HomeWidgetId, value: unknown): HomeWidgetConf
         hour24: boolOr(source.hour24, defaults.clock.hour24),
         showDate: boolOr(source.showDate, defaults.clock.showDate),
         showGreeting: boolOr(source.showGreeting, defaults.clock.showGreeting),
+        customGreeting:
+          typeof source.customGreeting === 'string'
+            ? source.customGreeting.trim().slice(0, MAX_GREETING_LENGTH)
+            : '',
       };
     case 'quotes':
       return {
@@ -293,6 +337,12 @@ function normalizeWidgetConfig(id: HomeWidgetId, value: unknown): HomeWidgetConf
       return { showBuildInfo: boolOr(source.showBuildInfo, defaults.changelog.showBuildInfo) };
     case 'docs':
       return { documents: sanitizeDocEntries(source.documents) };
+    case 'notes':
+      return {
+        text: typeof source.text === 'string' ? source.text.slice(0, MAX_HOME_NOTE_LENGTH) : '',
+      };
+    case 'links':
+      return { links: normalizeHomeLinks(source.links) };
   }
 }
 
@@ -304,7 +354,10 @@ export function isHomeWidgetConfigValid(id: HomeWidgetId, value: unknown): boole
       return (
         typeof value.hour24 === 'boolean' &&
         typeof value.showDate === 'boolean' &&
-        typeof value.showGreeting === 'boolean'
+        typeof value.showGreeting === 'boolean' &&
+        (value.customGreeting === undefined ||
+          (typeof value.customGreeting === 'string' &&
+            value.customGreeting.length <= MAX_GREETING_LENGTH))
       );
     case 'quotes':
       return (
@@ -325,6 +378,15 @@ export function isHomeWidgetConfigValid(id: HomeWidgetId, value: unknown): boole
       return typeof value.showBuildInfo === 'boolean';
     case 'docs':
       return Array.isArray(value.documents) && value.documents.every(isHomeDocEntryShape);
+    case 'notes':
+      return typeof value.text === 'string' && value.text.length <= MAX_HOME_NOTE_LENGTH;
+    case 'links':
+      return (
+        Array.isArray(value.links) &&
+        value.links.length <= MAX_HOME_LINKS &&
+        value.links.every(isHomeLinkEntry) &&
+        new Set(value.links.map((entry) => entry.id)).size === value.links.length
+      );
   }
 }
 
@@ -386,4 +448,32 @@ export function normalizeHomeSettings(source: unknown): HomeSettings {
     }
   }
   return { version: 1, widgets };
+}
+
+/** Links open through the existing external-browser IPC, never execute in the page. */
+export function isHomeLinkEntry(value: unknown): value is HomeLinkEntry {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    value.name.trim().length > 0 &&
+    value.name.length <= 60 &&
+    typeof value.url === 'string' &&
+    value.url.length <= 2048 &&
+    isHttpsUrlString(value.url)
+  );
+}
+function normalizeHomeLinks(value: unknown): HomeLinkEntry[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value
+    .filter(isHomeLinkEntry)
+    .filter((entry) => {
+      if (seen.has(entry.id)) return false;
+      seen.add(entry.id);
+      return true;
+    })
+    .slice(0, MAX_HOME_LINKS)
+    .map(({ id, name, url }) => ({ id, name: name.trim(), url }));
 }

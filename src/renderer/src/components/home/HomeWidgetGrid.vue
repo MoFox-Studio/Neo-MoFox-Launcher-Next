@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import Sortable from 'sortablejs';
 import type { HomeWidgetId, HomeWidgetState } from '@shared/domain/home';
 import { HOME_WIDGET_DEFINITIONS } from './registry';
@@ -29,50 +29,130 @@ const placements = computed(() =>
 );
 let sortable: Sortable | undefined;
 let original: string[] = [];
-function repaint(ids: string[]): void {
-  if (!grid.value) return;
+let cancelRequested = false;
+const dragging = ref<HomeWidgetId | null>(null);
+const previewOrder = ref<string[] | null>(null);
+const previewStyles = computed(() => {
+  if (!previewOrder.value) return new Map();
+  const byId = new Map(placements.value.map((entry) => [entry.widget.id as string, entry.widget]));
+  return new Map(
+    placeWidgets(previewOrder.value.flatMap((id) => byId.get(id) ?? [])).map((entry) => [
+      entry.widget.id,
+      placementStyle(entry),
+    ]),
+  );
+});
+const dragAnnouncement = ref('');
+const animations = new Map<HTMLElement, ReturnType<HTMLElement['animate']>>();
+function tiles(): HTMLElement[] {
+  return Array.from(grid.value?.children ?? []).filter(
+    (child) => !child.classList.contains('sortable-fallback'),
+  ) as HTMLElement[];
+}
+function repaint(ids: string[], animate = false): void {
+  const elements = tiles();
+  const previous = new Map(elements.map((element) => [element, element.getBoundingClientRect()]));
+  animations.forEach((animation) => animation.cancel());
+  animations.clear();
   const items = ids.flatMap(
     (id) => placements.value.find((entry) => entry.widget.id === id)?.widget ?? [],
   );
   for (const placement of placeWidgets(items)) {
-    const element = Array.from(grid.value.children).find(
-      (child) => (child as HTMLElement).dataset.id === placement.widget.id,
-    ) as HTMLElement | undefined;
+    const element = elements.find((child) => child.dataset.id === placement.widget.id);
     if (element) Object.assign(element.style, placementStyle(placement));
   }
+  if (!animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // FLIP animates actual grid displacement, including new bands and stacked tiles.
+  for (const element of elements) {
+    if (element.dataset.id === dragging.value) continue;
+    const before = previous.get(element)!;
+    const after = element.getBoundingClientRect();
+    const x = before.left - after.left;
+    const y = before.top - after.top;
+    if (!x && !y) continue;
+    const animation = element.animate(
+      [{ transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0, 0)' }],
+      { duration: 180, easing: 'cubic-bezier(.2, 0, 0, 1)' },
+    );
+    animations.set(element, animation);
+    animation.onfinish = () => animations.delete(element);
+  }
 }
-watch(
-  [grid, () => props.editing],
-  () => {
-    sortable?.destroy();
-    sortable = undefined;
-    if (!grid.value || !props.editing) return;
-    sortable = Sortable.create(grid.value, {
-      draggable: '.widget-slot:not(.sortable-fallback)',
-      handle: '.widget-slot__handle',
-      animation: 150,
-      ghostClass: 'widget-slot--ghost',
-      forceFallback: true,
-      fallbackOnBody: false,
-      onStart(event) {
-        original = placements.value.map((item) => item.widget.id);
-        emit('select', event.item.dataset.id as HomeWidgetId);
-      },
-      onChange() {
-        repaint(sortable!.toArray());
-      },
-      onEnd() {
-        const ids = sortable!.toArray() as HomeWidgetId[];
-        // Restore Vue-owned DOM before committing the new keyed order.
-        sortable!.sort(original);
-        repaint(original);
-        emit('reorder', ids);
-      },
-    });
-  },
-  { flush: 'post' },
-);
-onBeforeUnmount(() => sortable?.destroy());
+function initializeSortable(): void {
+  sortable?.destroy();
+  sortable = undefined;
+  if (!grid.value || !props.editing) return;
+  sortable = Sortable.create(grid.value, {
+    draggable: '.widget-slot:not(.sortable-fallback)',
+    handle: '.widget-slot__handle',
+    animation: 0,
+    ghostClass: 'widget-slot--ghost',
+    forceFallback: true,
+    fallbackOnBody: false,
+    fallbackTolerance: 4,
+    scrollSensitivity: 70,
+    scrollSpeed: 12,
+    direction(_event, target, dragged) {
+      if (!target || !dragged) return 'vertical';
+      return target.style.gridColumn === dragged.style.gridColumn ? 'vertical' : 'horizontal';
+    },
+    onStart(event) {
+      cancelRequested = false;
+      original = placements.value.map((item) => item.widget.id);
+      previewOrder.value = original;
+      dragging.value = event.item.dataset.id as HomeWidgetId;
+      emit('select', dragging.value);
+      dragAnnouncement.value = '正在移动组件，其他组件会自动让位。按 Esc 撤销。';
+    },
+    onChange() {
+      const ids = sortable!.toArray();
+      previewOrder.value = ids;
+      repaint(ids, true);
+      dragAnnouncement.value = `放置位置：第 ${ids.indexOf(dragging.value!) + 1} 个，共 ${ids.length} 个组件`;
+    },
+    onEnd(event) {
+      const originalEvent = (event as Sortable.SortableEvent & { originalEvent?: Event })
+        .originalEvent;
+      const cancelled =
+        cancelRequested ||
+        originalEvent?.type === 'pointercancel' ||
+        originalEvent?.type === 'touchcancel';
+      const ids = cancelled ? original : sortable!.toArray();
+      sortable!.sort(original);
+      repaint(original);
+      previewOrder.value = null;
+      dragging.value = null;
+      emit('reorder', ids as HomeWidgetId[]);
+      dragAnnouncement.value = cancelled ? '已撤销本次移动' : '组件已放置，保存布局后生效';
+    },
+  });
+}
+function cancelDrag(event: KeyboardEvent): void {
+  if (event.key !== 'Escape' || !dragging.value || !sortable) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  cancelRequested = true;
+  // Destroy through the public API so Sortable releases its mouse/touch handlers.
+  sortable.destroy();
+  sortable = undefined;
+  const elements = tiles();
+  for (const id of original) {
+    const element = elements.find((tile) => tile.dataset.id === id);
+    if (element) grid.value?.appendChild(element);
+  }
+  repaint(original);
+  previewOrder.value = null;
+  dragging.value = null;
+  dragAnnouncement.value = '已撤销本次移动';
+  void nextTick(initializeSortable);
+}
+watch([grid, () => props.editing], initializeSortable, { flush: 'post' });
+document.addEventListener('keydown', cancelDrag, true);
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', cancelDrag, true);
+  sortable?.destroy();
+  animations.forEach((animation) => animation.cancel());
+});
 function move(id: HomeWidgetId, direction: number): void {
   const ids = placements.value.map((entry) => entry.widget.id);
   const index = ids.indexOf(id);
@@ -86,7 +166,10 @@ function move(id: HomeWidgetId, direction: number): void {
 
 <template>
   <div class="home-grid-container" :class="{ 'home-grid-container--editing': editing }">
-    <div ref="grid" class="home-grid">
+    <p v-if="editing" class="drag-status" role="status" aria-live="polite">
+      {{ dragAnnouncement || '拖住标题移动组件，箭头按钮也可调整顺序。' }}
+    </p>
+    <div ref="grid" class="home-grid" :class="{ 'home-grid--dragging': dragging }">
       <div
         v-for="(placement, index) in placements"
         :key="placement.widget.id"
@@ -94,7 +177,7 @@ function move(id: HomeWidgetId, direction: number): void {
         :class="{ 'widget-slot--selected': editing && selected === placement.widget.id }"
         :data-id="placement.widget.id"
         :data-height="placement.widget.height"
-        :style="placementStyle(placement)"
+        :style="previewStyles.get(placement.widget.id) ?? placementStyle(placement)"
         @click="editing && emit('select', placement.widget.id)"
       >
         <div class="widget-slot__content" :inert="editing ? true : undefined">
@@ -202,6 +285,20 @@ function move(id: HomeWidgetId, direction: number): void {
   text-align: left;
   cursor: grab !important;
   touch-action: none;
+}
+.drag-status {
+  margin: 0 0 12px;
+  font: var(--md-sys-typescale-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+.home-grid--dragging {
+  user-select: none;
+}
+.sortable-fallback {
+  z-index: 10;
+  opacity: 0.92;
+  box-shadow: var(--md-sys-elevation-level3);
+  pointer-events: none;
 }
 .widget-slot--ghost {
   opacity: 0.35;

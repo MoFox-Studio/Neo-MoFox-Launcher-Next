@@ -7,6 +7,8 @@ import WidgetFavorites from './WidgetFavorites.vue';
 import WidgetMetrics from './WidgetMetrics.vue';
 import WidgetQuickActions from './WidgetQuickActions.vue';
 import WidgetQuotes from './WidgetQuotes.vue';
+import WidgetNotes from './WidgetNotes.vue';
+import WidgetLinks from './WidgetLinks.vue';
 
 /** 主页与编辑器共用的组件元数据；默认尺寸由 home-layout 统一定义。 */
 export interface HomeWidgetDefinition {
@@ -67,5 +69,19 @@ export const HOME_WIDGET_DEFINITIONS: HomeWidgetDefinition[] = [
     description: '本地与远程 Markdown 文档的阅读列表',
     icon: 'description',
     component: WidgetDocs,
+  },
+  {
+    id: 'notes',
+    title: '便签',
+    description: '记录待办事项与运行提醒',
+    icon: 'sticky_note_2',
+    component: WidgetNotes,
+  },
+  {
+    id: 'links',
+    title: '常用链接',
+    description: '自定义名称，快速打开常用网站',
+    icon: 'link',
+    component: WidgetLinks,
   },
 ];

@@ -6,7 +6,8 @@ import { useHomeGeometryStore } from '@/stores/home-geometry';
 import { HOME_WIDGET_DEFINITIONS } from '@/components/home/registry';
 import HomeWidgetGrid from '@/components/home/HomeWidgetGrid.vue';
 import HomeWidgetSettings from './HomeWidgetSettings.vue';
-import type { HomeGeometry } from '@/utils/home-layout';
+import HomeGeometrySelect from './HomeGeometrySelect.vue';
+import type { HomeGeometry, WidgetSpan, WidgetHeight } from '@/utils/home-layout';
 
 const emit = defineEmits<{ close: [] }>();
 const settings = useSettingsStore();
@@ -42,6 +43,13 @@ function updateWidget(
   );
 }
 function reorder(ids: HomeWidgetId[]): void {
+  const enabled = widgets.value.filter((widget) => widget.enabled);
+  if (
+    ids.length !== enabled.length ||
+    new Set(ids).size !== ids.length ||
+    enabled.some((widget) => !ids.includes(widget.id))
+  )
+    return;
   const byId = new Map(widgets.value.map((widget) => [widget.id, widget]));
   let index = 0;
   widgets.value = widgets.value.map((widget) =>
@@ -83,7 +91,7 @@ async function save(): Promise<void> {
       <header class="layout-editor__header">
         <div>
           <h2 id="layout-editor-title">自定义主页</h2>
-          <p>拖动组件标题调整顺序，点击组件编辑。保存后应用到主页。</p>
+          <p>拖住标题移动，其他组件会实时让位；松手放置，Esc 撤销本次拖动。保存后应用到主页。</p>
         </div>
         <button
           type="button"
@@ -137,29 +145,41 @@ async function save(): Promise<void> {
         <aside class="layout-editor__settings" aria-label="选中组件设置">
           <h3>{{ meta(selected).title }}</h3>
           <p>{{ meta(selected).description }}</p>
-          <label class="geometry-field"
-            >宽度<select v-model="selectedGeometry.span">
-              <option value="half">半宽</option>
-              <option value="full">全宽</option>
-            </select></label
-          >
-          <label class="geometry-field"
-            >高度<select v-model="selectedGeometry.height">
-              <option value="half">半高</option>
-              <option value="full">全高</option>
-              <option value="tall">加高 · 1.5 倍全高</option>
-            </select></label
-          >
+          <HomeGeometrySelect
+            :model-value="selectedGeometry.span"
+            label="宽度"
+            :disabled="busy"
+            :options="[
+              { value: 'half', label: '半宽' },
+              { value: 'full', label: '全宽' },
+            ]"
+            @update:model-value="selectedGeometry.span = $event as WidgetSpan"
+          />
+          <HomeGeometrySelect
+            :model-value="selectedGeometry.height"
+            label="高度"
+            :disabled="busy"
+            :options="[
+              { value: 'half', label: '半高' },
+              { value: 'full', label: '全高' },
+              { value: 'tall', label: '加高 · 1.5 倍全高' },
+            ]"
+            @update:model-value="selectedGeometry.height = $event as WidgetHeight"
+          />
           <template v-if="selectedGeometry.span === 'half'">
             <label class="geometry-field"
               >独占一行<input v-model="selectedGeometry.solo" type="checkbox"
             /></label>
-            <label class="geometry-field"
-              >作为行首时的位置<select v-model="selectedGeometry.side">
-                <option value="left">左侧</option>
-                <option value="right">右侧</option>
-              </select></label
-            >
+            <HomeGeometrySelect
+              :model-value="selectedGeometry.side"
+              label="作为行首时的位置"
+              :disabled="busy"
+              :options="[
+                { value: 'left', label: '左侧' },
+                { value: 'right', label: '右侧' },
+              ]"
+              @update:model-value="selectedGeometry.side = $event as 'left' | 'right'"
+            />
             <p>允许并排时，后续半宽组件会堆叠到另一侧；总高度不能超过行首组件。</p>
           </template>
           <h4>内容设置</h4>
@@ -260,8 +280,7 @@ p {
   background: var(--md-sys-color-surface);
 }
 .layout-editor__preview :deep(.home-grid-container) {
-  min-width: 640px;
-  zoom: 0.75;
+  min-width: 580px;
 }
 .preview-label {
   display: flex;

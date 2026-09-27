@@ -6,7 +6,7 @@ import type { HomeDocContent, HomeDocEntry } from '../../shared/domain/home';
 import { MofoxError } from '../../shared/domain/error';
 
 /**
- * 主页文档部件的主进程能力：本地文档选择与读取、远程文档拉取。
+ * 主页小组件的主进程服务入口：文档选择、读取与远程拉取，以及在线名言。
  *
  * 安全面收敛为：本地仅允许 Markdown/纯文本扩展名且不超过大小上限；
  * 远程仅接受无凭据的 HTTPS 链接，拒绝内网与本机地址，响应大小同样受限。
@@ -29,9 +29,7 @@ const REMOTE_DOC_TIMEOUT_MS = 15_000;
  * @param getWindow - 返回当前主窗口的回调；窗口不存在时返回 `null`。
  * @returns 选中的文档条目列表。
  */
-export async function pickHomeDocs(
-  getWindow: () => BrowserWindow | null,
-): Promise<HomeDocEntry[]> {
+export async function pickHomeDocs(getWindow: () => BrowserWindow | null): Promise<HomeDocEntry[]> {
   const window = getWindow();
   if (!window || window.isDestroyed()) return [];
   const result = await dialog.showOpenDialog(window, {
@@ -251,3 +249,6 @@ function isPrivateIPv4(value: string): boolean {
   if (first === 100 && second >= 64 && second <= 127) return true;
   return first >= 224;
 }
+
+// Keep provider-specific networking isolated behind the home service entry point.
+export { fetchQuote } from './quote-service';

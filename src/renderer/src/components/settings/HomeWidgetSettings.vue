@@ -16,6 +16,10 @@ import type {
 } from '@shared/domain/home';
 import {
   HITOKOTO_CATEGORIES,
+  MAX_HOME_NOTE_LENGTH,
+  MAX_HOME_LINKS,
+  MAX_GREETING_LENGTH,
+  isHomeLinkEntry,
   HOME_METRIC_IDS,
   HOME_WIDGET_DEFAULT_CONFIG,
 } from '@shared/domain/home';
@@ -56,6 +60,35 @@ const metricsConfig = computed(() => widgetConfig('metrics'));
 const quickActionsConfig = computed(() => widgetConfig('quickActions'));
 const changelogConfig = computed(() => widgetConfig('changelog'));
 const docsConfig = computed(() => widgetConfig('docs'));
+const notesConfig = computed(() => widgetConfig('notes'));
+const linksConfig = computed(() => widgetConfig('links'));
+const linkName = ref('');
+const linkUrl = ref('');
+const linkError = ref('');
+function addLink(): void {
+  const entry = {
+    id: globalThis.crypto.randomUUID(),
+    name: linkName.value.trim(),
+    url: linkUrl.value.trim(),
+  };
+  if (!isHomeLinkEntry(entry)) {
+    linkError.value = '请填写名称和无账号密码的 HTTPS 网址';
+    return;
+  }
+  if (linksConfig.value.links.length >= MAX_HOME_LINKS) {
+    linkError.value = '最多添加 12 个链接';
+    return;
+  }
+  updateWidget('links', { config: { links: [...linksConfig.value.links, entry] } });
+  linkName.value = '';
+  linkUrl.value = '';
+  linkError.value = '';
+}
+function removeLink(id: string): void {
+  updateWidget('links', {
+    config: { links: linksConfig.value.links.filter((entry) => entry.id !== id) },
+  });
+}
 
 function patchClock(patch: Partial<ClockWidgetConfig>): void {
   updateWidget('clock', { config: { ...clockConfig.value, ...patch } });
@@ -277,6 +310,77 @@ function addRemoteDoc(): void {
           <span class="md-switch__thumb"></span>
         </button>
       </div>
+      <label class="home-config__row home-config__row--column"
+        >自定义问候语
+        <textarea
+          class="home-text-input"
+          :value="clockConfig.customGreeting ?? ''"
+          :maxlength="MAX_GREETING_LENGTH"
+          rows="3"
+          placeholder="留空使用时段问候语"
+          @input="patchClock({ customGreeting: ($event.target as HTMLTextAreaElement).value })"
+        />
+      </label>
+      <p class="home-config__hint">同时用于主页顶部和时钟。留空恢复自动问候语。</p>
+    </template>
+
+    <template v-else-if="widget.id === 'notes'">
+      <label class="home-config__row home-config__row--column"
+        >便签内容
+        <textarea
+          class="home-text-input"
+          :value="notesConfig.text"
+          :maxlength="MAX_HOME_NOTE_LENGTH"
+          rows="9"
+          @input="
+            updateWidget('notes', {
+              config: { text: ($event.target as HTMLTextAreaElement).value },
+            })
+          "
+        />
+      </label>
+      <p class="home-config__hint">
+        {{ notesConfig.text.length }} / {{ MAX_HOME_NOTE_LENGTH }} · 保存布局后生效
+      </p>
+    </template>
+    <template v-else-if="widget.id === 'links'">
+      <div v-for="entry in linksConfig.links" :key="entry.id" class="docs-list__item">
+        <span class="docs-list__name" :title="entry.url">{{ entry.name }}</span>
+        <button
+          type="button"
+          class="home-row__icon-button"
+          :aria-label="`移除${entry.name}`"
+          @click="removeLink(entry.id)"
+        >
+          <span class="msr">close</span>
+        </button>
+      </div>
+      <label
+        >链接名称<input
+          v-model="linkName"
+          class="home-text-input"
+          maxlength="60"
+          placeholder="例如：项目文档"
+      /></label>
+      <label
+        >网址<input
+          v-model="linkUrl"
+          class="home-text-input"
+          type="url"
+          maxlength="2048"
+          placeholder="https://…"
+          @keydown.enter.prevent="addLink"
+      /></label>
+      <button
+        type="button"
+        class="docs-add-button"
+        :disabled="linksConfig.links.length >= MAX_HOME_LINKS"
+        @click="addLink"
+      >
+        添加链接
+      </button>
+      <p class="home-config__hint">最多 12 个，通过默认浏览器打开。</p>
+      <p v-if="linkError" role="alert">{{ linkError }}</p>
     </template>
 
     <!-- 名人名言 -->
@@ -527,6 +631,23 @@ function addRemoteDoc(): void {
 <style scoped src="./settings-panel.css"></style>
 
 <style scoped>
+.home-text-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 6px 0;
+  padding: 10px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: 10px;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  resize: vertical;
+}
+[role='alert'] {
+  color: var(--md-sys-color-error);
+}
+
 .home-row__icon-button {
   flex: none;
   width: 36px;

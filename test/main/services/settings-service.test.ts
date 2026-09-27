@@ -160,6 +160,8 @@ describe('SettingsService', () => {
       'quickActions',
       'changelog',
       'docs',
+      'notes',
+      'links',
     ]);
     // 非法/缺失的配置字段回退默认值。
     expect(settings.home.widgets[0]).toMatchObject({
@@ -212,7 +214,11 @@ describe('SettingsService', () => {
     const metrics = updated.home.widgets.find((widget) => widget.id === 'metrics');
     expect(metrics).toMatchObject({ config: { items: ['error', 'running'] } });
     // 其余部件按默认值补齐在尾部。
-    expect(updated.home.widgets.map((widget) => widget.id).slice(-1)).toEqual(['changelog']);
+    expect(updated.home.widgets.map((widget) => widget.id).slice(-3)).toEqual([
+      'changelog',
+      'notes',
+      'links',
+    ]);
   });
 
   it('sanitizes invalid docs entries and metric ids when loading from storage', async () => {
