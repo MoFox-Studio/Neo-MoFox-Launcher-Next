@@ -67,7 +67,7 @@ import { createWallpaperProtocolHandler } from './wallpaper-protocol';
 import type { VenvPackageResult } from '../shared/domain/venv';
 import { EnvironmentService } from './utils/environment-service';
 import { ProcessHelper } from './utils/process-helper';
-import { createLogger, type Logger } from './utils/logger';
+import { createLogger } from './utils/logger';
 import { removePathSafe } from './utils/native-file-remover';
 import { TrayController, type TrayPlatform } from './utils/tray';
 import { BackgroundNotifier, type NotifyPlatform } from './utils/background-notifier';
@@ -298,18 +298,23 @@ if (!hasSingleInstanceLock) {
       return result.response === 1;
     });
     const dataDirectory = app.getPath('userData');
-    let logger: Logger | undefined;
-    /**
-     * 在日志器初始化前后报告启动期错误；未就绪时降级输出到控制台。
-     *
-     * @param message - 错误上下文说明。
-     * @param error - 需要记录的错误对象。
-     */
-    const report = (message: string, error: Error) => {
-      if (logger) void logger.log('launcher', 'error', `${message}: ${error.message}`);
-      else console.error(message, error);
-    };
-    const settings = new SettingsService(dataDirectory, report);
+    // 日志器先于设置服务创建，确保启动期诊断也能落盘；创建时挂钩 console，各模块默认的
+    // console.* 诊断输出自动镜像进日志文件。轮转参数延迟到每次写日志时求值，未就绪时用默认值兜底。
+    let settingsRef: SettingsService | undefined;
+    const logger = createLogger({
+      directory: join(dataDirectory, 'logs'),
+      getSettings: async () => {
+        if (!settingsRef) return {};
+        const value = await settingsRef.get();
+        return {
+          maxFileSizeMb: value.maxLogFileSizeMb,
+          maxArchiveDays: value.maxLogArchiveDays,
+          compressLogArchive: value.compressLogArchive,
+        };
+      },
+    });
+    const settings = new SettingsService(dataDirectory);
+    settingsRef = settings;
     /** Electron 托盘宿主实现；图标缺失时由 Electron 使用默认图标。 */
     const trayPlatform: TrayPlatform = {
       createTray: ({ tooltip, icon, items, onIconActivate }) => {
@@ -354,7 +359,7 @@ if (!hasSingleInstanceLock) {
       },
     });
     const wallpapers = new WallpaperService(dataDirectory, settings);
-    const instances = new InstanceRepository(dataDirectory, report);
+    const instances = new InstanceRepository(dataDirectory);
     const platforms = new PlatformRegistry();
     const mirrors = new MirrorService();
     // 通用服务（对话框 + 目录校验 + 打开外部链接）依赖平台注册表，因此在 ready 后随其余 IPC 一并注册。
@@ -364,17 +369,6 @@ if (!hasSingleInstanceLock) {
       inspectImportPath: (value) => inspectImportPath(value),
       inspectPlatformPath: (platformId, value) => inspectPlatformPath(platforms, platformId, value),
       openExternal: (url) => openExternalUrl(shell.openExternal, url),
-    });
-    logger = createLogger({
-      directory: join(dataDirectory, 'logs'),
-      getSettings: async () => {
-        const value = await settings.get();
-        return {
-          maxFileSizeMb: value.maxLogFileSizeMb,
-          maxArchiveDays: value.maxLogArchiveDays,
-          compressLogArchive: value.compressLogArchive,
-        };
-      },
     });
     const environment = new EnvironmentService();
     registerCoreIpc(ipcMain, {
@@ -604,7 +598,6 @@ if (!hasSingleInstanceLock) {
       mirrors,
       searchPaths: [process.resourcesPath, app.getAppPath()],
       appVersion: app.getVersion(),
-      report,
     });
     registerLauncherUpdateIpc(ipcMain, {
       getBuildInfo: () => launcherUpdates.getBuildInfo(),
@@ -669,7 +662,7 @@ if (!hasSingleInstanceLock) {
       appDataDir: app.getPath('appData'),
       override: process.env.NEO_MOFOX_LEGACY_DATA,
     });
-    const legacyMigration = new LegacyMigrationService(legacyDataDir, instances, report);
+    const legacyMigration = new LegacyMigrationService(legacyDataDir, instances);
     registerMigrationIpc(ipcMain, legacyMigration);
     const oobeService = new OobeService(
       { settings, legacy: legacyMigration, mirrors, environment },
@@ -707,7 +700,7 @@ if (!hasSingleInstanceLock) {
         })
         .catch((error: unknown) => {
           installCloseDispatched = false;
-          report(
+          console.error(
             '取消安装失败，未关闭窗口',
             error instanceof Error ? error : new Error(String(error)),
           );

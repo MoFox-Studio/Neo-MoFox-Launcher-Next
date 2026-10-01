@@ -10,10 +10,10 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzip } from 'node:zlib';
-import { promisify } from 'node:util';
+import { format, promisify } from 'node:util';
 import type { LogEntry, LogLevel } from '../../shared/domain/logger';
 
-// 基于按作用域 JSON Lines 文件的主进程日志器，负责串行写入、轮转和过期归档清理。
+// 基于按作用域 JSON Lines 文件的主进程日志器，负责串行写入、轮转、过期归档清理与 console 镜像。
 interface LoggerSettings {
   maxFileSizeMb: number;
   maxArchiveDays: number;
@@ -22,7 +22,8 @@ interface LoggerSettings {
 
 interface LoggerOptions {
   directory: string;
-  getSettings?: () => Promise<LoggerSettings>;
+  // 允许部分覆盖，与 log 写入时对 DEFAULT_LOGGER_SETTINGS 的合并语义一致。
+  getSettings?: () => Promise<Partial<LoggerSettings>>;
 }
 
 export interface Logger {
@@ -37,10 +38,22 @@ const DEFAULT_LOGGER_SETTINGS: LoggerSettings = {
   compressLogArchive: true,
 };
 
+// 需要镜像到文件日志的 console 方法及对应日志级别；未列出的方法保持原样。
+const CONSOLE_LEVELS: ReadonlyArray<readonly [string, LogLevel]> = [
+  ['error', 'error'],
+  ['warn', 'warn'],
+  ['info', 'info'],
+  ['log', 'info'],
+  ['debug', 'debug'],
+];
+
+type ConsoleMethod = (message?: unknown, ...rest: unknown[]) => void;
+
 /**
  * 创建基于按作用域 JSON Lines 文件的主进程日志器。
  *
- * 同一实例的写入及后续读取共用串行队列，避免轮转、追加和读取在文件系统层面交错。
+ * 同一实例的写入及后续读取共用串行队列，避免轮转、追加和读取在文件系统层面交错；
+ * 创建时会挂钩 console，使主进程的 console 输出自动镜像到 `launcher` 作用域。
  *
  * @param options - 日志目录与可选的运行时设置回调。
  * @returns 暴露 `log` 与 `read` 方法的 Logger 对象。
@@ -48,8 +61,7 @@ const DEFAULT_LOGGER_SETTINGS: LoggerSettings = {
 export function createLogger(options: LoggerOptions): Logger {
   // 同一实例的写入及后续读取共用队列，避免轮转、追加和读取在文件系统层面交错。
   let writeQueue: Promise<void> = Promise.resolve();
-
-  return {
+  const logger: Logger = {
     async log(scope, level, message) {
       const entry: LogEntry = {
         timestamp: Date.now(),
@@ -88,6 +100,33 @@ export function createLogger(options: LoggerOptions): Logger {
       }
     },
   };
+  mirrorConsole(logger);
+  return logger;
+}
+
+/**
+ * 将主进程 console 输出镜像写入指定日志器。
+ *
+ * 先调用原生方法保留终端与 DevTools 输出，再异步落盘；镜像为后台任务，
+ * 失败时仅回退到原生 console，不影响调用方。
+ *
+ * @param logger - 接收镜像输出的日志器。
+ */
+function mirrorConsole(logger: Logger): void {
+  const hooked = console as unknown as Record<string, ConsoleMethod>;
+  for (const [name, level] of CONSOLE_LEVELS) {
+    // 不做 bind：Node 的 console 方法不依赖 this，保留原引用便于回退输出。
+    const original = hooked[name];
+    if (typeof original !== 'function') continue;
+    hooked[name] = (...args: unknown[]) => {
+      // 先走原生实现，保证终端与 DevTools 行为不变，再异步镜像到日志文件。
+      original(...args);
+      // 镜像为后台任务：写入失败仅回退到原生 console，避免未处理的 Promise 拒绝。
+      Promise.resolve()
+        .then(() => logger.log('launcher', level, format(...args)))
+        .catch((error: unknown) => original('Unable to write console log', error));
+    };
+  }
 }
 
 /**
