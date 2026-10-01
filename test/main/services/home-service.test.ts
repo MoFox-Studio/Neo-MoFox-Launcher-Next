@@ -3,15 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MofoxError } from '../../../src/shared/domain/error';
+import { isIntranetHostname } from '../../../src/shared/domain/home';
 import {
   MAX_HOME_DOC_BYTES,
   fetchHomeRemoteDoc,
   hasDocExtension,
-  isPrivateHostname,
   readHomeDoc,
 } from '../../../src/main/services/home-service';
 
-/** 文档读取与远程拉取的安全边界：扩展名白名单、大小上限与内网地址拦截。 */
+/** 文档读取与远程拉取的安全边界：扩展名白名单、大小上限与远程地址策略。 */
 describe('home-service', () => {
   let directory: string;
 
@@ -34,33 +34,35 @@ describe('home-service', () => {
     });
   });
 
-  describe('isPrivateHostname', () => {
-    it('blocks localhost, loopback and private ranges', () => {
-      expect(isPrivateHostname('localhost')).toBe(true);
-      expect(isPrivateHostname('api.localhost')).toBe(true);
-      expect(isPrivateHostname('127.0.0.1')).toBe(true);
-      expect(isPrivateHostname('10.1.2.3')).toBe(true);
-      expect(isPrivateHostname('192.168.1.10')).toBe(true);
-      expect(isPrivateHostname('172.16.0.1')).toBe(true);
-      expect(isPrivateHostname('172.31.255.255')).toBe(true);
-      expect(isPrivateHostname('169.254.1.1')).toBe(true);
-      expect(isPrivateHostname('100.64.0.1')).toBe(true);
-      expect(isPrivateHostname('[::1]')).toBe(true);
-      expect(isPrivateHostname('fe80::1')).toBe(true);
-      expect(isPrivateHostname('fd00::1')).toBe(true);
-      expect(isPrivateHostname('::ffff:127.0.0.1')).toBe(true);
+  describe('isIntranetHostname', () => {
+    it('treats loopback, private ranges and link-local addresses as intranet', () => {
+      expect(isIntranetHostname('localhost')).toBe(true);
+      expect(isIntranetHostname('api.localhost')).toBe(true);
+      expect(isIntranetHostname('127.0.0.1')).toBe(true);
+      expect(isIntranetHostname('10.1.2.3')).toBe(true);
+      expect(isIntranetHostname('192.168.1.10')).toBe(true);
+      expect(isIntranetHostname('172.16.0.1')).toBe(true);
+      expect(isIntranetHostname('172.31.255.255')).toBe(true);
+      expect(isIntranetHostname('169.254.1.1')).toBe(true);
+      expect(isIntranetHostname('100.64.0.1')).toBe(true);
+      expect(isIntranetHostname('[::1]')).toBe(true);
+      expect(isIntranetHostname('fe80::1')).toBe(true);
+      expect(isIntranetHostname('fd00::1')).toBe(true);
+      expect(isIntranetHostname('::ffff:127.0.0.1')).toBe(true);
     });
 
-    it('blocks malformed IPv4 literals conservatively', () => {
-      expect(isPrivateHostname('999.1.1.1')).toBe(true);
-      expect(isPrivateHostname('1.2.3')).toBe(false);
+    it('treats single-label hosts and local suffixes as intranet', () => {
+      expect(isIntranetHostname('nas')).toBe(true);
+      expect(isIntranetHostname('myserver.lan')).toBe(true);
+      expect(isIntranetHostname('router.local')).toBe(true);
+      expect(isIntranetHostname('docs.internal')).toBe(true);
     });
 
-    it('allows public hostnames and addresses', () => {
-      expect(isPrivateHostname('raw.githubusercontent.com')).toBe(false);
-      expect(isPrivateHostname('8.8.8.8')).toBe(false);
-      expect(isPrivateHostname('172.32.0.1')).toBe(false);
-      expect(isPrivateHostname('2606:4700::1')).toBe(false);
+    it('treats public hostnames and addresses as non-intranet', () => {
+      expect(isIntranetHostname('raw.githubusercontent.com')).toBe(false);
+      expect(isIntranetHostname('8.8.8.8')).toBe(false);
+      expect(isIntranetHostname('172.32.0.1')).toBe(false);
+      expect(isIntranetHostname('2606:4700::1')).toBe(false);
     });
   });
 
@@ -98,32 +100,60 @@ describe('home-service', () => {
   });
 
   describe('fetchHomeRemoteDoc', () => {
-    it('rejects non-HTTPS and credentialed URLs without issuing requests', async () => {
+    it('rejects non-HTTP(S) and credentialed URLs without issuing requests', async () => {
       const fetchImpl = vi.fn();
       vi.stubGlobal('fetch', fetchImpl);
-      await expect(fetchHomeRemoteDoc('http://example.com/a.md')).rejects.toMatchObject({
+      await expect(fetchHomeRemoteDoc('ftp://example.com/a.md')).rejects.toMatchObject({
         code: 'INVALID_ARGUMENT',
       });
       await expect(fetchHomeRemoteDoc('https://user:pass@example.com/a.md')).rejects.toMatchObject({
+        code: 'INVALID_ARGUMENT',
+      });
+      await expect(fetchHomeRemoteDoc('http://user:pass@nas/doc.md')).rejects.toMatchObject({
         code: 'INVALID_ARGUMENT',
       });
       await expect(fetchHomeRemoteDoc('not a url')).rejects.toBeInstanceOf(MofoxError);
       expect(fetchImpl).not.toHaveBeenCalled();
     });
 
-    it('blocks loopback and private targets without issuing requests', async () => {
+    it('rejects plain-HTTP targets on the public internet without issuing requests', async () => {
       const fetchImpl = vi.fn();
       vi.stubGlobal('fetch', fetchImpl);
-      await expect(fetchHomeRemoteDoc('https://localhost/notes.md')).rejects.toMatchObject({
+      await expect(fetchHomeRemoteDoc('http://example.com/a.md')).rejects.toMatchObject({
         code: 'INVALID_ARGUMENT',
       });
-      await expect(fetchHomeRemoteDoc('https://192.168.1.5/notes.md')).rejects.toMatchObject({
-        code: 'INVALID_ARGUMENT',
-      });
-      await expect(fetchHomeRemoteDoc('https://[::1]/notes.md')).rejects.toMatchObject({
+      await expect(fetchHomeRemoteDoc('http://8.8.8.8/a.md')).rejects.toMatchObject({
         code: 'INVALID_ARGUMENT',
       });
       expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('fetches intranet documents over plain HTTP', async () => {
+      const fetchImpl = vi.fn(async () => new Response('# 内网文档\n内容', { status: 200 }));
+      vi.stubGlobal('fetch', fetchImpl);
+      await expect(fetchHomeRemoteDoc('http://192.168.1.5/notes.md')).resolves.toMatchObject({
+        content: '# 内网文档\n内容',
+      });
+      await expect(fetchHomeRemoteDoc('http://nas:8080/guide.md')).resolves.toMatchObject({
+        name: 'guide.md',
+      });
+      await expect(fetchHomeRemoteDoc('http://localhost:3000/notes.md')).resolves.toMatchObject({
+        content: '# 内网文档\n内容',
+      });
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+    });
+
+    it('allows HTTPS documents on intranet hosts', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('内容', { status: 200 })),
+      );
+      await expect(fetchHomeRemoteDoc('https://192.168.1.5/notes.md')).resolves.toMatchObject({
+        content: '内容',
+      });
+      await expect(fetchHomeRemoteDoc('https://localhost/notes.md')).resolves.toMatchObject({
+        content: '内容',
+      });
     });
 
     it('fetches a public HTTPS document and derives the display name', async () => {
@@ -166,7 +196,7 @@ describe('home-service', () => {
       });
     });
 
-    it('follows HTTPS redirects but rejects redirect targets on private hosts', async () => {
+    it('follows redirects within the policy and rejects public plain-HTTP targets', async () => {
       const fetchImpl = vi
         .fn()
         .mockResolvedValueOnce(
@@ -180,10 +210,23 @@ describe('home-service', () => {
       const result = await fetchHomeRemoteDoc('https://example.com/a.md');
       expect(result.content).toBe('内容');
 
+      // 重定向到内网 HTTP 同样放行。
+      const toIntranet = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(null, { status: 301, headers: { location: 'http://192.168.0.10/a.md' } }),
+        )
+        .mockResolvedValueOnce(new Response('内容', { status: 200 }));
+      vi.stubGlobal('fetch', toIntranet);
+      await expect(fetchHomeRemoteDoc('https://example.com/a.md')).resolves.toMatchObject({
+        content: '内容',
+      });
+
+      // 公网 HTTP 目标仍然拒绝。
       const redirecting = vi
         .fn()
         .mockResolvedValue(
-          new Response(null, { status: 301, headers: { location: 'https://192.168.0.10/a.md' } }),
+          new Response(null, { status: 301, headers: { location: 'http://example.com/a.md' } }),
         );
       vi.stubGlobal('fetch', redirecting);
       await expect(fetchHomeRemoteDoc('https://example.com/a.md')).rejects.toMatchObject({

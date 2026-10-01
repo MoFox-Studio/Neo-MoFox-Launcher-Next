@@ -235,6 +235,7 @@ describe('SettingsService', () => {
               config: {
                 documents: [
                   { id: 'a', kind: 'local', name: '指南.md', path: 'C:\\Docs\\指南.md' },
+                  { id: 'e', kind: 'remote', name: '内网手册', url: 'http://192.168.1.2/x.md' },
                   { id: 'c', kind: 'remote', name: '坏链接', url: 'http://example.com/x.md' },
                   { id: 'd', kind: 'local', name: '缺路径', path: '' },
                 ],
@@ -256,7 +257,10 @@ describe('SettingsService', () => {
     expect(docs).toMatchObject({
       enabled: true,
       config: {
-        documents: [{ id: 'a', kind: 'local', name: '指南.md', path: 'C:\\Docs\\指南.md' }],
+        documents: [
+          { id: 'a', kind: 'local', name: '指南.md', path: 'C:\\Docs\\指南.md' },
+          { id: 'e', kind: 'remote', name: '内网手册', url: 'http://192.168.1.2/x.md' },
+        ],
       },
     });
     const metrics = settings.home.widgets.find((widget) => widget.id === 'metrics');

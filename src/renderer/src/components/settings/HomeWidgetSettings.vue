@@ -20,6 +20,7 @@ import {
   MAX_HOME_LINKS,
   MAX_GREETING_LENGTH,
   isHomeLinkEntry,
+  isIntranetHostname,
   HOME_METRIC_IDS,
   HOME_WIDGET_DEFAULT_CONFIG,
 } from '@shared/domain/home';
@@ -273,19 +274,33 @@ function deriveRemoteDocName(url: string): string {
   }
 }
 
-/** 添加远程文档条目；仅接受无凭据的 HTTPS 链接。 */
+/** 远程文档链接的即时校验：返回错误文案，合法时返回空字符串。 */
+function describeRemoteDocUrlProblem(raw: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return '远程文档链接无效';
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return '远程文档链接仅支持 HTTP(S) 地址';
+  }
+  if (parsed.username || parsed.password) {
+    return '远程文档链接不能携带用户名或密码';
+  }
+  if (parsed.protocol === 'http:' && !isIntranetHostname(parsed.hostname)) {
+    return '公网地址必须使用 HTTPS；内网地址允许 HTTP';
+  }
+  return '';
+}
+
+/** 添加远程文档条目；HTTPS 不限主机，HTTP 仅限本机与内网。 */
 function addRemoteDoc(): void {
   const url = remoteUrl.value.trim();
   docsError.value = null;
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    docsError.value = '远程文档链接无效';
-    return;
-  }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
-    docsError.value = '远程文档链接必须是无凭据的 HTTPS 地址';
+  const problem = describeRemoteDocUrlProblem(url);
+  if (problem) {
+    docsError.value = problem;
     return;
   }
   const entry: HomeDocEntry = {
@@ -376,15 +391,9 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
       },
     });
   } else {
-    let parsed: URL;
-    try {
-      parsed = new URL(source);
-    } catch {
-      docsError.value = '远程文档链接无效';
-      return;
-    }
-    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
-      docsError.value = '远程文档链接必须是无凭据的 HTTPS 地址';
+    const problem = describeRemoteDocUrlProblem(source);
+    if (problem) {
+      docsError.value = problem;
       return;
     }
     updateWidget('docs', {
@@ -870,8 +879,8 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
           添加文档
         </button>
         <p class="home-config__hint">
-          本地支持 .md / .markdown / .txt 文件；远程仅接受 HTTPS Markdown 链接；单个文档不超过 2
-          MB。
+          本地支持 .md / .markdown / .txt 文件；远程链接公网需 HTTPS、内网允许 HTTP；单个文档不超过
+          2 MB。
         </p>
         <div v-if="docsError" class="settings-note settings-note--error">
           <span class="msr settings-note__icon">error</span>

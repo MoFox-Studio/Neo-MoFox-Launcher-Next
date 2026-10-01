@@ -240,6 +240,56 @@ function isHttpsUrlString(value: string): boolean {
   }
 }
 
+/**
+ * 判断主机名是否属于本机或内网：私网/回环/链路本地/CGNAT IPv4、
+ * IPv6 回环与 ULA/链路本地地址、localhost、单标签主机名（依赖 hosts
+ * 或 mDNS 解析，如 `http://nas:8080/xx.md`）以及常见本地域名后缀。
+ *
+ * 供文档部件放宽远程地址策略使用：内网主机允许 HTTP。
+ */
+export function isIntranetHostname(rawHostname: string): boolean {
+  const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost')) return true;
+  if (hostname === '::' || hostname === '::1') return true;
+  if (hostname.startsWith('fe80:') || hostname.startsWith('fc') || hostname.startsWith('fd')) {
+    return true;
+  }
+  if (hostname.startsWith('::ffff:')) return isIntranetIPv4(hostname.slice('::ffff:'.length));
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return isIntranetIPv4(hostname);
+  // 无点的裸主机名与常见本地后缀视为内网；排除 IPv6 字面量（含冒号无点）。
+  if (!hostname.includes('.') && !hostname.includes(':')) return true;
+  return /\.(?:local|lan|internal|localdomain|home)$/.test(hostname);
+}
+
+/** 判断 IPv4 字面量是否位于本机、私网、链路本地或 CGNAT 段。 */
+function isIntranetIPv4(value: string): boolean {
+  const parts = value.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part > 255)) {
+    return true;
+  }
+  const [first, second] = parts as [number, number, number];
+  if (first === 0 || first === 10 || first === 127) return true;
+  if (first === 169 && second === 254) return true;
+  if (first === 172 && second >= 16 && second <= 31) return true;
+  if (first === 192 && second === 168) return true;
+  return first === 100 && second >= 64 && second <= 127;
+}
+
+/**
+ * 文档部件的远程地址策略：HTTPS 不限主机；HTTP 仅限本机与内网主机；
+ * 一律拒绝携带凭据的链接。
+ */
+export function isRemoteDocUrlString(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return false;
+    if (url.protocol === 'https:') return true;
+    return url.protocol === 'http:' && isIntranetHostname(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function boolOr(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
@@ -292,7 +342,7 @@ function sanitizeDocEntries(value: unknown): HomeDocEntry[] {
     if (raw.kind === 'local' && typeof raw.path === 'string' && raw.path) {
       seen.add(id);
       entries.push({ id, kind: 'local', name, path: raw.path });
-    } else if (raw.kind === 'remote' && typeof raw.url === 'string' && isHttpsUrlString(raw.url)) {
+    } else if (raw.kind === 'remote' && typeof raw.url === 'string' && isRemoteDocUrlString(raw.url)) {
       seen.add(id);
       entries.push({ id, kind: 'remote', name, url: raw.url });
     }
@@ -395,7 +445,7 @@ function isHomeDocEntryShape(value: unknown): boolean {
   if (typeof value.id !== 'string' || !value.id) return false;
   if (typeof value.name !== 'string' || !value.name.trim()) return false;
   if (value.kind === 'local') return typeof value.path === 'string' && value.path.length > 0;
-  if (value.kind === 'remote') return typeof value.url === 'string' && isHttpsUrlString(value.url);
+  if (value.kind === 'remote') return typeof value.url === 'string' && isRemoteDocUrlString(value.url);
   return false;
 }
 

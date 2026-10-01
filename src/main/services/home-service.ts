@@ -3,13 +3,15 @@ import { readFile, stat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import type { HomeDocContent, HomeDocEntry } from '../../shared/domain/home';
+import { isIntranetHostname } from '../../shared/domain/home';
 import { MofoxError } from '../../shared/domain/error';
 
 /**
  * 主页小组件的主进程服务入口：文档选择、读取与远程拉取，以及在线名言。
  *
  * 安全面收敛为：本地仅允许 Markdown/纯文本扩展名且不超过大小上限；
- * 远程仅接受无凭据的 HTTPS 链接，拒绝内网与本机地址，响应大小同样受限。
+ * 远程接受无凭据的 HTTP(S) 链接——HTTPS 不限主机，HTTP 仅限本机与内网，
+ * 重定向目标同样受此约束，响应大小受限。
  */
 
 /** 允许阅读的文档扩展名（不含点）。 */
@@ -76,8 +78,8 @@ export async function readHomeDoc(path: string): Promise<HomeDocContent> {
 /**
  * 拉取远程文档的正文。
  *
- * 仅接受无凭据的 HTTPS 链接；重定向目标同样必须是可访问的 HTTPS 地址，
- * 本机、局域网与保留地址一律拒绝，正文超过大小上限时拒绝返回。
+ * 接受无凭据的 HTTP(S) 链接：HTTPS 不限主机，HTTP 仅限本机与内网；
+ * 重定向目标同样必须满足该约束，正文超过大小上限时拒绝返回。
  *
  * @param url - 远程文档链接。
  * @returns 展示名（链接末段或主机名）与正文内容。
@@ -107,9 +109,12 @@ export function hasDocExtension(path: string): boolean {
 /**
  * 校验并解析远程文档链接。
  *
+ * 策略与共享域模型一致：HTTPS 不限主机；HTTP 仅限本机与内网；
+ * 一律拒绝携带凭据的链接。
+ *
  * @param url - 待校验的链接。
  * @returns 解析后的 URL 对象。
- * @throws {MofoxError} 链接为空、非 HTTPS、携带凭据或指向内网时抛出。
+ * @throws {MofoxError} 链接为空、协议不支持、携带凭据或公网使用 HTTP 时抛出。
  */
 function parseRemoteDocUrl(url: string): URL {
   if (typeof url !== 'string' || !url.trim()) {
@@ -121,17 +126,20 @@ function parseRemoteDocUrl(url: string): URL {
   } catch {
     throw new MofoxError('INVALID_ARGUMENT', '远程文档链接无效');
   }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
-    throw new MofoxError('INVALID_ARGUMENT', '远程文档链接必须使用无凭据的 HTTPS 地址');
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new MofoxError('INVALID_ARGUMENT', '远程文档链接仅支持 HTTP(S) 地址');
   }
-  if (isPrivateHostname(parsed.hostname)) {
-    throw new MofoxError('INVALID_ARGUMENT', '不允许访问本机或内网地址');
+  if (parsed.username || parsed.password) {
+    throw new MofoxError('INVALID_ARGUMENT', '远程文档链接不能携带用户名或密码');
+  }
+  if (parsed.protocol === 'http:' && !isIntranetHostname(parsed.hostname)) {
+    throw new MofoxError('INVALID_ARGUMENT', '公网地址必须使用 HTTPS；内网地址允许 HTTP');
   }
   return parsed;
 }
 
 /**
- * 发起远程文档请求并手动跟随 HTTPS 重定向。
+ * 发起远程文档请求并手动跟随重定向。
  *
  * @param initial - 初始 URL。
  * @param maxRedirects - 允许的最大重定向次数。
@@ -163,7 +171,11 @@ async function requestWithRedirects(initial: URL, maxRedirects: number): Promise
     } catch {
       throw new MofoxError('IO_ERROR', '远程文档重定向地址无效');
     }
-    if (next.protocol !== 'https:' || isPrivateHostname(next.hostname)) {
+    // 重定向目标遵循与初始链接相同的策略：HTTPS 任意主机，HTTP 仅限内网。
+    const targetAllowed =
+      next.protocol === 'https:' ||
+      (next.protocol === 'http:' && isIntranetHostname(next.hostname));
+    if (!targetAllowed) {
       throw new MofoxError('IO_ERROR', '远程文档重定向目标不受支持');
     }
     current = next;
@@ -215,39 +227,6 @@ function describeNetworkError(error: unknown): string {
     return error.message;
   }
   return String(error);
-}
-
-/**
- * 判断主机名是否为本机、链路本地、私网或保留地址。
- *
- * @param rawHostname - URL 中的主机名（IPv6 可能带方括号）。
- * @returns 属于受限地址时返回 `true`。
- */
-export function isPrivateHostname(rawHostname: string): boolean {
-  const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, '');
-  if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost')) return true;
-  if (hostname === '::' || hostname === '::1') return true;
-  if (hostname.startsWith('fe80:') || hostname.startsWith('fc') || hostname.startsWith('fd')) {
-    return true;
-  }
-  if (hostname.startsWith('::ffff:')) return isPrivateIPv4(hostname.slice('::ffff:'.length));
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return isPrivateIPv4(hostname);
-  return false;
-}
-
-/** 判断 IPv4 字面量是否位于私网、回环或保留段；无法解析时保守视为受限。 */
-function isPrivateIPv4(value: string): boolean {
-  const parts = value.split('.').map(Number);
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part > 255)) {
-    return true;
-  }
-  const [first, second] = parts as [number, number, number, number];
-  if (first === 0 || first === 10 || first === 127) return true;
-  if (first === 169 && second === 254) return true;
-  if (first === 172 && second >= 16 && second <= 31) return true;
-  if (first === 192 && second === 168) return true;
-  if (first === 100 && second >= 64 && second <= 127) return true;
-  return first >= 224;
 }
 
 // Keep provider-specific networking isolated behind the home service entry point.
