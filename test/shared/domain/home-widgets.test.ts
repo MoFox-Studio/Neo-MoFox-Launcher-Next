@@ -54,11 +54,18 @@ describe('home widget additions and migration', () => {
     for (const url of [
       'javascript:alert(1)',
       'file:///tmp/a',
-      'http://example.com',
       'https://user:pass@example.com',
+      'not a url',
     ]) {
       expect(isHomeWidgetConfigValid('links', { links: [{ ...good, url }] })).toBe(false);
     }
+    // HTTP 与 HTTPS 均允许，不再限制协议明文。
+    expect(isHomeWidgetConfigValid('links', { links: [{ ...good, url: 'http://example.com' }] })).toBe(
+      true,
+    );
+    expect(
+      isHomeWidgetConfigValid('links', { links: [{ ...good, url: 'http://192.168.1.10:6099' }] }),
+    ).toBe(true);
     const home = normalizeHomeSettings({
       widgets: [
         {

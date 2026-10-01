@@ -129,7 +129,7 @@ describe('registerCommonIpc', () => {
     expect(actions.openExternal).toHaveBeenCalledWith('https://github.com/example/repo?tab=readme');
   });
 
-  it('allows plain http urls pointing at loopback hosts', async () => {
+  it('allows plain http urls on any host', async () => {
     const { handlers, ipcMain } = createIpcMain();
     const actions = createActions();
     registerCommonIpc(ipcMain, actions);
@@ -137,18 +137,20 @@ describe('registerCommonIpc', () => {
     for (const url of [
       'http://localhost:6099/webui',
       'http://127.0.0.1:6099',
-      'http://127.10.20.30:8080/',
       'http://[::1]:6099',
       'http://0.0.0.0:6099/webui',
+      'http://192.168.1.10:6099',
+      'http://example.com',
     ]) {
       await handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, url);
     }
 
     expect(actions.openExternal).toHaveBeenNthCalledWith(1, 'http://localhost:6099/webui');
     expect(actions.openExternal).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:6099/');
-    expect(actions.openExternal).toHaveBeenNthCalledWith(3, 'http://127.10.20.30:8080/');
-    expect(actions.openExternal).toHaveBeenNthCalledWith(4, 'http://[::1]:6099/');
-    expect(actions.openExternal).toHaveBeenNthCalledWith(5, 'http://0.0.0.0:6099/webui');
+    expect(actions.openExternal).toHaveBeenNthCalledWith(3, 'http://[::1]:6099/');
+    expect(actions.openExternal).toHaveBeenNthCalledWith(4, 'http://0.0.0.0:6099/webui');
+    expect(actions.openExternal).toHaveBeenNthCalledWith(5, 'http://192.168.1.10:6099/');
+    expect(actions.openExternal).toHaveBeenNthCalledWith(6, 'http://example.com/');
   });
 
   it('rejects unsafe external urls before calling the open external action', async () => {
@@ -163,13 +165,10 @@ describe('registerCommonIpc', () => {
       'MOFOX_ERROR:',
     );
     await expect(
-      handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'http://example.com'),
-    ).rejects.toThrow('MOFOX_ERROR:');
-    await expect(
       handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'ftp://localhost'),
     ).rejects.toThrow('MOFOX_ERROR:');
     await expect(
-      handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'http://192.168.1.10:6099'),
+      handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'file:///etc/passwd'),
     ).rejects.toThrow('MOFOX_ERROR:');
     await expect(
       handlers.get(IPC_INVOKE_CHANNELS.openExternal)?.({}, 'https://user:pass@example.com'),

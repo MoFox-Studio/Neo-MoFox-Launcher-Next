@@ -134,9 +134,9 @@ function requireString(value: unknown, label: string): string {
 /**
  * 校验来自渲染端的外部链接并归一化为字符串。
  *
- * 默认只允许无凭据的 HTTPS 协议，避免把任意协议或明文链接交给系统默认处理器；
- * 本机回环地址例外放行明文 HTTP，以便打开本地服务（如平台 WebUI）的链接。
- * 无论是否本机，携带凭据的 URL 一律拒绝。
+ * 允许无凭据的 HTTP(S) 链接（任意主机，含内网），交给系统默认浏览器打开；
+ * 其他协议（如 `ftp:`、`file:`、自定义协议）与携带凭据的 URL 一律拒绝，
+ * 避免把任意协议交给系统默认处理器。
  *
  * @param value - 未经类型约束的 IPC 参数。
  * @returns 校验通过的链接地址。
@@ -151,33 +151,13 @@ function requireExternalUrl(value: unknown): string {
   } catch {
     throw new MofoxError('INVALID_ARGUMENT', 'External URL is invalid');
   }
-  const isLocalHttp = parsed.protocol === 'http:' && isLoopbackHost(parsed.hostname);
-  if (parsed.protocol !== 'https:' && !isLocalHttp) {
-    throw new MofoxError('INVALID_ARGUMENT', 'Only HTTPS URLs (or local HTTP) are allowed');
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new MofoxError('INVALID_ARGUMENT', 'Only HTTP(S) URLs are allowed');
   }
   if (parsed.username || parsed.password) {
     throw new MofoxError('INVALID_ARGUMENT', 'Credential-bearing URLs are not allowed');
   }
   return parsed.toString();
-}
-
-/**
- * 判断主机名是否指向本机回环地址。
- *
- * 覆盖 `localhost`、IPv4 回环段（127.0.0.0/8）、IPv6 回环 `::1` 与全零地址 `0.0.0.0`
- * （日志中常以绑定地址形式出现，如本地 WebUI 的监听地址）。
- *
- * @param hostname - `URL.hostname` 解析出的主机名（IPv6 保留方括号）。
- * @returns 是否为本机回环地址。
- */
-function isLoopbackHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
-  if (host === 'localhost' || host === '::1' || host === '0.0.0.0') return true;
-  if (!host.startsWith('127.')) return false;
-  const octets = host.split('.');
-  return (
-    octets.length === 4 && octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255)
-  );
 }
 
 interface FilePickerFilter {

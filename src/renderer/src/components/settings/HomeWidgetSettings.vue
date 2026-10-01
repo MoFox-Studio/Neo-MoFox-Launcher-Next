@@ -5,6 +5,7 @@ import type {
   ChangelogWidgetConfig,
   ClockWidgetConfig,
   HomeDocEntry,
+  HomeLinkEntry,
   HomeMetricId,
   HomeWidgetConfigMap,
   HomeWidgetId,
@@ -19,7 +20,6 @@ import {
   MAX_HOME_NOTE_LENGTH,
   MAX_HOME_LINKS,
   MAX_GREETING_LENGTH,
-  isHomeLinkEntry,
   isIntranetHostname,
   HOME_METRIC_IDS,
   HOME_WIDGET_DEFAULT_CONFIG,
@@ -66,29 +66,98 @@ const linksConfig = computed(() => widgetConfig('links'));
 const linkName = ref('');
 const linkUrl = ref('');
 const linkError = ref('');
+
+/** 链接网址的即时校验：返回错误文案，合法时返回空字符串。 */
+function describeLinkProblem(name: string, url: string): string {
+  if (!name) return '链接名称不能为空';
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return '链接无效，请填写完整的网址';
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return '链接仅支持 HTTP(S) 网址';
+  }
+  if (parsed.username || parsed.password) {
+    return '链接网址不能携带用户名或密码';
+  }
+  if (url.length > 2048) return '网址长度超出限制';
+  return '';
+}
+
+/** 从链接中推导展示用的主机名徽标；解析失败时回退通用文案。 */
+function hostOfLinkUrl(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '链接';
+  }
+}
+
 function addLink(): void {
-  const entry = {
-    id: globalThis.crypto.randomUUID(),
-    name: linkName.value.trim(),
-    url: linkUrl.value.trim(),
-  };
-  if (!isHomeLinkEntry(entry)) {
-    linkError.value = '请填写名称和无账号密码的 HTTPS 网址';
+  const name = linkName.value.trim();
+  const url = linkUrl.value.trim();
+  linkError.value = '';
+  const problem = describeLinkProblem(name, url);
+  if (problem) {
+    linkError.value = problem;
     return;
   }
   if (linksConfig.value.links.length >= MAX_HOME_LINKS) {
     linkError.value = '最多添加 12 个链接';
     return;
   }
-  updateWidget('links', { config: { links: [...linksConfig.value.links, entry] } });
+  updateWidget('links', {
+    config: {
+      links: [...linksConfig.value.links, { id: globalThis.crypto.randomUUID(), name, url }],
+    },
+  });
   linkName.value = '';
   linkUrl.value = '';
-  linkError.value = '';
 }
+
+/** 展开编辑中的链接条目 id 与草稿字段。 */
+const editingLinkId = ref<string | null>(null);
+const editLinkName = ref('');
+const editLinkUrl = ref('');
+
+function toggleLinkExpand(entry: HomeLinkEntry): void {
+  linkError.value = '';
+  if (editingLinkId.value === entry.id) {
+    editingLinkId.value = null;
+    return;
+  }
+  editingLinkId.value = entry.id;
+  editLinkName.value = entry.name;
+  editLinkUrl.value = entry.url;
+}
+
 function removeLink(id: string): void {
+  if (editingLinkId.value === id) editingLinkId.value = null;
   updateWidget('links', {
     config: { links: linksConfig.value.links.filter((entry) => entry.id !== id) },
   });
+}
+
+/** 保存展开链接条目的修改：名称与网址均通过校验后才写回草稿。 */
+function saveLinkEdit(entry: HomeLinkEntry): void {
+  const name = editLinkName.value.trim();
+  const url = editLinkUrl.value.trim();
+  linkError.value = '';
+  const problem = describeLinkProblem(name, url);
+  if (problem) {
+    linkError.value = problem;
+    return;
+  }
+  updateWidget('links', {
+    config: {
+      links: linksConfig.value.links.map((item) =>
+        item.id === entry.id ? { ...item, name, url } : item,
+      ),
+    },
+  });
+  editingLinkId.value = null;
 }
 
 function patchClock(patch: Partial<ClockWidgetConfig>): void {
@@ -130,6 +199,8 @@ function patchChangelog(patch: Partial<ChangelogWidgetConfig>): void {
 /** 文档列表的本地编辑状态。 */
 const docsBusy = ref(false);
 const docsError = ref<string | null>(null);
+/** 展开条目编辑流程的错误；与添加流程分离，便于把提示就近贴在「保存修改」上方。 */
+const editDocError = ref<string | null>(null);
 const remoteUrl = ref('');
 const localPath = ref('');
 
@@ -165,6 +236,7 @@ const editSource = ref('');
 
 function toggleDocExpand(entry: HomeDocEntry): void {
   docsError.value = null;
+  editDocError.value = null;
   if (editingDocId.value === entry.id) {
     editingDocId.value = null;
     return;
@@ -180,7 +252,10 @@ function describeError(error: unknown): string {
 }
 
 function removeDoc(id: string): void {
-  if (editingDocId.value === id) editingDocId.value = null;
+  if (editingDocId.value === id) {
+    editingDocId.value = null;
+    editDocError.value = null;
+  }
   const documents = docsConfig.value.documents.filter((entry) => entry.id !== id);
   updateWidget('docs', { config: { documents } });
 }
@@ -318,7 +393,7 @@ function addRemoteDoc(): void {
 async function replaceLocalDocFile(entry: HomeDocEntry): Promise<void> {
   if (docsBusy.value) return;
   docsBusy.value = true;
-  docsError.value = null;
+  editDocError.value = null;
   try {
     const picked = await mofoxApi.pickHomeDocs();
     const next = picked?.[0];
@@ -327,12 +402,12 @@ async function replaceLocalDocFile(entry: HomeDocEntry): Promise<void> {
       (item) => item.id !== entry.id && item.kind === 'local' && item.path === next.path,
     );
     if (duplicated) {
-      docsError.value = '该文档已在列表中';
+      editDocError.value = '该文档已在列表中';
       return;
     }
     editSource.value = next.path ?? '';
   } catch (error) {
-    docsError.value = describeError(error);
+    editDocError.value = describeError(error);
   } finally {
     docsBusy.value = false;
   }
@@ -342,25 +417,25 @@ async function replaceLocalDocFile(entry: HomeDocEntry): Promise<void> {
 async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
   const name = editName.value.trim();
   const source = editSource.value.trim();
-  docsError.value = null;
+  editDocError.value = null;
   if (!name) {
-    docsError.value = '文档名称不能为空';
+    editDocError.value = '文档名称不能为空';
     return;
   }
   const documents = docsConfig.value.documents;
   if (entry.kind === 'local') {
     if (!source) {
-      docsError.value = '文件路径不能为空';
+      editDocError.value = '文件路径不能为空';
       return;
     }
     if (!/\.(?:md|markdown|txt)$/i.test(source)) {
-      docsError.value = '本地文档仅支持 .md / .markdown / .txt 文件';
+      editDocError.value = '本地文档仅支持 .md / .markdown / .txt 文件';
       return;
     }
     if (
       documents.some((item) => item.id !== entry.id && item.kind === 'local' && item.path === source)
     ) {
-      docsError.value = '该文档已在列表中';
+      editDocError.value = '该文档已在列表中';
       return;
     }
     if (source !== entry.path) {
@@ -369,15 +444,15 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
         // 复用通用路径探测：绝对路径、存在且不是目录才允许保存。
         const inspection = await mofoxApi.inspectImportPath(source);
         if (!inspection.exists) {
-          docsError.value = '文件不存在，请检查路径是否正确';
+          editDocError.value = '文件不存在，请检查路径是否正确';
           return;
         }
         if (inspection.isDirectory) {
-          docsError.value = '该路径是目录，请填写文档文件的完整路径';
+          editDocError.value = '该路径是目录，请填写文档文件的完整路径';
           return;
         }
       } catch (error) {
-        docsError.value = describeError(error);
+        editDocError.value = describeError(error);
         return;
       } finally {
         docsBusy.value = false;
@@ -393,7 +468,7 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
   } else {
     const problem = describeRemoteDocUrlProblem(source);
     if (problem) {
-      docsError.value = problem;
+      editDocError.value = problem;
       return;
     }
     updateWidget('docs', {
@@ -497,43 +572,137 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
       </p>
     </template>
     <template v-else-if="widget.id === 'links'">
-      <div v-for="entry in linksConfig.links" :key="entry.id" class="docs-list__item">
-        <span class="docs-list__name" :title="entry.url">{{ entry.name }}</span>
+      <div class="home-config__row home-config__row--column">
+        <span class="home-config__label">已添加的链接</span>
+        <div class="docs-list">
+          <div
+            v-for="entry in linksConfig.links"
+            :key="entry.id"
+            class="docs-doc"
+            :class="{ 'docs-doc--open': editingLinkId === entry.id }"
+          >
+            <div class="docs-list__item">
+              <span class="msr docs-list__icon" aria-hidden="true">link</span>
+              <span class="docs-list__name" :title="entry.url">{{ entry.name }}</span>
+              <span class="docs-list__kind" :title="entry.url">
+                {{ hostOfLinkUrl(entry.url) }}
+              </span>
+              <button
+                type="button"
+                class="home-row__icon-button state-layer"
+                :aria-expanded="editingLinkId === entry.id"
+                :title="editingLinkId === entry.id ? '收起' : '展开编辑'"
+                :aria-label="`编辑${entry.name}`"
+                @click="toggleLinkExpand(entry)"
+              >
+                <span
+                  class="msr docs-list__chevron"
+                  :class="{ 'docs-list__chevron--open': editingLinkId === entry.id }"
+                  aria-hidden="true"
+                >
+                  keyboard_arrow_down
+                </span>
+              </button>
+              <button
+                type="button"
+                class="home-row__icon-button state-layer"
+                title="移除"
+                :aria-label="`移除${entry.name}`"
+                @click="removeLink(entry.id)"
+              >
+                <span class="msr" aria-hidden="true">close</span>
+              </button>
+            </div>
+            <!-- 展开后的编辑区：修改名称与网址，保存时统一校验。 -->
+            <div v-if="editingLinkId === entry.id" class="docs-list__editor">
+              <label class="docs-edit-field">
+                <span class="docs-edit-field__label">名称</span>
+                <div class="input-field docs-url-field">
+                  <input
+                    v-model="editLinkName"
+                    type="text"
+                    class="input-field__native"
+                    maxlength="60"
+                    @keydown.enter.prevent="saveLinkEdit(entry)"
+                  />
+                </div>
+              </label>
+              <label class="docs-edit-field">
+                <span class="docs-edit-field__label">网址</span>
+                <div class="input-field docs-url-field">
+                  <input
+                    v-model="editLinkUrl"
+                    type="url"
+                    class="input-field__native"
+                    placeholder="http:// 或 https:// 均可"
+                    maxlength="2048"
+                    spellcheck="false"
+                    autocomplete="off"
+                    @keydown.enter.prevent="saveLinkEdit(entry)"
+                  />
+                </div>
+              </label>
+              <div class="docs-edit-actions">
+                <button
+                  type="button"
+                  class="docs-add-button state-layer"
+                  @click="saveLinkEdit(entry)"
+                >
+                  <span class="msr" aria-hidden="true">check</span>
+                  保存修改
+                </button>
+              </div>
+            </div>
+          </div>
+          <p v-if="linksConfig.links.length === 0" class="home-config__hint">
+            还没有链接；添加后会显示在主页「常用链接」部件中。
+          </p>
+        </div>
+      </div>
+      <!-- 添加区：名称与网址分两行输入，整体包进一个背景卡片。 -->
+      <div class="docs-add-card">
+        <span class="home-config__label">添加链接</span>
+        <div class="docs-add-row">
+          <div class="input-field docs-url-field">
+            <input
+              v-model="linkName"
+              type="text"
+              class="input-field__native"
+              placeholder="链接名称，例如：项目文档"
+              maxlength="60"
+            />
+          </div>
+        </div>
+        <div class="docs-add-row">
+          <div class="input-field docs-url-field">
+            <input
+              v-model="linkUrl"
+              type="url"
+              class="input-field__native"
+              placeholder="http:// 或 https:// 均可"
+              maxlength="2048"
+              spellcheck="false"
+              autocomplete="off"
+              @keydown.enter.prevent="addLink"
+            />
+          </div>
+        </div>
         <button
           type="button"
-          class="home-row__icon-button"
-          :aria-label="`移除${entry.name}`"
-          @click="removeLink(entry.id)"
+          class="docs-add-button docs-add-button--primary state-layer"
+          @click="addLink"
         >
-          <span class="msr">close</span>
+          <span class="msr" aria-hidden="true">add</span>
+          添加链接
         </button>
+        <p class="home-config__hint">
+          最多 12 个；HTTP 与 HTTPS 均可，通过默认浏览器打开。
+        </p>
+        <div v-if="linkError" class="settings-note settings-note--error">
+          <span class="msr settings-note__icon">error</span>
+          <span>{{ linkError }}</span>
+        </div>
       </div>
-      <label
-        >链接名称<input
-          v-model="linkName"
-          class="home-text-input"
-          maxlength="60"
-          placeholder="例如：项目文档"
-      /></label>
-      <label
-        >网址<input
-          v-model="linkUrl"
-          class="home-text-input"
-          type="url"
-          maxlength="2048"
-          placeholder="https://…"
-          @keydown.enter.prevent="addLink"
-      /></label>
-      <button
-        type="button"
-        class="docs-add-button"
-        :disabled="linksConfig.links.length >= MAX_HOME_LINKS"
-        @click="addLink"
-      >
-        添加链接
-      </button>
-      <p class="home-config__hint">最多 12 个，通过默认浏览器打开。</p>
-      <p v-if="linkError" role="alert">{{ linkError }}</p>
     </template>
 
     <!-- 名人名言 -->

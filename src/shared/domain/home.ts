@@ -231,15 +231,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isHttpsUrlString(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * 判断主机名是否属于本机或内网：私网/回环/链路本地/CGNAT IPv4、
  * IPv6 回环与 ULA/链路本地地址、localhost、单标签主机名（依赖 hosts
@@ -500,6 +491,18 @@ export function normalizeHomeSettings(source: unknown): HomeSettings {
   return { version: 1, widgets };
 }
 
+/** 判断字符串是否为无凭据的 HTTP(S) 网址。 */
+function isHttpUrlString(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Links open through the existing external-browser IPC, never execute in the page. */
 export function isHomeLinkEntry(value: unknown): value is HomeLinkEntry {
   return (
@@ -511,7 +514,7 @@ export function isHomeLinkEntry(value: unknown): value is HomeLinkEntry {
     value.name.length <= 60 &&
     typeof value.url === 'string' &&
     value.url.length <= 2048 &&
-    isHttpsUrlString(value.url)
+    isHttpUrlString(value.url)
   );
 }
 function normalizeHomeLinks(value: unknown): HomeLinkEntry[] {
