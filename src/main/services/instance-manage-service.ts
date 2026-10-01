@@ -91,6 +91,7 @@ export class InstanceManageService {
       },
       false,
     );
+    console.info(`[manage] 实例已删除：${instanceId} 模式=${mode}`);
   }
 
   /**
@@ -109,14 +110,17 @@ export class InstanceManageService {
       const platformDir = instance.platform.installDir?.trim();
       if (!platformDir) throw new MofoxError('NOT_FOUND', '实例未安装平台适配器');
       await this.openPath(await requireDirectory(platformDir, '平台目录'));
+      console.info(`[manage] 文件夹已打开：${instance.name}（${instanceId}）类型=${kind}`);
       return;
     }
     const installDir = await requireDirectory(instance.mofoxInstallDir, '主程序目录');
     if (kind === 'install') {
       await this.openPath(installDir);
+      console.info(`[manage] 文件夹已打开：${instance.name}（${instanceId}）类型=${kind}`);
       return;
     }
     await this.openPath(await requireDirectory(join(installDir, kind), SUB_FOLDER_LABELS[kind]));
+    console.info(`[manage] 文件夹已打开：${instance.name}（${instanceId}）类型=${kind}`);
   }
 
   /**
@@ -175,7 +179,9 @@ export class InstanceManageService {
       }
       validated = { ...validated, platform: { ...patch.platform, installDir: platformDir } };
     }
-    return this.repository.update(instanceId, validated);
+    const updated = await this.repository.update(instanceId, validated);
+    console.info(`[manage] 实例已更新：${instanceId} 字段=${Object.keys(validated).join(', ')}`);
+    return updated;
   }
 
   /**

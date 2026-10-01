@@ -38,6 +38,7 @@ export class PlatformMetadataService {
    * @returns 平台元数据对象数组的深拷贝。
    */
   list(): BotPlatformMetadata[] {
+    if (!this.registry) console.warn('[platforms] 注册表不可用，使用内置回退列表');
     const platforms = this.registry?.list() ?? FALLBACK_PLATFORMS;
     const currentPlatform = process.platform as 'win32' | 'linux' | 'darwin';
     const currentArch = process.arch as 'x64' | 'arm64';

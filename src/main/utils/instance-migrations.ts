@@ -82,7 +82,7 @@ export function normalizeRepositoryFile(
     try {
       instances.push(normalizeInstance(record));
     } catch (error) {
-      report('Skipped invalid instance record', toError(error));
+      report('已跳过无效的实例记录', toError(error));
     }
   }
   return { version: INSTANCES_VERSION, instances };

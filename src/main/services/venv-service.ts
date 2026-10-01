@@ -207,6 +207,7 @@ export class VenvService {
     const instance = await this.find(instanceId);
     const python = await this.resolvePython(instance);
     const spec = version ? `${packageName}==${version.trim()}` : packageName;
+    console.info(`[venv] 依赖安装已开始：${instanceId} ${spec}`);
     try {
       await this.tryEachPipMirror(
         (mirror) =>
@@ -215,8 +216,10 @@ export class VenvService {
           }),
         `安装 ${packageName} 失败`,
       );
+      console.info(`[venv] 依赖已安装：${instanceId} ${spec}`);
       return { name: packageName, version: version?.trim(), installed: true, ok: true };
     } catch (error) {
+      console.warn(`[venv] 依赖安装失败：${instanceId} ${packageName}：${describe(error)}`);
       return {
         name: packageName,
         version: version?.trim(),
@@ -246,8 +249,10 @@ export class VenvService {
       await this.runUv(['pip', 'uninstall', '--python', python, '-y', packageName], {
         timeoutMs: INSTALL_TIMEOUT_MS,
       });
+      console.info(`[venv] 依赖已卸载：${instanceId} ${packageName}`);
       return { name: packageName, removed: true, ok: true };
     } catch (error) {
+      console.warn(`[venv] 依赖卸载失败：${instanceId} ${packageName}：${describe(error)}`);
       return { name: packageName, removed: false, ok: false, message: describe(error) };
     }
   }
@@ -271,12 +276,14 @@ export class VenvService {
     const target = name?.trim();
     if (target) requirePackageName(target);
     const phase: VenvProgressEvent['phase'] = target ? 'upgrade' : 'upgrade-all';
+    console.info(`[venv] 依赖升级已开始：${instanceId} ${target ?? '全部依赖'}`);
     try {
       // 升级全部时先查询可升级依赖，把包名一次性交给 uv，避免 `--all` 不可用。
       const names = target
         ? [target]
         : ((await this.checkOutdated(python))?.map((item) => item.name) ?? []);
       if (names.length === 0) {
+        console.info(`[venv] 没有可升级的依赖：${instanceId}`);
         this.emitProgress(instanceId, phase, 1, target ? `已升级 ${target}` : '没有需要升级的依赖');
         return { name: target ?? '*', upgraded: true, ok: true };
       }
@@ -292,9 +299,13 @@ export class VenvService {
           this.runUv([...args, '--index-url', mirror.baseUrl], { timeoutMs: INSTALL_TIMEOUT_MS }),
         `升级 ${target ?? '全部依赖'} 失败`,
       );
+      console.info(`[venv] 依赖已升级：${instanceId} ${target ?? '全部依赖'}`);
       this.emitProgress(instanceId, phase, 1, target ? `已升级 ${target}` : '全部依赖升级完成');
       return { name: target ?? '*', upgraded: true, ok: true };
     } catch (error) {
+      console.warn(
+        `[venv] 依赖升级失败：${instanceId} ${target ?? '全部依赖'}：${describe(error)}`,
+      );
       this.emitProgress(instanceId, phase, 0, `升级失败: ${describe(error)}`);
       return { name: target ?? '*', upgraded: false, ok: false, message: describe(error) };
     }
@@ -370,7 +381,8 @@ export class VenvService {
           ).then((result) => parseOutdatedList(result.stdout)),
         '检查可升级依赖失败',
       );
-    } catch {
+    } catch (error) {
+      console.warn(`[venv] 依赖过期检查失败：${describe(error)}`);
       return null;
     }
   }

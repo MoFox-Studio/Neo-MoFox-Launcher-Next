@@ -83,7 +83,7 @@ describe('logger', () => {
     console.log('hello');
 
     await vi.waitFor(() =>
-      expect(logSpy).toHaveBeenCalledWith('Unable to write console log', expect.any(Error)),
+      expect(logSpy).toHaveBeenCalledWith('无法写入控制台日志', expect.any(Error)),
     );
   });
 });

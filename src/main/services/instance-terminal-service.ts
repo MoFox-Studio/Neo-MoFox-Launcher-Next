@@ -134,6 +134,7 @@ export class InstanceTerminalService {
       },
     });
     this.identities.set(key, identity);
+    console.info(`[terminal] 终端已打开：${instanceId}`);
     return { cwd };
   }
 
@@ -167,6 +168,7 @@ export class InstanceTerminalService {
     const key = this.key(instanceId);
     this.identities.delete(key);
     this.helper.killAll(key);
+    console.info(`[terminal] 终端已关闭：${instanceId}`);
   }
 
   /**

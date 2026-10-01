@@ -81,6 +81,7 @@ export class InstanceRepository {
       }
       instances.push(cloneInstance(instance));
     });
+    console.info(`[repository] 实例已添加：${instance.name}（${instance.id}）`);
     return cloneInstance(instance);
   }
 
@@ -125,6 +126,7 @@ export class InstanceRepository {
       });
       instances[index] = cloneInstance(updated);
     });
+    console.info(`[repository] 实例已更新：${instanceId}`);
     return cloneInstance(updated!);
   }
 
@@ -136,10 +138,15 @@ export class InstanceRepository {
    */
   async remove(instanceId: string): Promise<void> {
     if (!instanceId.trim()) throw new MofoxError('INVALID_ARGUMENT', 'Instance ID is required');
+    let removed = false;
     await this.mutate((instances) => {
       const index = instances.findIndex((instance) => instance.id === instanceId);
-      if (index >= 0) instances.splice(index, 1);
+      if (index >= 0) {
+        instances.splice(index, 1);
+        removed = true;
+      }
     });
+    if (removed) console.info(`[repository] 实例已移除：${instanceId}`);
   }
 
   /**
@@ -173,6 +180,9 @@ export class InstanceRepository {
         imported.push(cloneInstance(candidate));
       }
     });
+    console.info(
+      `[repository] 外部实例已合并：导入 ${imported.length} 个，跳过 ${skipped.length} 个`,
+    );
     return { imported, skipped };
   }
 
@@ -211,14 +221,14 @@ export class InstanceRepository {
       // 版本升级或结构偏离默认 schema 时立即回写，既补齐新增字段也移除已废弃字段。
       if (!isCanonicalRepositoryFile(parsed, file)) {
         await writeJsonAtomic(this.path, file).catch((error) => {
-          this.report('Unable to persist normalized instance repository', toError(error));
+          this.report('无法持久化规范化后的实例仓库', toError(error));
         });
       }
       return file.instances;
     } catch (error) {
       if (isRecord(error) && error.code === 'ENOENT') return [];
       const parsedError = toError(error);
-      this.report(`Unable to read instance repository ${this.path}`, parsedError);
+      this.report(`无法读取实例仓库 ${this.path}`, parsedError);
       if (error instanceof MofoxError && /更新版本/.test(error.message)) throw error;
       await this.preserveCorruptFile();
       const recovered = await this.recoverBackup();
@@ -256,7 +266,7 @@ export class InstanceRepository {
       });
       if (invalid) return undefined;
       await copyFile(backupPath, this.path);
-      this.report('Recovered instance repository from backup', new Error(backupPath));
+      this.report('已从备份恢复实例仓库', new Error(backupPath));
       return file.instances;
     } catch {
       return undefined;

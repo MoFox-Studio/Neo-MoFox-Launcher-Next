@@ -93,6 +93,7 @@ export class ManualImportService {
           ? { id: platformId, installDir: resolvedPlatformDir, version: null }
           : { id: null, installDir: null, version: null },
     });
+    console.info(`[import] 实例已导入：${instance.name}（${instance.id}）`);
     return { instanceId: instance.id };
   }
 }

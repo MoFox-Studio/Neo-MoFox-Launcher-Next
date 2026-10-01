@@ -90,6 +90,11 @@ export class InstanceRuntimeService {
       }
       await this.saveStatus(await this.find(instanceId), 'running');
     } catch (error) {
+      console.error(
+        `[runtime] 实例启动失败：${instanceId}：${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       // 部分启动失败时仅回收本次新拉起的进程，保留原先已在运行的来源。
       for (const source of started) {
         this.helper.killAll(this.key(instanceId, source));
@@ -149,6 +154,11 @@ export class InstanceRuntimeService {
       );
       this.spawn(instanceId, source, command);
     } catch (error) {
+      console.error(
+        `[runtime] 进程启动失败：${instanceId} ${source}：${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       this.helper.killAll(this.key(instanceId, source));
       this.processIdentities.delete(this.key(instanceId, source));
       this.running.get(instanceId)?.delete(source);
@@ -201,6 +211,7 @@ export class InstanceRuntimeService {
     if (!this.hasActive(instanceId)) {
       this.running.delete(instanceId);
       await this.saveStatus(await this.find(instanceId), 'stopped');
+      console.info(`[runtime] 实例已停止：${instanceId}`);
     }
   }
 
@@ -233,6 +244,7 @@ export class InstanceRuntimeService {
     this.stoppingKeys.add(key);
     this.emitLauncherMessage(instanceId, source, 'info', '正在停止进程...');
     await this.helper.stop(key);
+    console.info(`[runtime] 进程已停止：${instanceId} ${source}`);
     this.running.get(instanceId)?.delete(source);
     this.stoppingKeys.delete(key);
     this.processIdentities.delete(key);
@@ -492,6 +504,9 @@ export class InstanceRuntimeService {
    */
   private spawn(instanceId: string, source: InstanceProcessSource, command: StartCommand): void {
     const key = this.key(instanceId, source);
+    console.info(
+      `[runtime] 进程已启动：${instanceId} ${source} ${command.command} ${command.args.join(' ')}`,
+    );
     const identity = this.helper.spawn(key, {
       command: command.command,
       args: command.args,
@@ -513,6 +528,7 @@ export class InstanceRuntimeService {
           );
       },
       onError: (error, failedIdentity) => {
+        console.error(`[runtime] 进程启动出错：${instanceId} ${source}：${error.message}`);
         this.emitLauncherMessage(instanceId, source, 'error', `进程启动失败: ${error.message}`);
         void this.operations
           .runExclusive(instanceId, () => this.onSourceExit(instanceId, source, 1, failedIdentity))
@@ -554,6 +570,9 @@ export class InstanceRuntimeService {
     const set = this.running.get(instanceId);
     if (!set || !set.delete(source)) return;
     const stopping = this.stoppingKeys.delete(key);
+    if (exitCode === 0)
+      console.info(`[runtime] 实例进程已退出：${instanceId} ${source} 退出码 ${exitCode}`);
+    else console.warn(`[runtime] 实例进程已退出：${instanceId} ${source} 退出码 ${exitCode}`);
     if (!stopping) {
       if (exitCode === 0) this.emitLauncherMessage(instanceId, source, 'info', '进程已退出');
       else

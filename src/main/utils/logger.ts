@@ -124,7 +124,7 @@ function mirrorConsole(logger: Logger): void {
       // 镜像为后台任务：写入失败仅回退到原生 console，避免未处理的 Promise 拒绝。
       Promise.resolve()
         .then(() => logger.log('launcher', level, format(...args)))
-        .catch((error: unknown) => original('Unable to write console log', error));
+        .catch((error: unknown) => original('无法写入控制台日志', error));
     };
   }
 }

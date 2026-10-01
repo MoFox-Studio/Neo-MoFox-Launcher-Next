@@ -182,7 +182,10 @@ describe('LegacyMigrationService', () => {
     const preview = await service.preview();
     expect(preview.previews).toHaveLength(1);
     expect(preview.previews[0].instance.id).toBe('ok');
-    expect(report).toHaveBeenCalledWith(expect.stringContaining('invalid'), expect.any(Error));
+    expect(report).toHaveBeenCalledWith(
+      expect.stringContaining('已跳过无效的旧版实例记录'),
+      expect.any(Error),
+    );
   });
 
   it('importInstances writes non-conflicting records into the new repo', async () => {

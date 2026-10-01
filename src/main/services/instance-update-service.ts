@@ -120,11 +120,13 @@ export class InstanceUpdateService {
   private async switchBranchUnlocked(instanceId: string, branch: string): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
     this.log('info', `[${instance.name}] 开始切换分支到 ${branch}`);
+    console.info(`[update] 分支切换已开始：${instance.name}（${instanceId}）→ ${branch}`);
     try {
       await switchBranch(instance.mofoxInstallDir, branch, (message) =>
         this.emit(instanceId, 'switch-branch', -1, message),
       );
       this.log('info', `[${instance.name}] 分支切换完成: ${branch}`);
+      console.info(`[update] 分支切换已完成：${instance.name}（${instanceId}）→ ${branch}`);
     } catch (error) {
       this.log('error', `[${instance.name}] 分支切换失败: ${describeError(error)}`);
       throw error;
@@ -151,11 +153,13 @@ export class InstanceUpdateService {
   ): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
     this.log('info', `[${instance.name}] 开始回退到提交 ${commitHash}`);
+    console.info(`[update] 版本回退已开始：${instance.name}（${instanceId}）→ ${commitHash}`);
     try {
       await checkoutCommit(instance.mofoxInstallDir, commitHash, (message) =>
         this.emit(instanceId, 'checkout-commit', -1, message),
       );
       this.log('info', `[${instance.name}] 回退到提交完成: ${commitHash}`);
+      console.info(`[update] 版本回退已完成：${instance.name}（${instanceId}）→ ${commitHash}`);
     } catch (error) {
       this.log('error', `[${instance.name}] 回退到提交失败: ${describeError(error)}`);
       throw error;
@@ -178,11 +182,13 @@ export class InstanceUpdateService {
   private async updateMofoxUnlocked(instanceId: string): Promise<MofoxUpdateInfo> {
     const instance = await this.find(instanceId);
     this.log('info', `[${instance.name}] 开始更新主程序到最新提交`);
+    console.info(`[update] 主程序更新已开始：${instance.name}（${instanceId}）`);
     try {
       await updateToLatest(instance.mofoxInstallDir, (message) =>
         this.emit(instanceId, 'update-mofox', -1, message),
       );
       this.log('info', `[${instance.name}] 主程序更新完成`);
+      console.info(`[update] 主程序更新已完成：${instance.name}（${instanceId}）`);
     } catch (error) {
       this.log('error', `[${instance.name}] 主程序更新失败: ${describeError(error)}`);
       throw error;
@@ -248,6 +254,9 @@ export class InstanceUpdateService {
     const target = version.trim() || 'latest';
 
     this.log('info', `[${instance.name}] 开始更新平台 ${platform.name} 到 ${target}`);
+    console.info(
+      `[update] 平台更新已开始：${instance.name}（${instanceId}）${platform.name} → ${target}`,
+    );
     this.emit(instanceId, 'update-platform', 0.08, '正在把现有平台移动到缓存目录...');
     await rm(cacheDir, { recursive: true, force: true });
     await mkdir(cacheDir, { recursive: true });
@@ -287,6 +296,9 @@ export class InstanceUpdateService {
       committed = true;
       this.emit(instanceId, 'update-platform', 1, '平台更新完成');
       this.log('info', `[${instance.name}] 平台更新完成: ${result.version}`);
+      console.info(
+        `[update] 平台更新已完成：${instance.name}（${instanceId}）版本=${result.version}`,
+      );
       return this.getPlatformInfo(instanceId);
     } catch (error) {
       if (committed) throw error;

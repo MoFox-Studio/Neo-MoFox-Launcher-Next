@@ -60,6 +60,7 @@ export class LegacyMigrationService {
     try {
       const fileStat = await stat(instancesFile);
       const records = await this.readRawRecords(instancesFile);
+      console.info(`[migration] 检测到旧版启动器：${records.length} 个实例`);
       return {
         dataDirectory: this.legacyDataDirectory,
         instanceCount: records.length,
@@ -67,7 +68,7 @@ export class LegacyMigrationService {
       };
     } catch (error) {
       if (!isRecord(error) || error.code !== 'ENOENT') {
-        this.report(`Unable to detect legacy launcher at ${instancesFile}`, toError(error));
+        this.report(`无法检测 ${instancesFile} 处的旧版启动器`, toError(error));
       }
       return null;
     }
@@ -97,7 +98,7 @@ export class LegacyMigrationService {
           nameSource: resolveNameSource(record),
         });
       } catch (error) {
-        this.report('Skipped invalid legacy instance record', toError(error));
+        this.report('已跳过无效的旧版实例记录', toError(error));
       }
     }
     return { legacy: info, previews };
@@ -111,13 +112,17 @@ export class LegacyMigrationService {
       .map((entry) => entry.instance);
     const merge = await this.repository.mergeExternal(incoming);
     const total = await this.repository.list();
-    return {
+    const result = {
       imported: merge.imported.length,
       // 跳过项 = 预览中已标记冲突的 + 合并阶段再次去重判定的。
       skipped:
         preview.previews.filter((entry) => entry.conflict !== null).length + merge.skipped.length,
       total: total.length,
     };
+    console.info(
+      `[migration] 旧版迁移已完成：导入 ${result.imported} 个，跳过 ${result.skipped} 个`,
+    );
+    return result;
   }
 
   /** 读取旧 instances.json 中的原始记录数组；兼容裸数组和带 version 的对象两种布局。 */

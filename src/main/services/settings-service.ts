@@ -110,6 +110,7 @@ export class SettingsService {
     });
     this.updateQueue = operation.catch(() => undefined);
     await operation;
+    console.info(`[settings] 设置已更新：${Object.keys(validatedPatch).join(', ')}`);
     return { ...result };
   }
 
@@ -123,6 +124,7 @@ export class SettingsService {
     const canonical = await this.read(this.settingsPath);
     if (canonical.found) return canonical.value ?? { ...DEFAULT_SETTINGS };
     const legacy = await this.read(this.legacyPath);
+    if (legacy.found) console.warn(`[settings] 规范设置缺失，回退到旧版设置：${this.legacyPath}`);
     return legacy.value ?? { ...DEFAULT_SETTINGS };
   }
 
@@ -142,7 +144,7 @@ export class SettingsService {
       if (isFileNotFound(error)) return { found: false };
       const parsedError = error instanceof Error ? error : new Error(String(error));
       // 损坏或不可读配置降级为默认值，并将诊断交给应用日志而非中断启动。
-      this.report(`Unable to read settings file ${path}`, parsedError);
+      this.report(`无法读取设置文件 ${path}`, parsedError);
       await copyFile(path, `${path}.corrupt.${Date.now()}`).catch(() => undefined);
       const recovered = await this.readBackup(path);
       if (recovered) return { found: true, value: recovered };
@@ -158,7 +160,7 @@ export class SettingsService {
       if (!isRecord(source)) return undefined;
       const recovered = normalizeSettings(source);
       await copyFile(backupPath, path);
-      this.report('Recovered settings from backup', new Error(backupPath));
+      this.report('已从备份恢复设置', new Error(backupPath));
       return recovered;
     } catch {
       return undefined;

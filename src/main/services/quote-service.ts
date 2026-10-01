@@ -24,8 +24,9 @@ export async function fetchQuote(
   provider: QuoteProviderId,
   categories: readonly string[] = [],
 ): Promise<Quote> {
-  if (provider === 'hitokoto') return fetchHitokoto(categories);
-  return fetchJinrishici();
+  const quote = provider === 'hitokoto' ? await fetchHitokoto(categories) : await fetchJinrishici();
+  console.info(`[quote] 名言已获取：${provider}`);
+  return quote;
 }
 
 /** 调用一言接口获取句子；`from_who` 映射作者，`from` 映射出处。 */

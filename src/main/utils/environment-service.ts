@@ -26,12 +26,16 @@ export class EnvironmentService {
       this.detectVersion('uv', ['--version']),
       this.detectVersion('git', ['--version']),
     ]);
-    return {
+    const info = {
       ...system,
       ...(pythonVersion ? { pythonVersion } : {}),
       ...(uvVersion ? { uvVersion } : {}),
       ...(gitVersion ? { gitVersion } : {}),
     };
+    console.info(
+      `[environment] 环境检测完成：${info.osType}/${info.arch} python ${info.pythonVersion ?? 'n/a'} uv ${info.uvVersion ?? 'n/a'} git ${info.gitVersion ?? 'n/a'}`,
+    );
+    return info;
   }
 
   /**

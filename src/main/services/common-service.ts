@@ -51,6 +51,7 @@ export async function pickFile(
     properties: [options?.multiSelections ? 'multiSelections' : 'openFile'],
   });
   if (result.canceled || result.filePaths.length === 0) return null;
+  console.info(`[common] 已选择文件：${result.filePaths.length} 个`);
   return result.filePaths;
 }
 
@@ -75,6 +76,7 @@ export async function pickDirectory(
     properties: ['openDirectory'],
   });
   if (result.canceled || result.filePaths.length === 0) return null;
+  console.info(`[common] 已选择目录：${result.filePaths[0]}`);
   return result.filePaths[0];
 }
 
@@ -97,6 +99,7 @@ export async function openFile(
     fallbackDirectory !== undefined && !existsSync(filePath) ? fallbackDirectory : filePath;
   const error = await openPath(target);
   if (error) throw new MofoxError('IO_ERROR', error);
+  console.info(`[common] 已打开文件：${target}`);
 }
 
 /**
@@ -118,6 +121,7 @@ export async function openExternalUrl(
   } catch (error) {
     throw new MofoxError('IO_ERROR', error instanceof Error ? error.message : String(error));
   }
+  console.info(`[common] 已打开外部链接：${url}`);
 }
 
 /**

@@ -47,6 +47,7 @@ export async function pickHomeDocs(getWindow: () => BrowserWindow | null): Promi
     if (!info?.isFile()) continue;
     entries.push({ id: randomUUID(), kind: 'local', name: basename(path), path });
   }
+  if (entries.length > 0) console.info(`[home] 已选择主页文档：${entries.length} 个`);
   return entries;
 }
 
@@ -92,6 +93,7 @@ export async function fetchHomeRemoteDoc(url: string): Promise<HomeDocContent> {
     throw new MofoxError('IO_ERROR', `远程文档请求失败：HTTP ${response.status}`);
   }
   const content = await readTextCapped(response, MAX_HOME_DOC_BYTES);
+  console.info(`[home] 远程文档已获取：${parsed.href}`);
   return { name: deriveRemoteDocName(parsed), content };
 }
 

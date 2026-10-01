@@ -80,12 +80,13 @@ export class WallpaperService {
     } catch (error) {
       throw new MofoxError(
         'IO_ERROR',
-        `Unable to copy wallpaper: ${error instanceof Error ? error.message : String(error)}`,
+        `无法复制壁纸：${error instanceof Error ? error.message : String(error)}`,
       );
     }
 
     const asset: StagedWallpaper = { id, fileName, type, path };
     this.staged.set(id, asset);
+    console.info(`[wallpaper] 壁纸已暂存：${id}（${type}）`);
     return { id: asset.id, fileName: asset.fileName, type: asset.type };
   }
 
@@ -121,6 +122,7 @@ export class WallpaperService {
       if (current.wallpaperFileName && current.wallpaperFileName !== fileName) {
         await this.removeManagedFile(current.wallpaperFileName);
       }
+      console.info(`[wallpaper] 壁纸已应用：${fileName}`);
       return updated;
     } catch (error) {
       this.staged.delete(id);
@@ -158,6 +160,7 @@ export class WallpaperService {
       wallpaperOpacity: DEFAULT_WALLPAPER_OPACITY,
     });
     if (current.wallpaperFileName) await this.removeManagedFile(current.wallpaperFileName);
+    console.info('[wallpaper] 壁纸已移除');
     return updated;
   }
 

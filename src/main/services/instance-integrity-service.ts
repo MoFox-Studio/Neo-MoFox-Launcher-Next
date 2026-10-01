@@ -34,6 +34,7 @@ export class InstanceIntegrityService {
         issues.push({ instanceId: instance.id, name: instance.name, problems });
       }
     }
+    console.info(`[integrity] 检查完成：${instances.length} 个实例中发现 ${issues.length} 个问题`);
     return issues;
   }
 

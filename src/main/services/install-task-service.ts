@@ -129,6 +129,7 @@ export class InstallTaskService {
     validateRequest(request);
     const task = this.createTask(request);
     this.tasks.set(task.id, task);
+    console.info(`[install] 安装任务已开始：${request.instanceName}（${task.id}）`);
     task.running = this.execute(task);
     return task.id;
   }
@@ -149,6 +150,7 @@ export class InstallTaskService {
     task.controller = new AbortController();
     task.status = 'running';
     task.failedStep = undefined;
+    console.info(`[install] 安装任务重试已开始：${task.request.instanceName}（${task.id}）`);
     task.running = this.execute(task);
     await task.running;
   }
@@ -337,16 +339,19 @@ export class InstallTaskService {
         }
       }
       task.status = 'done';
+      console.info(`[install] 安装任务已完成：${task.request.instanceName}（${task.id}）`);
       this.emit(task, 'finalize', steps.length - 1, steps.length, 1, 'done', '安装完成');
     } catch (error) {
       if (task.committed) {
         task.status = 'done';
+        console.info(`[install] 安装任务已完成：${task.request.instanceName}（${task.id}）`);
         this.emit(task, 'finalize', steps.length - 1, steps.length, 1, 'done', '安装完成');
         return;
       }
       // 取消不是失败：执行器通过 AbortSignal 尽快停止，任务对外发布取消状态而非错误。
       if (task.controller.signal.aborted) {
         task.status = 'cancelled';
+        console.warn(`[install] 安装任务已取消：${task.request.instanceName}（${task.id}）`);
         this.emit(
           task,
           task.currentStep,
@@ -359,6 +364,11 @@ export class InstallTaskService {
       } else {
         task.status = 'failed';
         task.failedStep = task.currentStep;
+        console.error(
+          `[install] 安装任务失败：${task.request.instanceName}（${task.id}）步骤 ${task.currentStep}：${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
         // 断点取「最近成功步骤的后一步」：执行器失败时回退到该步骤开头续跑，
         // 复制到下一步失败时直接从下一步继续，两者都只重做失败的动作。
         task.resumeIndex = lastCompletedStep + 1;

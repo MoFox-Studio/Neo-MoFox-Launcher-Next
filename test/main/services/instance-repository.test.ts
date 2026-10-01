@@ -87,7 +87,7 @@ describe('InstanceRepository', () => {
 
     await expect(repository.list()).resolves.toEqual([]);
     expect(report).toHaveBeenCalledWith(
-      expect.stringContaining('invalid instance'),
+      expect.stringContaining('已跳过无效的实例记录'),
       expect.any(Error),
     );
   });

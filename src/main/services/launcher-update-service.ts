@@ -104,6 +104,7 @@ export class LauncherUpdateService {
     );
     const newest = releases.find((release) => isNewerRelease(release.tag_name, current));
     if (!newest) {
+      console.info(`[launcher-update] 更新检查完成：没有比 ${current.version} 更新的版本`);
       return {
         updateAvailable: false,
         current,
@@ -115,6 +116,9 @@ export class LauncherUpdateService {
         publishedAt: '',
       };
     }
+    console.info(
+      `[launcher-update] 更新检查完成：最新版本 ${newest.name?.trim() || newest.tag_name}`,
+    );
     return {
       updateAvailable: true,
       current,
@@ -156,6 +160,7 @@ export class LauncherUpdateService {
       url: buildReleaseUrl(release.tag_name),
     };
     this.releaseNotes = result;
+    console.info(`[launcher-update] 发布说明已获取：${result.tag}`);
     return { ...result };
   }
 
@@ -178,7 +183,7 @@ export class LauncherUpdateService {
         (error: unknown) => {
           if (isFileNotFound(error)) return null;
           this.report(
-            `Unable to read build info file in ${directory}`,
+            `无法读取 ${directory} 中的构建信息文件`,
             error instanceof Error ? error : new Error(String(error)),
           );
           return null;
@@ -188,7 +193,7 @@ export class LauncherUpdateService {
       const parsed = normalizeBuildInfo(parseBuildInfoFile(raw), this.appVersion);
       if (parsed) return parsed;
       this.report(
-        `Ignoring invalid build info file in ${directory}`,
+        `忽略 ${directory} 中的无效构建信息文件`,
         new Error(`${BUILD_INFO_FILE} 结构无效`),
       );
     }

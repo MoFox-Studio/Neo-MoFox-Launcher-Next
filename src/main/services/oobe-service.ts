@@ -150,6 +150,7 @@ export class OobeService {
     this.abortController = new AbortController();
     this.workDir = await mkdtemp(join(this.dependencies.tempRoot ?? tmpdir(), 'neo-mofox-oobe-'));
     this.logs = [];
+    console.info(`[oobe] 依赖安装已开始：共 ${DEPENDENCY_INSTALLERS.length} 个`);
     const mirrors = this.dependencies.mirrors.list();
     const statuses: OobeDependencyStatus[] = DEPENDENCY_INSTALLERS.map((installer) => ({
       id: installer.id,
@@ -171,6 +172,7 @@ export class OobeService {
       // 安装完成（无论成功失败）后立即清空密码，避免长期持有。
       this.sudoPassword = undefined;
     }
+    console.info(`[oobe] 依赖安装会话已完成：共 ${statuses.length} 个`);
     return statuses;
   }
 
@@ -178,6 +180,7 @@ export class OobeService {
    * 取消正在进行的安装流程。
    */
   async cancel(): Promise<void> {
+    console.info('[oobe] 依赖安装已取消');
     this.abortController?.abort();
   }
 
@@ -198,6 +201,9 @@ export class OobeService {
     }
     await this.dependencies.settings.update({ oobeCompleted: true });
     this.clearSudoPassword();
+    console.info(
+      `[oobe] 引导流程已完成：依赖 ${dependencies.length} 个，旧版实例=${legacy ? '检测到' : '无'}`,
+    );
     return { completed: true, dependencies, legacy };
   }
 
