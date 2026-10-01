@@ -1,18 +1,19 @@
 <script setup lang="ts">
+// 主页面板：入口行打开布局编辑器，恢复行还原默认主页设置；失败统一走全局轻提示。
 import { ref } from 'vue';
 import { DEFAULT_HOME_SETTINGS, normalizeHomeSettings } from '@shared/domain/home';
 import { useSettingsStore } from '@/stores/settings';
 import { useHomeGeometryStore } from '@/stores/home-geometry';
+import { useToast } from '@/composables/use-toast';
 import { normalizeGeometry } from '@/utils/home-layout';
 import HomeLayoutEditor from './HomeLayoutEditor.vue';
 const settings = useSettingsStore();
 const geometry = useHomeGeometryStore();
+const { show: showToast } = useToast();
 const editorOpen = ref(false);
 const busy = ref(false);
-const error = ref('');
 async function reset(): Promise<void> {
   busy.value = true;
-  error.value = '';
   const previous = JSON.parse(JSON.stringify(geometry.geometry));
   try {
     geometry.save(
@@ -28,7 +29,7 @@ async function reset(): Promise<void> {
       throw cause;
     }
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '恢复失败，请重试';
+    showToast(`恢复失败: ${cause instanceof Error ? cause.message : String(cause)}`);
   } finally {
     busy.value = false;
   }
@@ -37,6 +38,7 @@ async function reset(): Promise<void> {
 
 <template>
   <div class="settings-group">
+    <!-- 主页布局 -->
     <section class="settings-group__card">
       <div class="settings-group__heading">
         <span class="msr">dashboard_customize</span>
@@ -45,61 +47,34 @@ async function reset(): Promise<void> {
           <p>自由组合小组件的顺序、尺寸和内容</p>
         </div>
       </div>
-      <div class="home-settings-actions">
-        <button type="button" class="layout-button" :disabled="busy" @click="editorOpen = true">
-          <span class="msr">edit_dashboard</span>自定义主页
-        </button>
-        <button
-          type="button"
-          class="layout-button layout-button--secondary"
-          :disabled="busy"
-          @click="reset"
-        >
-          <span class="msr">restart_alt</span>{{ busy ? '恢复中…' : '恢复默认设置' }}
-        </button>
-        <p>恢复默认会重置小组件的开关、顺序、尺寸和内容设置，并清空文档列表。</p>
-        <p v-if="error" role="alert">{{ error }}</p>
+      <div class="settings-group__body">
+        <div class="settings-item">
+          <span class="msr settings-item__icon">widgets</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">自定义主页</span>
+            <span class="settings-item__desc">
+              在编辑器中拖拽调整小组件的顺序与尺寸，配置小组件内容
+            </span>
+          </div>
+          <button type="button" class="text-button state-layer" @click="editorOpen = true">
+            打开编辑器
+          </button>
+        </div>
+        <div class="settings-item">
+          <span class="msr settings-item__icon">restart_alt</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">恢复默认设置</span>
+            <span class="settings-item__desc">
+              重置小组件的开关、顺序、尺寸和内容设置，并清空文档列表
+            </span>
+          </div>
+          <button type="button" class="text-button state-layer" :disabled="busy" @click="reset">
+            {{ busy ? '恢复中…' : '恢复' }}
+          </button>
+        </div>
       </div>
     </section>
     <HomeLayoutEditor v-if="editorOpen" @close="editorOpen = false" />
   </div>
 </template>
 <style scoped src="./settings-panel.css"></style>
-<style scoped>
-.home-settings-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 8px 24px 24px;
-}
-.layout-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 22px;
-  border: 0;
-  border-radius: 24px;
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-  font: var(--md-sys-typescale-label-large);
-  cursor: pointer;
-}
-.layout-button--secondary {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-}
-.layout-button:disabled {
-  opacity: 0.5;
-}
-p {
-  width: 100%;
-  margin: 0;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--md-sys-typescale-body-small);
-}
-p[role='alert'] {
-  color: var(--md-sys-color-error);
-}
-</style>

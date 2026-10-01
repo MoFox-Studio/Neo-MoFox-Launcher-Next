@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { HomeWidgetId, HomeWidgetState } from '@shared/domain/home';
 import { useSettingsStore } from '@/stores/settings';
 import { useHomeGeometryStore } from '@/stores/home-geometry';
+import { useToast } from '@/composables/use-toast';
 import { HOME_WIDGET_DEFINITIONS } from '@/components/home/registry';
 import HomeWidgetGrid from '@/components/home/HomeWidgetGrid.vue';
 import HomeWidgetSettings from './HomeWidgetSettings.vue';
@@ -12,6 +13,7 @@ import type { HomeGeometry, WidgetSpan, WidgetHeight } from '@/utils/home-layout
 const emit = defineEmits<{ close: [] }>();
 const settings = useSettingsStore();
 const geometryStore = useHomeGeometryStore();
+const { show: showToast } = useToast();
 const widgets = ref<HomeWidgetState[]>(JSON.parse(JSON.stringify(settings.settings.home.widgets)));
 const geometry = ref<HomeGeometry>(JSON.parse(JSON.stringify(geometryStore.geometry)));
 const selected = ref<HomeWidgetId>(widgets.value[0]!.id);
@@ -21,7 +23,6 @@ const selectedWidget = computed(() =>
 const selectedGeometry = computed(() => geometry.value[selected.value]!);
 const dialog = ref<InstanceType<typeof window.HTMLDialogElement>>();
 const busy = ref(false);
-const error = ref('');
 const previousFocus = document.activeElement as HTMLElement | null;
 onMounted(async () => {
   await nextTick();
@@ -61,7 +62,6 @@ function close(): void {
 }
 async function save(): Promise<void> {
   busy.value = true;
-  error.value = '';
   const previousGeometry = JSON.parse(JSON.stringify(geometryStore.geometry)) as HomeGeometry;
   try {
     geometryStore.save(geometry.value);
@@ -73,7 +73,7 @@ async function save(): Promise<void> {
     }
     emit('close');
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '保存失败，请重试';
+    showToast(`保存失败: ${cause instanceof Error ? cause.message : String(cause)}`);
   } finally {
     busy.value = false;
   }
@@ -192,7 +192,6 @@ async function save(): Promise<void> {
         </aside>
       </fieldset>
       <footer class="layout-editor__footer">
-        <span v-if="error" role="alert" class="editor-error">{{ error }}</span>
         <button type="button" class="editor-button" :disabled="busy" @click="close">取消</button>
         <button
           type="button"
@@ -351,10 +350,6 @@ input {
 }
 .editor-button:disabled {
   opacity: 0.5;
-}
-.editor-error {
-  color: var(--md-sys-color-error);
-  margin-right: auto;
 }
 .layout-editor__settings :deep(.home-config) {
   margin: 0;
