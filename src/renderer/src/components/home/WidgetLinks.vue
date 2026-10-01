@@ -3,19 +3,24 @@ import { ref } from 'vue';
 import type { HomeLinkEntry, LinksWidgetConfig } from '@shared/domain/home';
 import { isHomeLinkEntry } from '@shared/domain/home';
 import { mofoxApi } from '@/services/mofox-api';
+import { useToast } from '@/composables/use-toast';
 import HomeWidgetCard from './HomeWidgetCard.vue';
+
 defineProps<{ config: LinksWidgetConfig }>();
+const { show: showToast } = useToast();
 const error = ref('');
 async function open(entry: HomeLinkEntry): Promise<void> {
   error.value = '';
   if (!isHomeLinkEntry(entry)) {
     error.value = '链接无效，请在布局编辑器中修改';
+    showToast(error.value);
     return;
   }
   try {
     await mofoxApi.openExternal(entry.url);
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '打开链接失败';
+    showToast(error.value);
   }
 }
 </script>

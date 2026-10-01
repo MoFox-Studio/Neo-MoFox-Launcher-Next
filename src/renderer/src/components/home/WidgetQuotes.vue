@@ -4,9 +4,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Quote, QuoteProviderId, QuotesWidgetConfig } from '@shared/domain/home';
 import { mofoxApi } from '@/services/mofox-api';
 import HomeWidgetCard from './HomeWidgetCard.vue';
+import { useToast } from '@/composables/use-toast';
 import { QUOTE_ROTATION_MS } from '@/data/quote-providers';
 
 const props = defineProps<{ config: QuotesWidgetConfig }>();
+
+const { show: showToast } = useToast();
 
 const quote = ref<Quote | null>(null);
 const loading = ref(false);
@@ -51,6 +54,8 @@ async function refresh(): Promise<void> {
     quote.value = await loadQuote();
   } catch (error) {
     errorText.value = describeError(error);
+    // 部件内占位提示容易被忽略，同步用全局轻提示告知失败原因。
+    showToast(`名言获取失败：${errorText.value}`);
   } finally {
     loading.value = false;
     inFlight = false;

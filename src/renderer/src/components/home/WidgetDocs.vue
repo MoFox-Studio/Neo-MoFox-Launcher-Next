@@ -6,11 +6,13 @@ import type { DocsWidgetConfig, HomeDocEntry } from '@shared/domain/home';
 import { mofoxApi } from '@/services/mofox-api';
 import HomeWidgetCard from './HomeWidgetCard.vue';
 import WidgetDocReaderDialog from './WidgetDocReaderDialog.vue';
+import { useToast } from '@/composables/use-toast';
 import { normalizeHttpsUrl, renderRemoteMarkdown } from '@/utils/remote-markdown';
 
 const props = defineProps<{ config: DocsWidgetConfig }>();
 
 const router = useRouter();
+const { show: showToast } = useToast();
 
 const activeId = ref<string | null>(null);
 const contentHtml = ref('');
@@ -65,6 +67,8 @@ async function load(force = false): Promise<void> {
     contentHtml.value = renderRemoteMarkdown(content.content);
   } catch (error) {
     errorText.value = describeError(error);
+    // 部件内占位提示容易被忽略，同步用全局轻提示告知失败原因。
+    showToast(`文档加载失败：${errorText.value}`);
   } finally {
     loadedSig = sig;
     busy.value = false;

@@ -249,9 +249,9 @@ function move(id: HomeWidgetId, direction: number): void {
   min-height: 0;
   box-sizing: border-box;
 }
-.widget-slot--selected {
-  outline: 3px solid var(--md-sys-color-primary);
-  outline-offset: -3px;
+/* 选中态：直接在部件卡片自身的边框上蒙一层主色描边，与搜索框等组件的聚焦描边一致。 */
+.widget-slot--selected :deep(.home-widget) {
+  box-shadow: var(--app-glass-card-shadow), inset 0 0 0 2px var(--md-sys-color-primary);
 }
 .widget-slot__toolbar {
   position: absolute;

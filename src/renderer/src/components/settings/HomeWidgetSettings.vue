@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 编辑器的内容设置面板：只更新父组件草稿，保存由编辑器统一处理。
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import type {
   ChangelogWidgetConfig,
   ClockWidgetConfig,
@@ -132,12 +132,54 @@ const docsError = ref<string | null>(null);
 const remoteUrl = ref('');
 const localPath = ref('');
 
+/** 添加文档的来源类型：本地填路径，远程填 HTTPS 链接。 */
+const docsSource = ref<'local' | 'remote'>('local');
+const docsSourceSelect = ref<{ value: string }>();
+// Material Web 组件的选中态不随属性自动刷新，参照 HomeGeometrySelect 手动同步。
+watch(
+  [docsSourceSelect, docsSource],
+  async () => {
+    await nextTick();
+    if (docsSourceSelect.value) docsSourceSelect.value.value = docsSource.value;
+  },
+  { flush: 'post' },
+);
+function onDocsSourceChange(event: Event): void {
+  const value = (event.target as HTMLInputElement).value;
+  if ((value !== 'local' && value !== 'remote') || docsSource.value === value) return;
+  docsSource.value = value;
+  docsError.value = null;
+}
+
+/** 按当前来源类型分发「添加文档」动作。 */
+function submitNewDoc(): void {
+  if (docsSource.value === 'local') void addLocalPath();
+  else addRemoteDoc();
+}
+
+/** 展开编辑中的文档条目 id 与草稿字段。 */
+const editingDocId = ref<string | null>(null);
+const editName = ref('');
+const editSource = ref('');
+
+function toggleDocExpand(entry: HomeDocEntry): void {
+  docsError.value = null;
+  if (editingDocId.value === entry.id) {
+    editingDocId.value = null;
+    return;
+  }
+  editingDocId.value = entry.id;
+  editName.value = entry.name;
+  editSource.value = entry.kind === 'remote' ? (entry.url ?? '') : (entry.path ?? '');
+}
+
 function describeError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return '未知错误';
 }
 
 function removeDoc(id: string): void {
+  if (editingDocId.value === id) editingDocId.value = null;
   const documents = docsConfig.value.documents.filter((entry) => entry.id !== id);
   updateWidget('docs', { config: { documents } });
 }
@@ -256,6 +298,105 @@ function addRemoteDoc(): void {
   updateWidget('docs', { config: { documents } });
   remoteUrl.value = '';
 }
+
+/** 编辑态弹出文件选择器，用选中的文件替换本地路径（保存时生效）。 */
+async function replaceLocalDocFile(entry: HomeDocEntry): Promise<void> {
+  if (docsBusy.value) return;
+  docsBusy.value = true;
+  docsError.value = null;
+  try {
+    const picked = await mofoxApi.pickHomeDocs();
+    const next = picked?.[0];
+    if (!next) return;
+    const duplicated = docsConfig.value.documents.some(
+      (item) => item.id !== entry.id && item.kind === 'local' && item.path === next.path,
+    );
+    if (duplicated) {
+      docsError.value = '该文档已在列表中';
+      return;
+    }
+    editSource.value = next.path ?? '';
+  } catch (error) {
+    docsError.value = describeError(error);
+  } finally {
+    docsBusy.value = false;
+  }
+}
+
+/** 保存展开条目的修改：名称必填，路径或链接按来源类型校验。 */
+async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
+  const name = editName.value.trim();
+  const source = editSource.value.trim();
+  docsError.value = null;
+  if (!name) {
+    docsError.value = '文档名称不能为空';
+    return;
+  }
+  const documents = docsConfig.value.documents;
+  if (entry.kind === 'local') {
+    if (!source) {
+      docsError.value = '文件路径不能为空';
+      return;
+    }
+    if (!/\.(?:md|markdown|txt)$/i.test(source)) {
+      docsError.value = '本地文档仅支持 .md / .markdown / .txt 文件';
+      return;
+    }
+    if (
+      documents.some((item) => item.id !== entry.id && item.kind === 'local' && item.path === source)
+    ) {
+      docsError.value = '该文档已在列表中';
+      return;
+    }
+    if (source !== entry.path) {
+      docsBusy.value = true;
+      try {
+        // 复用通用路径探测：绝对路径、存在且不是目录才允许保存。
+        const inspection = await mofoxApi.inspectImportPath(source);
+        if (!inspection.exists) {
+          docsError.value = '文件不存在，请检查路径是否正确';
+          return;
+        }
+        if (inspection.isDirectory) {
+          docsError.value = '该路径是目录，请填写文档文件的完整路径';
+          return;
+        }
+      } catch (error) {
+        docsError.value = describeError(error);
+        return;
+      } finally {
+        docsBusy.value = false;
+      }
+    }
+    updateWidget('docs', {
+      config: {
+        documents: documents.map((item) =>
+          item.id === entry.id ? { ...item, name, path: source } : item,
+        ),
+      },
+    });
+  } else {
+    let parsed: URL;
+    try {
+      parsed = new URL(source);
+    } catch {
+      docsError.value = '远程文档链接无效';
+      return;
+    }
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+      docsError.value = '远程文档链接必须是无凭据的 HTTPS 地址';
+      return;
+    }
+    updateWidget('docs', {
+      config: {
+        documents: documents.map((item) =>
+          item.id === entry.id ? { ...item, name, url: source } : item,
+        ),
+      },
+    });
+  }
+  editingDocId.value = null;
+}
 </script>
 <template>
   <div class="home-config">
@@ -310,18 +451,21 @@ function addRemoteDoc(): void {
           <span class="md-switch__thumb"></span>
         </button>
       </div>
-      <label class="home-config__row home-config__row--column"
-        >自定义问候语
-        <textarea
-          class="home-text-input"
-          :value="clockConfig.customGreeting ?? ''"
-          :maxlength="MAX_GREETING_LENGTH"
-          rows="3"
-          placeholder="留空使用时段问候语"
-          @input="patchClock({ customGreeting: ($event.target as HTMLTextAreaElement).value })"
-        />
-      </label>
-      <p class="home-config__hint">同时用于主页顶部和时钟。留空恢复自动问候语。</p>
+      <!-- 自定义问候语依赖「显示问候语」：未开启时隐藏，避免出现不生效的配置。 -->
+      <template v-if="clockConfig.showGreeting">
+        <label class="home-config__row home-config__row--column"
+          >自定义问候语
+          <textarea
+            class="home-text-input"
+            :value="clockConfig.customGreeting ?? ''"
+            :maxlength="MAX_GREETING_LENGTH"
+            rows="3"
+            placeholder="留空使用时段问候语"
+            @input="patchClock({ customGreeting: ($event.target as HTMLTextAreaElement).value })"
+          />
+        </label>
+        <p class="home-config__hint">同时用于主页顶部和时钟。留空恢复自动问候语。</p>
+      </template>
     </template>
 
     <template v-else-if="widget.id === 'notes'">
@@ -402,7 +546,11 @@ function addRemoteDoc(): void {
           </button>
         </div>
       </div>
-      <div class="home-config__row home-config__row--column">
+      <!-- 一言分类仅对「随机」与「一言」来源生效，其余来源隐藏避免误导。 -->
+      <div
+        v-if="quotesConfig.provider === 'random' || quotesConfig.provider === 'hitokoto'"
+        class="home-config__row home-config__row--column"
+      >
         <span class="home-config__label">一言分类</span>
         <p class="home-config__hint">仅对「一言」来源生效；不选任何分类时返回全部分类。</p>
         <div class="home-chip-row">
@@ -541,34 +689,143 @@ function addRemoteDoc(): void {
       <div class="home-config__row home-config__row--column">
         <span class="home-config__label">已添加的文档</span>
         <div class="docs-list">
-          <div v-for="entry in docsConfig.documents" :key="entry.id" class="docs-list__item">
-            <span class="msr docs-list__icon" aria-hidden="true">
-              {{ entry.kind === 'remote' ? 'language' : 'article' }}
-            </span>
-            <span class="docs-list__name" :title="entry.kind === 'remote' ? entry.url : entry.path">
-              {{ entry.name }}
-            </span>
-            <span class="docs-list__kind">
-              {{ entry.kind === 'remote' ? '远程' : '本地' }}
-            </span>
-            <button
-              type="button"
-              class="home-row__icon-button state-layer"
-              title="移除"
-              aria-label="移除文档"
-              @click="removeDoc(entry.id)"
-            >
-              <span class="msr" aria-hidden="true">close</span>
-            </button>
+          <div
+            v-for="entry in docsConfig.documents"
+            :key="entry.id"
+            class="docs-doc"
+            :class="{ 'docs-doc--open': editingDocId === entry.id }"
+          >
+            <div class="docs-list__item">
+              <span class="msr docs-list__icon" aria-hidden="true">
+                {{ entry.kind === 'remote' ? 'language' : 'article' }}
+              </span>
+              <span
+                class="docs-list__name"
+                :title="entry.kind === 'remote' ? entry.url : entry.path"
+              >
+                {{ entry.name }}
+              </span>
+              <span class="docs-list__kind">
+                {{ entry.kind === 'remote' ? '远程' : '本地' }}
+              </span>
+              <button
+                type="button"
+                class="home-row__icon-button state-layer"
+                :aria-expanded="editingDocId === entry.id"
+                :title="editingDocId === entry.id ? '收起' : '展开编辑'"
+                :aria-label="`编辑${entry.name}`"
+                @click="toggleDocExpand(entry)"
+              >
+                <span
+                  class="msr docs-list__chevron"
+                  :class="{ 'docs-list__chevron--open': editingDocId === entry.id }"
+                  aria-hidden="true"
+                >
+                  keyboard_arrow_down
+                </span>
+              </button>
+              <button
+                type="button"
+                class="home-row__icon-button state-layer"
+                title="移除"
+                aria-label="移除文档"
+                @click="removeDoc(entry.id)"
+              >
+                <span class="msr" aria-hidden="true">close</span>
+              </button>
+            </div>
+            <!-- 展开后的编辑区：修改名称与来源，保存时统一校验。 -->
+            <div v-if="editingDocId === entry.id" class="docs-list__editor">
+              <label class="docs-edit-field">
+                <span class="docs-edit-field__label">名称</span>
+                <div class="input-field docs-url-field">
+                  <input
+                    v-model="editName"
+                    type="text"
+                    class="input-field__native"
+                    maxlength="60"
+                    @keydown.enter.prevent="saveDocEdit(entry)"
+                  />
+                </div>
+              </label>
+              <label v-if="entry.kind === 'local'" class="docs-edit-field">
+                <span class="docs-edit-field__label">文件路径</span>
+                <div class="docs-add-row">
+                  <div class="input-field docs-url-field">
+                    <input
+                      v-model="editSource"
+                      type="text"
+                      class="input-field__native"
+                      placeholder="输入本地文档路径，如 D:\Docs\说明.md"
+                      spellcheck="false"
+                      autocomplete="off"
+                      @keydown.enter.prevent="saveDocEdit(entry)"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    class="docs-add-button docs-add-button--ghost state-layer"
+                    :disabled="docsBusy"
+                    @click="replaceLocalDocFile(entry)"
+                  >
+                    <span class="msr" aria-hidden="true">upload_file</span>
+                    浏览…
+                  </button>
+                </div>
+              </label>
+              <label v-else class="docs-edit-field">
+                <span class="docs-edit-field__label">链接</span>
+                <div class="input-field docs-url-field">
+                  <input
+                    v-model="editSource"
+                    type="url"
+                    class="input-field__native"
+                    placeholder="https://example.com/说明.md"
+                    spellcheck="false"
+                    autocomplete="off"
+                    @keydown.enter.prevent="saveDocEdit(entry)"
+                  />
+                </div>
+              </label>
+              <div class="docs-edit-actions">
+                <button
+                  type="button"
+                  class="docs-add-button state-layer"
+                  :disabled="docsBusy"
+                  @click="saveDocEdit(entry)"
+                >
+                  <span class="msr" aria-hidden="true">check</span>
+                  保存修改
+                </button>
+              </div>
+            </div>
           </div>
           <p v-if="docsConfig.documents.length === 0" class="home-config__hint">
             还没有文档；添加后会在主页「文档」部件中展示。
           </p>
         </div>
       </div>
-      <div class="home-config__row home-config__row--column">
+      <!-- 添加区：来源下拉 + 按来源切换的输入行，整体包进一个背景卡片。 -->
+      <div class="docs-add-card">
         <span class="home-config__label">添加文档</span>
-        <div class="docs-add-row">
+        <md-outlined-select
+          ref="docsSourceSelect"
+          class="docs-add-card__select"
+          label="文档来源"
+          aria-label="文档来源"
+          menu-positioning="popover"
+          @change="onDocsSourceChange"
+        >
+          <!-- eslint-disable vue/no-deprecated-slot-attribute -->
+          <md-select-option value="local" :selected="docsSource === 'local'">
+            <div slot="headline">本地文件</div>
+          </md-select-option>
+          <md-select-option value="remote" :selected="docsSource === 'remote'">
+            <div slot="headline">远程链接</div>
+          </md-select-option>
+          <!-- eslint-enable vue/no-deprecated-slot-attribute -->
+        </md-outlined-select>
+        <div v-if="docsSource === 'local'" class="docs-add-row">
           <div class="input-field docs-url-field">
             <input
               v-model="localPath"
@@ -582,24 +839,15 @@ function addRemoteDoc(): void {
           </div>
           <button
             type="button"
-            class="docs-add-button state-layer"
-            :disabled="docsBusy"
-            @click="addLocalPath"
-          >
-            <span class="msr" aria-hidden="true">add</span>
-            添加本地文档
-          </button>
-          <button
-            type="button"
             class="docs-add-button docs-add-button--ghost state-layer"
             :disabled="docsBusy"
             @click="addLocalDocs"
           >
             <span class="msr" aria-hidden="true">upload_file</span>
-            浏览文件…
+            浏览…
           </button>
         </div>
-        <div class="docs-add-row">
+        <div v-else class="docs-add-row">
           <div class="input-field docs-url-field">
             <input
               v-model="remoteUrl"
@@ -611,11 +859,16 @@ function addRemoteDoc(): void {
               @keydown.enter.prevent="addRemoteDoc"
             />
           </div>
-          <button type="button" class="docs-add-button state-layer" @click="addRemoteDoc">
-            <span class="msr" aria-hidden="true">add_link</span>
-            添加远程文档
-          </button>
         </div>
+        <button
+          type="button"
+          class="docs-add-button docs-add-button--primary state-layer"
+          :disabled="docsBusy"
+          @click="submitNewDoc"
+        >
+          <span class="msr" aria-hidden="true">add</span>
+          添加文档
+        </button>
         <p class="home-config__hint">
           本地支持 .md / .markdown / .txt 文件；远程仅接受 HTTPS Markdown 链接；单个文档不超过 2
           MB。
@@ -675,6 +928,7 @@ function addRemoteDoc(): void {
 /* 展开的专属配置区。 */
 .home-config {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 3px;
   margin: 0 14px 8px;
   padding: 10px;
@@ -786,8 +1040,10 @@ function addRemoteDoc(): void {
 /* 文档列表与添加行。 */
 .docs-list {
   width: 100%;
+  min-width: 0;
   display: grid;
-  gap: 3px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
 }
 
 .docs-list__item {
@@ -809,6 +1065,7 @@ function addRemoteDoc(): void {
 .docs-list__name {
   flex: 1;
   min-width: 0;
+  max-width: 16ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -835,7 +1092,7 @@ function addRemoteDoc(): void {
 
 .docs-url-field {
   flex: 1;
-  min-width: 220px;
+  min-width: 0;
 }
 
 .docs-url-field .input-field__native {
@@ -866,5 +1123,94 @@ function addRemoteDoc(): void {
   background: transparent;
   border: 1px solid var(--md-sys-color-outline-variant);
   color: var(--md-sys-color-on-surface-variant);
+}
+
+/* 主动作按钮（添加文档）：铺满卡片宽度，作为该区域的明确落点。 */
+.docs-add-button--primary {
+  width: 100%;
+  justify-content: center;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+/* 文档条目：整块拥有背景；按下箭头展开编辑时背景随之扩大。 */
+.docs-doc {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: var(--md-sys-color-surface-container);
+  transition: background-color var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
+}
+
+.docs-doc--open {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+/* 展开时标题行不再自带底色，由外层背景统一承载，保持宽度一致。 */
+.docs-doc .docs-list__item {
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+}
+
+.docs-list__chevron {
+  transition: transform var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-standard);
+}
+
+.docs-list__chevron--open {
+  transform: rotate(180deg);
+}
+
+.docs-list__editor {
+  display: grid;
+  gap: 10px;
+  padding: 10px 0 6px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.docs-edit-field {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.docs-edit-field__label {
+  font: var(--md-sys-typescale-label-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.docs-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 添加文档卡片：来源下拉、输入与动作整体包进一个带背景的容器。 */
+.docs-add-card {
+  width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 14px;
+  background: var(--md-sys-color-surface-container);
+}
+
+.docs-add-card__select {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs-list__chevron,
+  .docs-doc {
+    transition: none;
+  }
 }
 </style>

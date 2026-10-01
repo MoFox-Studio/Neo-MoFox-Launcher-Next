@@ -5,12 +5,14 @@ import type { ChangelogWidgetConfig } from '@shared/domain/home';
 import type { LauncherReleaseNotes } from '@shared/domain/app-update';
 import { mofoxApi } from '@/services/mofox-api';
 import { useLauncherUpdate } from '@/composables/use-launcher-update';
+import { useToast } from '@/composables/use-toast';
 import HomeWidgetCard from './HomeWidgetCard.vue';
 import { normalizeHttpsUrl, renderRemoteMarkdown } from '@/utils/remote-markdown';
 
 defineProps<{ config: ChangelogWidgetConfig }>();
 
 const { buildInfo, loadBuildInfo } = useLauncherUpdate();
+const { show: showToast } = useToast();
 
 const notes = ref<LauncherReleaseNotes | null>(null);
 const loading = ref(false);
@@ -31,6 +33,8 @@ async function refresh(): Promise<void> {
     notes.value = await mofoxApi.getLauncherReleaseNotes();
   } catch (error) {
     errorText.value = describeError(error);
+    // 部件内占位提示容易被忽略，同步用全局轻提示告知失败原因。
+    showToast(`更新日志获取失败：${errorText.value}`);
   } finally {
     loading.value = false;
   }

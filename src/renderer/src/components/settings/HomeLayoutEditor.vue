@@ -364,10 +364,6 @@ input {
 .layout-editor__settings :deep(.home-config__row) {
   padding: 8px 0;
 }
-.layout-editor__settings :deep(.docs-url-field) {
-  min-width: 0;
-  flex-basis: 100%;
-}
 @media (max-width: 1100px) {
   .layout-editor__body {
     grid-template-columns: 150px minmax(0, 1fr) 240px;
