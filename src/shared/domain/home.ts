@@ -194,19 +194,18 @@ export const HOME_WIDGET_DEFAULT_CONFIG: Readonly<HomeWidgetConfigMap> = {
   links: { links: [] },
 };
 
-/** 默认主页布局：时钟与名言并排，文档部件默认关闭。 */
+/**
+ * 默认主页布局：时钟与名言并排，下方为收藏实例与版本更新日志；
+ * 名言依赖自身的定时轮换自动更新，其余部件可在布局编辑器中按需开启。
+ */
 export const DEFAULT_HOME_SETTINGS: HomeSettings = {
   version: 1,
   widgets: [
     { id: 'clock', enabled: true, config: { ...HOME_WIDGET_DEFAULT_CONFIG.clock } },
     { id: 'quotes', enabled: true, config: { ...HOME_WIDGET_DEFAULT_CONFIG.quotes } },
-    { id: 'metrics', enabled: true, config: { ...HOME_WIDGET_DEFAULT_CONFIG.metrics } },
+    { id: 'metrics', enabled: false, config: { ...HOME_WIDGET_DEFAULT_CONFIG.metrics } },
     { id: 'favorites', enabled: true, config: {} },
-    {
-      id: 'quickActions',
-      enabled: true,
-      config: { ...HOME_WIDGET_DEFAULT_CONFIG.quickActions },
-    },
+    { id: 'quickActions', enabled: false, config: { ...HOME_WIDGET_DEFAULT_CONFIG.quickActions } },
     { id: 'changelog', enabled: true, config: { ...HOME_WIDGET_DEFAULT_CONFIG.changelog } },
     { id: 'docs', enabled: false, config: { ...HOME_WIDGET_DEFAULT_CONFIG.docs } },
     { id: 'notes', enabled: false, config: { text: '' } },
