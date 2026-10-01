@@ -6,6 +6,12 @@
   position: relative;
   padding-left: var(--app-nav-overlay-start-inset);
   padding-bottom: var(--app-nav-overlay-bottom-inset);
+  /* 与设置页/实例管理页一致：整面铺设自适应内容表面。
+     变量随外壳状态切换（无壁纸实底、CSS Mica 兜底、壁纸遮罩驱动），
+     与其他页面叠加出相同的透出率，浅色模式下不再单独偏透。 */
+  background: var(--app-current-content-surface);
+  backdrop-filter: var(--app-current-content-filter);
+  -webkit-backdrop-filter: var(--app-current-content-filter);
 }
 
 .log-view__command-surface {
@@ -18,16 +24,6 @@
   box-shadow: var(--app-glass-card-shadow);
   backdrop-filter: var(--app-glass-card-filter);
   -webkit-backdrop-filter: var(--app-glass-card-filter);
-}
-
-/* 仅在壁纸背景存在时为日志页整面铺设遮罩驱动的半透明底衬，并保留 82% 下限，
-   遮罩归零时标题、标签与搜索区仍保持可读；无壁纸时沿用外壳表面。 */
-:global(.shell--has-wallpaper .log-view) {
-  background: color-mix(
-    in srgb,
-    var(--md-sys-color-surface) max(calc(var(--app-wallpaper-content-opacity) * 100%), 82%),
-    transparent
-  );
 }
 
 .log-view__header {
