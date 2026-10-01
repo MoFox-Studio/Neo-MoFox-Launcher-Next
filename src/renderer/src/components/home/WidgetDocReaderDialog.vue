@@ -44,7 +44,7 @@ function handleBodyClick(event: MouseEvent): void {
   >
     <div class="doc-reader__body">
       <div v-if="busy" class="doc-reader__placeholder">
-        <span class="msr" aria-hidden="true">progress_activity</span>
+        <span class="msr home-widget__spin" aria-hidden="true">progress_activity</span>
         <span>正在加载文档…</span>
       </div>
 

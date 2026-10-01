@@ -114,7 +114,7 @@ const attribution = computed(() => {
         :disabled="loading"
         @click="refresh"
       >
-        <span class="msr" :class="{ 'quote-widget__spin': loading }" aria-hidden="true">
+        <span class="msr" :class="{ 'home-widget__spin': loading }" aria-hidden="true">
           refresh
         </span>
       </button>
@@ -126,7 +126,7 @@ const attribution = computed(() => {
     </figure>
 
     <div v-else-if="loading" class="home-widget__placeholder">
-      <span class="msr" aria-hidden="true">progress_activity</span>
+      <span class="msr home-widget__spin" aria-hidden="true">progress_activity</span>
       <span>正在获取名言…</span>
     </div>
 
@@ -164,21 +164,5 @@ const attribution = computed(() => {
 .quote-widget__figure figcaption {
   font: var(--md-sys-typescale-body-small);
   color: var(--md-sys-color-on-surface-variant);
-}
-
-.quote-widget__spin {
-  animation: quote-widget-rotate 1s linear infinite;
-}
-
-@keyframes quote-widget-rotate {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .quote-widget__spin {
-    animation: none;
-  }
 }
 </style>

@@ -99,6 +99,24 @@
   color: var(--md-sys-color-error);
 }
 
+/* 加载指示的旋转动画：progress_activity 字形本身是静态圆弧，必须自行旋转。
+   供各部件的加载占位与刷新按钮（加载中）共用。 */
+.home-widget__spin {
+  animation: home-widget-spin 1s linear infinite;
+}
+
+@keyframes home-widget-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-widget__spin {
+    animation: none;
+  }
+}
+
 /* 占位内的行内文本按钮（重试等）。 */
 .home-widget__text-button {
   min-height: 34px;

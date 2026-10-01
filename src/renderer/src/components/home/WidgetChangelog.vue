@@ -109,12 +109,14 @@ function handleNotesClick(event: MouseEvent): void {
         :disabled="loading"
         @click="refresh"
       >
-        <span class="msr" aria-hidden="true">refresh</span>
+        <span class="msr" :class="{ 'home-widget__spin': loading }" aria-hidden="true">
+          refresh
+        </span>
       </button>
     </template>
 
     <div v-if="loading && !notes" class="home-widget__placeholder">
-      <span class="msr" aria-hidden="true">progress_activity</span>
+      <span class="msr home-widget__spin" aria-hidden="true">progress_activity</span>
       <span>正在获取更新日志…</span>
     </div>
 

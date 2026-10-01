@@ -127,7 +127,7 @@ function openSettings(): void {
         :disabled="busy"
         @click="load(true)"
       >
-        <span class="msr" aria-hidden="true">refresh</span>
+        <span class="msr" :class="{ 'home-widget__spin': busy }" aria-hidden="true">refresh</span>
       </button>
       <button
         v-if="contentHtml"
@@ -171,7 +171,7 @@ function openSettings(): void {
 
     <div v-else class="docs-widget__content">
       <div v-if="busy" class="home-widget__placeholder">
-        <span class="msr" aria-hidden="true">progress_activity</span>
+        <span class="msr home-widget__spin" aria-hidden="true">progress_activity</span>
         <span>正在加载文档…</span>
       </div>
 
