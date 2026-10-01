@@ -66,6 +66,8 @@ const linksConfig = computed(() => widgetConfig('links'));
 const linkName = ref('');
 const linkUrl = ref('');
 const linkError = ref('');
+/** 展开链接编辑流程的错误；与添加流程分离，便于把提示就近贴在「保存修改」上方。 */
+const editLinkError = ref('');
 
 /** 链接网址的即时校验：返回错误文案，合法时返回空字符串。 */
 function describeLinkProblem(name: string, url: string): string {
@@ -124,6 +126,7 @@ const editLinkUrl = ref('');
 
 function toggleLinkExpand(entry: HomeLinkEntry): void {
   linkError.value = '';
+  editLinkError.value = '';
   if (editingLinkId.value === entry.id) {
     editingLinkId.value = null;
     return;
@@ -134,7 +137,10 @@ function toggleLinkExpand(entry: HomeLinkEntry): void {
 }
 
 function removeLink(id: string): void {
-  if (editingLinkId.value === id) editingLinkId.value = null;
+  if (editingLinkId.value === id) {
+    editingLinkId.value = null;
+    editLinkError.value = '';
+  }
   updateWidget('links', {
     config: { links: linksConfig.value.links.filter((entry) => entry.id !== id) },
   });
@@ -144,10 +150,10 @@ function removeLink(id: string): void {
 function saveLinkEdit(entry: HomeLinkEntry): void {
   const name = editLinkName.value.trim();
   const url = editLinkUrl.value.trim();
-  linkError.value = '';
+  editLinkError.value = '';
   const problem = describeLinkProblem(name, url);
   if (problem) {
-    linkError.value = problem;
+    editLinkError.value = problem;
     return;
   }
   updateWidget('links', {
@@ -433,7 +439,9 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
       return;
     }
     if (
-      documents.some((item) => item.id !== entry.id && item.kind === 'local' && item.path === source)
+      documents.some(
+        (item) => item.id !== entry.id && item.kind === 'local' && item.path === source,
+      )
     ) {
       editDocError.value = '该文档已在列表中';
       return;
@@ -642,6 +650,11 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
                   />
                 </div>
               </label>
+              <!-- 编辑错误就地提示：直接出现在「保存修改」按钮上方。 -->
+              <div v-if="editLinkError" :key="editLinkError" class="settings-note docs-error-note">
+                <span class="msr settings-note__icon">error</span>
+                <span>{{ editLinkError }}</span>
+              </div>
               <div class="docs-edit-actions">
                 <button
                   type="button"
@@ -687,6 +700,11 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
             />
           </div>
         </div>
+        <!-- 添加错误就地提示：直接出现在「添加链接」按钮上方。 -->
+        <div v-if="linkError" :key="linkError" class="settings-note docs-error-note">
+          <span class="msr settings-note__icon">error</span>
+          <span>{{ linkError }}</span>
+        </div>
         <button
           type="button"
           class="docs-add-button docs-add-button--primary state-layer"
@@ -695,13 +713,7 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
           <span class="msr" aria-hidden="true">add</span>
           添加链接
         </button>
-        <p class="home-config__hint">
-          最多 12 个；HTTP 与 HTTPS 均可，通过默认浏览器打开。
-        </p>
-        <div v-if="linkError" class="settings-note settings-note--error">
-          <span class="msr settings-note__icon">error</span>
-          <span>{{ linkError }}</span>
-        </div>
+        <p class="home-config__hint">最多 12 个；HTTP 与 HTTPS 均可，通过默认浏览器打开。</p>
       </div>
     </template>
 
@@ -965,6 +977,11 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
                   />
                 </div>
               </label>
+              <!-- 编辑错误就地提示：直接出现在「保存修改」按钮上方。 -->
+              <div v-if="editDocError" :key="editDocError" class="settings-note docs-error-note">
+                <span class="msr settings-note__icon">error</span>
+                <span>{{ editDocError }}</span>
+              </div>
               <div class="docs-edit-actions">
                 <button
                   type="button"
@@ -1038,6 +1055,11 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
             />
           </div>
         </div>
+        <!-- 添加错误就地提示：直接出现在「添加文档」按钮上方。 -->
+        <div v-if="docsError" :key="docsError" class="settings-note docs-error-note">
+          <span class="msr settings-note__icon">error</span>
+          <span>{{ docsError }}</span>
+        </div>
         <button
           type="button"
           class="docs-add-button docs-add-button--primary state-layer"
@@ -1051,10 +1073,6 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
           本地支持 .md / .markdown / .txt 文件；远程链接公网需 HTTPS、内网允许 HTTP；单个文档不超过
           2 MB。
         </p>
-        <div v-if="docsError" class="settings-note settings-note--error">
-          <span class="msr settings-note__icon">error</span>
-          <span>{{ docsError }}</span>
-        </div>
       </div>
     </template>
   </div>
@@ -1336,8 +1354,7 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
 }
 
 .docs-list__chevron {
-  transition: transform var(--md-sys-motion-duration-short4)
-    var(--md-sys-motion-easing-standard);
+  transition: transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
 .docs-list__chevron--open {
@@ -1383,6 +1400,12 @@ async function saveDocEdit(entry: HomeDocEntry): Promise<void> {
 
 .docs-add-card__select {
   width: 100%;
+}
+
+/* 文档错误提示条：沿用 settings-note 版式，底色改用错误容器色，确保在卡片背景上清晰可辨。 */
+.docs-error-note {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
 }
 
 @media (prefers-reduced-motion: reduce) {
