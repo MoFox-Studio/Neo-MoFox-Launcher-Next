@@ -103,3 +103,68 @@ export function placementStyle(placement: WidgetPlacement<SpannedWidget>) {
     '--widget-height': `calc(var(--home-row-unit, 4px) * ${placement.height})`,
   };
 }
+
+/** Resolve a drop against the layout with the moving tile removed. Coordinates
+ * use grid rows and a column, so viewport scaling does not change the result. */
+export function dropWidget<T extends SpannedWidget>(
+  widgets: readonly T[],
+  id: string,
+  row: number,
+  column: 1 | 2,
+): T[] {
+  const moving = widgets.find((widget) => widget.id === id);
+  if (!moving) return [...widgets];
+  const rest = widgets.filter((widget) => widget.id !== id).map((widget) => ({ ...widget }));
+  const placed = placeWidgets(rest);
+  const tile = {
+    ...moving,
+    side: column === 1 ? ('left' as const) : ('right' as const),
+    solo: true,
+  };
+  // Anchors are exactly those placements that begin a new band.
+  const bands = placed.filter(
+    (entry, index) =>
+      index === 0 ||
+      entry.top >= Math.max(...placed.slice(0, index).map((other) => other.top + other.height)),
+  );
+  const band = bands.find((entry) => row < entry.top + entry.height + GUTTER_ROWS / 2);
+  if (!band) return [...rest, tile];
+  const index = rest.findIndex((widget) => widget.id === band.widget.id);
+  const edge = Math.min(10, band.height * 0.2);
+  const beside =
+    tile.span === 'half' &&
+    band.columns === 1 &&
+    row >= band.top + edge &&
+    row < band.top + band.height - edge;
+  if (beside) {
+    tile.solo = false;
+    band.widget.solo = false;
+    band.widget.side = column === 1 ? 'right' : 'left';
+    if (WIDGET_HEIGHTS[tile.height] >= band.height) {
+      rest.splice(index, 0, tile);
+    } else {
+      // Insert at the pointed stack slot; displaced tiles flow into later bands.
+      const stack = placed.filter(
+        (entry) =>
+          entry.top >= band.top &&
+          entry.top < band.top + band.height &&
+          entry.widget.id !== band.widget.id,
+      );
+      const target = stack.find((entry) => row < entry.top + entry.height / 2);
+      const insertion = target
+        ? rest.findIndex((widget) => widget.id === target.widget.id)
+        : index + 1 + stack.length;
+      rest.splice(insertion, 0, tile);
+    }
+  } else {
+    const nextBand = bands[bands.indexOf(band) + 1];
+    const after = row >= band.top + band.height / 2;
+    const insertion = after
+      ? nextBand
+        ? rest.findIndex((widget) => widget.id === nextBand.widget.id)
+        : rest.length
+      : index;
+    rest.splice(insertion, 0, tile);
+  }
+  return rest;
+}

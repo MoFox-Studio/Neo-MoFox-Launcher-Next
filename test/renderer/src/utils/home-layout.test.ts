@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultGeometry,
+  dropWidget,
   normalizeGeometry,
   placeWidgets,
   placementStyle,
@@ -114,5 +115,78 @@ describe('home layout', () => {
               expect(overlapsColumn && overlapsHeight).toBe(false);
             }
         }
+  });
+});
+
+describe('drag placement', () => {
+  it('joins an empty side even when the anchor used to be solo', () => {
+    const next = dropWidget([widget('a', 'full', { solo: true }), widget('b')], 'b', 30, 2);
+    expect(placeWidgets(next).map((p) => [p.widget.id, p.top, p.column])).toEqual([
+      ['a', 0, 1],
+      ['b', 0, 2],
+    ]);
+  });
+  it('moves the anchor aside when dropping onto its column', () => {
+    const next = dropWidget([widget('a', 'full'), widget('b')], 'b', 30, 1);
+    expect(placeWidgets(next).map((p) => [p.widget.id, p.column])).toEqual([
+      ['a', 2],
+      ['b', 1],
+    ]);
+  });
+  it('creates a standalone right hand row at a band edge', () => {
+    const next = dropWidget([widget('a'), widget('b')], 'b', 0, 2);
+    const placed = placeWidgets(next);
+    expect(placed[0]).toMatchObject({ widget: { id: 'b', solo: true }, column: 2 });
+    expect(placed[1]!.top).toBe(WIDGET_HEIGHTS.half + GUTTER_ROWS);
+  });
+  it('pushes overflow out of a full stack', () => {
+    const next = dropWidget(
+      [widget('a', 'full'), widget('b'), widget('c'), widget('d')],
+      'd',
+      20,
+      2,
+    );
+    expect(next.map((w) => w.id)).toEqual(['a', 'd', 'b', 'c']);
+    expect(placeWidgets(next).at(-1)!.top).toBe(WIDGET_HEIGHTS.full + GUTTER_ROWS);
+  });
+  it('makes a taller dropped tile the anchor without overlapping its neighbors', () => {
+    const next = dropWidget([widget('a'), widget('b', 'tall')], 'b', 20, 2);
+    expect(placeWidgets(next).map((p) => [p.widget.id, p.column, p.top])).toEqual([
+      ['b', 2, 0],
+      ['a', 1, 0],
+    ]);
+  });
+  it('moves full width tiles and leaves the source unchanged', () => {
+    const source = [widget('a'), widget('b', 'full', { span: 'full' }), widget('c')];
+    const snapshot = JSON.stringify(source);
+    expect(dropWidget(source, 'b', 0, 2).map((w) => w.id)).toEqual(['b', 'a', 'c']);
+    expect(JSON.stringify(source)).toBe(snapshot);
+  });
+  it('never overlaps or loses a widget for any supported size and drop column', () => {
+    for (const span of ['half', 'full'] as const)
+      for (const height of ['half', 'full', 'tall'] as const) {
+        const source = [
+          widget('a', 'tall'),
+          widget('b'),
+          widget('c', 'full'),
+          widget('d', height, { span }),
+        ];
+        for (const row of [-10, 0, 20, 50, 90, 130, 160, 500])
+          for (const column of [1, 2] as const) {
+            const next = placeWidgets(dropWidget(source, 'd', row, column));
+            expect(new Set(next.map((p) => p.widget.id)).size).toBe(source.length);
+            for (let i = 0; i < next.length; i++)
+              for (let j = i + 1; j < next.length; j++) {
+                const a = next[i]!;
+                const b = next[j]!;
+                expect(
+                  a.column >= b.column + b.columns ||
+                    b.column >= a.column + a.columns ||
+                    a.top >= b.top + b.height ||
+                    b.top >= a.top + a.height,
+                ).toBe(true);
+              }
+          }
+      }
   });
 });

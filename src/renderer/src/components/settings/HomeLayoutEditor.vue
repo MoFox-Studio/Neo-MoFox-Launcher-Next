@@ -140,6 +140,12 @@ async function save(): Promise<void> {
             :selected="selected"
             @select="selected = $event"
             @reorder="reorder"
+            @layout="
+              (ids, nextGeometry) => {
+                geometry = nextGeometry;
+                reorder(ids);
+              }
+            "
           />
         </main>
         <aside class="layout-editor__settings" aria-label="选中组件设置">
@@ -166,22 +172,7 @@ async function save(): Promise<void> {
             ]"
             @update:model-value="selectedGeometry.height = $event as WidgetHeight"
           />
-          <template v-if="selectedGeometry.span === 'half'">
-            <label class="geometry-field"
-              >独占一行<input v-model="selectedGeometry.solo" type="checkbox"
-            /></label>
-            <HomeGeometrySelect
-              :model-value="selectedGeometry.side"
-              label="作为行首时的位置"
-              :disabled="busy"
-              :options="[
-                { value: 'left', label: '左侧' },
-                { value: 'right', label: '右侧' },
-              ]"
-              @update:model-value="selectedGeometry.side = $event as 'left' | 'right'"
-            />
-            <p>允许并排时，后续半宽组件会堆叠到另一侧；总高度不能超过行首组件。</p>
-          </template>
+          <p>拖到组件左侧或右侧可并排；拖到行的上、下边缘可单独成行。占用的位置会自动让位。</p>
           <h4>内容设置</h4>
           <HomeWidgetSettings
             :key="selected"

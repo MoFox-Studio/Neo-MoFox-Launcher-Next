@@ -4,7 +4,13 @@ import Sortable from 'sortablejs';
 import type { HomeWidgetId, HomeWidgetState } from '@shared/domain/home';
 import { HOME_WIDGET_DEFINITIONS } from './registry';
 import { useHomeGeometryStore } from '@/stores/home-geometry';
-import { placeWidgets, placementStyle, type HomeGeometry } from '@/utils/home-layout';
+import {
+  placeWidgets,
+  placementStyle,
+  dropWidget,
+  type SpannedWidget,
+  type HomeGeometry,
+} from '@/utils/home-layout';
 
 const props = defineProps<{
   widgets: HomeWidgetState[];
@@ -12,7 +18,11 @@ const props = defineProps<{
   editing?: boolean;
   selected?: HomeWidgetId;
 }>();
-const emit = defineEmits<{ select: [id: HomeWidgetId]; reorder: [ids: HomeWidgetId[]] }>();
+const emit = defineEmits<{
+  select: [id: HomeWidgetId];
+  reorder: [ids: HomeWidgetId[]];
+  layout: [ids: HomeWidgetId[], geometry: HomeGeometry];
+}>();
 const store = useHomeGeometryStore();
 const grid = ref<HTMLElement>();
 const placements = computed(() =>
@@ -32,14 +42,18 @@ let original: string[] = [];
 let cancelRequested = false;
 const dragging = ref<HomeWidgetId | null>(null);
 const previewOrder = ref<string[] | null>(null);
+const draftGeometry = ref<HomeGeometry | null>(null);
+let dragSource: SpannedWidget[] = [];
+let lastPointer: { x: number; y: number } | null = null;
 const previewStyles = computed(() => {
   if (!previewOrder.value) return new Map();
   const byId = new Map(placements.value.map((entry) => [entry.widget.id as string, entry.widget]));
   return new Map(
-    placeWidgets(previewOrder.value.flatMap((id) => byId.get(id) ?? [])).map((entry) => [
-      entry.widget.id,
-      placementStyle(entry),
-    ]),
+    placeWidgets(
+      previewOrder.value.flatMap((id) =>
+        byId.has(id) ? [{ ...byId.get(id)!, ...(draftGeometry.value?.[id] ?? {}) }] : [],
+      ),
+    ).map((entry) => [entry.widget.id, placementStyle(entry)]),
   );
 });
 const dragAnnouncement = ref('');
@@ -54,8 +68,15 @@ function repaint(ids: string[], animate = false): void {
   const previous = new Map(elements.map((element) => [element, element.getBoundingClientRect()]));
   animations.forEach((animation) => animation.cancel());
   animations.clear();
-  const items = ids.flatMap(
-    (id) => placements.value.find((entry) => entry.widget.id === id)?.widget ?? [],
+  const items = ids.flatMap((id) =>
+    placements.value.find((entry) => entry.widget.id === id)?.widget
+      ? [
+          {
+            ...placements.value.find((entry) => entry.widget.id === id)!.widget,
+            ...(draftGeometry.value?.[id] ?? {}),
+          },
+        ]
+      : [],
   );
   for (const placement of placeWidgets(items)) {
     const element = elements.find((child) => child.dataset.id === placement.widget.id);
@@ -92,23 +113,16 @@ function initializeSortable(): void {
     fallbackTolerance: 4,
     scrollSensitivity: 70,
     scrollSpeed: 12,
-    direction(_event, target, dragged) {
-      if (!target || !dragged) return 'vertical';
-      return target.style.gridColumn === dragged.style.gridColumn ? 'vertical' : 'horizontal';
-    },
+    sort: false,
     onStart(event) {
       cancelRequested = false;
+      dragSource = placements.value.map((entry) => ({ ...entry.widget }));
+      draftGeometry.value = null;
       original = placements.value.map((item) => item.widget.id);
       previewOrder.value = original;
       dragging.value = event.item.dataset.id as HomeWidgetId;
       emit('select', dragging.value);
       dragAnnouncement.value = '正在移动组件，其他组件会自动让位。按 Esc 撤销。';
-    },
-    onChange() {
-      const ids = sortable!.toArray();
-      previewOrder.value = ids;
-      repaint(ids, true);
-      dragAnnouncement.value = `放置位置：第 ${ids.indexOf(dragging.value!) + 1} 个，共 ${ids.length} 个组件`;
     },
     onEnd(event) {
       const originalEvent = (event as Sortable.SortableEvent & { originalEvent?: Event })
@@ -117,16 +131,60 @@ function initializeSortable(): void {
         cancelRequested ||
         originalEvent?.type === 'pointercancel' ||
         originalEvent?.type === 'touchcancel';
-      const ids = cancelled ? original : sortable!.toArray();
+      const ids = cancelled ? original : (previewOrder.value ?? original);
       sortable!.sort(original);
-      repaint(original);
+      repaint(ids);
+      const nextGeometry = draftGeometry.value;
+      draftGeometry.value = null;
       previewOrder.value = null;
       dragging.value = null;
-      emit('reorder', ids as HomeWidgetId[]);
+      if (!cancelled && nextGeometry) emit('layout', ids as HomeWidgetId[], nextGeometry);
+      else emit('reorder', ids as HomeWidgetId[]);
+      lastPointer = null;
       dragAnnouncement.value = cancelled ? '已撤销本次移动' : '组件已放置，保存布局后生效';
     },
   });
 }
+function updateDrop(): void {
+  if (!dragging.value || !grid.value || !lastPointer) return;
+  const rect = grid.value.getBoundingClientRect();
+  const unit = parseFloat(window.getComputedStyle(grid.value).gridAutoRows);
+  if (!unit) return;
+  const next = dropWidget(
+    dragSource,
+    dragging.value,
+    (lastPointer.y - rect.top) / unit,
+    lastPointer.x < rect.left + rect.width / 2 ? 1 : 2,
+  );
+  const geometry = { ...(props.geometry ?? store.geometry) };
+  for (const widget of next)
+    geometry[widget.id] = {
+      span: widget.span,
+      height: widget.height,
+      solo: widget.solo,
+      side: widget.side,
+    };
+  const ids = next.map((widget) => widget.id);
+  if (JSON.stringify([ids, geometry]) === JSON.stringify([previewOrder.value, draftGeometry.value]))
+    return;
+  draftGeometry.value = geometry;
+  previewOrder.value = ids;
+  repaint(ids, true);
+  const moving = next.find((widget) => widget.id === dragging.value)!;
+  dragAnnouncement.value = moving.solo
+    ? '放置预览：单独成行，其他组件已让位'
+    : `放置预览：${moving.side === 'left' ? '左侧' : '右侧'}并排，其他组件已让位`;
+}
+function trackPointer(event: MouseEvent | InstanceType<typeof window.TouchEvent>): void {
+  if (!dragging.value) return;
+  const point = 'touches' in event ? event.touches[0] : event;
+  if (!point) return;
+  lastPointer = { x: point.clientX, y: point.clientY };
+  updateDrop();
+}
+document.addEventListener('mousemove', trackPointer, true);
+document.addEventListener('touchmove', trackPointer, { capture: true, passive: true });
+document.addEventListener('scroll', updateDrop, true);
 function cancelDrag(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || !dragging.value || !sortable) return;
   event.preventDefault();
@@ -135,11 +193,19 @@ function cancelDrag(event: KeyboardEvent): void {
   // Destroy through the public API so Sortable releases its mouse/touch handlers.
   sortable.destroy();
   sortable = undefined;
+  grid.value
+    ?.querySelectorAll('.sortable-fallback, .sortable-clone')
+    .forEach((element) => element.remove());
   const elements = tiles();
+  elements.forEach((element) =>
+    element.classList.remove('sortable-chosen', 'widget-slot--ghost', 'sortable-drag'),
+  );
   for (const id of original) {
     const element = elements.find((tile) => tile.dataset.id === id);
     if (element) grid.value?.appendChild(element);
   }
+  draftGeometry.value = null;
+  lastPointer = null;
   repaint(original);
   previewOrder.value = null;
   dragging.value = null;
@@ -150,6 +216,9 @@ watch([grid, () => props.editing], initializeSortable, { flush: 'post' });
 document.addEventListener('keydown', cancelDrag, true);
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', cancelDrag, true);
+  document.removeEventListener('mousemove', trackPointer, true);
+  document.removeEventListener('touchmove', trackPointer, true);
+  document.removeEventListener('scroll', updateDrop, true);
   sortable?.destroy();
   animations.forEach((animation) => animation.cancel());
 });
@@ -254,7 +323,9 @@ function move(id: HomeWidgetId, direction: number): void {
 }
 /* 选中态：直接在部件卡片自身的边框上蒙一层主色描边，与搜索框等组件的聚焦描边一致。 */
 .widget-slot--selected :deep(.home-widget) {
-  box-shadow: var(--app-glass-card-shadow), inset 0 0 0 2px var(--md-sys-color-primary);
+  box-shadow:
+    var(--app-glass-card-shadow),
+    inset 0 0 0 2px var(--md-sys-color-primary);
 }
 .widget-slot__toolbar {
   position: absolute;

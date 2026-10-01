@@ -333,7 +333,11 @@ function sanitizeDocEntries(value: unknown): HomeDocEntry[] {
     if (raw.kind === 'local' && typeof raw.path === 'string' && raw.path) {
       seen.add(id);
       entries.push({ id, kind: 'local', name, path: raw.path });
-    } else if (raw.kind === 'remote' && typeof raw.url === 'string' && isRemoteDocUrlString(raw.url)) {
+    } else if (
+      raw.kind === 'remote' &&
+      typeof raw.url === 'string' &&
+      isRemoteDocUrlString(raw.url)
+    ) {
       seen.add(id);
       entries.push({ id, kind: 'remote', name, url: raw.url });
     }
@@ -436,7 +440,8 @@ function isHomeDocEntryShape(value: unknown): boolean {
   if (typeof value.id !== 'string' || !value.id) return false;
   if (typeof value.name !== 'string' || !value.name.trim()) return false;
   if (value.kind === 'local') return typeof value.path === 'string' && value.path.length > 0;
-  if (value.kind === 'remote') return typeof value.url === 'string' && isRemoteDocUrlString(value.url);
+  if (value.kind === 'remote')
+    return typeof value.url === 'string' && isRemoteDocUrlString(value.url);
   return false;
 }
 
