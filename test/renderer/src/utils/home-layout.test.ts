@@ -3,6 +3,8 @@ import {
   defaultGeometry,
   normalizeGeometry,
   placeWidgets,
+  placementStyle,
+  GUTTER_ROWS,
   WIDGET_HEIGHTS,
   type SpannedWidget,
 } from '../../../../src/renderer/src/utils/home-layout';
@@ -18,15 +20,15 @@ describe('home layout', () => {
   });
   it('keeps a single half widget half-width and allows an explicitly empty side', () => {
     const result = placeWidgets([widget('a', 'full', { solo: true }), widget('b')]);
-    expect(result[0]).toMatchObject({ columns: 1, column: 1, height: 360 });
-    expect(result[1]!.top).toBe(376);
+    expect(result[0]).toMatchObject({ columns: 1, column: 1, height: WIDGET_HEIGHTS.full });
+    expect(result[1]!.top).toBe(WIDGET_HEIGHTS.full + GUTTER_ROWS);
   });
   it('stacks two halves beside full height', () => {
     const result = placeWidgets([widget('a', 'full'), widget('b'), widget('c')]);
     expect(result.map(({ top, column }) => [top, column])).toEqual([
       [0, 1],
       [0, 2],
-      [180, 2],
+      [WIDGET_HEIGHTS.half, 2],
     ]);
   });
   it('stacks full plus half or three halves beside tall', () => {
@@ -37,12 +39,12 @@ describe('home layout', () => {
       const result = placeWidgets([widget('a', 'tall'), ...stack]);
       const last = result.at(-1)!;
       expect(last.column).toBe(2);
-      expect(last.top + last.height).toBe(540);
+      expect(last.top + last.height).toBe(WIDGET_HEIGHTS.tall);
     }
   });
   it('starts a new band when the next tile would overflow', () => {
     const result = placeWidgets([widget('a', 'full'), widget('b'), widget('c', 'full')]);
-    expect(result[2]).toMatchObject({ top: 376, column: 1 });
+    expect(result[2]).toMatchObject({ top: WIDGET_HEIGHTS.full + GUTTER_ROWS, column: 1 });
   });
   it('never fills backwards across full-width or solo barriers', () => {
     const result = placeWidgets([
@@ -50,7 +52,12 @@ describe('home layout', () => {
       widget('b', 'half', { span: 'full' }),
       widget('c'),
     ]);
-    expect(result.map(({ top }) => top)).toEqual([0, 556, 752]);
+    const bandTop = WIDGET_HEIGHTS.tall + GUTTER_ROWS;
+    expect(result.map(({ top }) => top)).toEqual([
+      0,
+      bandTop,
+      bandTop + WIDGET_HEIGHTS.half + GUTTER_ROWS,
+    ]);
   });
   it('supports a right-hand anchor', () => {
     const result = placeWidgets([widget('a', 'full', { side: 'right' }), widget('b'), widget('c')]);
@@ -58,6 +65,20 @@ describe('home layout', () => {
   });
   it('returns no positions when every widget is hidden', () => {
     expect(placeWidgets([])).toEqual([]);
+  });
+  it('emits row spans and a unit-based height variable', () => {
+    const style = placementStyle({
+      widget: widget('a', 'tall'),
+      top: GUTTER_ROWS,
+      height: WIDGET_HEIGHTS.tall,
+      column: 2,
+      columns: 1,
+    });
+    expect(style).toEqual({
+      gridColumn: '2 / span 1',
+      gridRow: `${GUTTER_ROWS + 1} / span ${WIDGET_HEIGHTS.tall}`,
+      '--widget-height': `calc(var(--home-row-unit, 4px) * ${WIDGET_HEIGHTS.tall})`,
+    });
   });
   it('normalizes old, corrupt and partial geometry without retaining unknown widgets', () => {
     expect(normalizeGeometry(null, ['clock'])).toEqual({ clock: defaultGeometry('clock') });

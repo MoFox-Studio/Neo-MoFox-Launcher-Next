@@ -228,9 +228,12 @@ function move(id: HomeWidgetId, direction: number): void {
   min-width: 0;
 }
 .home-grid {
+  /* 行单位随视口高度缩放：1 行默认 4px（900px 高窗口），小窗口收窄、大屏放宽，
+     half/full/tall 的实际像素随之缩放，比例保持 0.5 : 1 : 1.5。 */
+  --home-row-unit: clamp(3px, 0.45vh, 5px);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: 1px;
+  grid-auto-rows: var(--home-row-unit);
   column-gap: 16px;
 }
 .widget-slot {

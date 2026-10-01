@@ -251,19 +251,21 @@ function openSettings(): void {
   color: var(--md-sys-color-primary);
 }
 
-/* 正文区：超出固定高度后内部滚动，避免长文档撑开主页。 */
+/* 正文区：作为 body 的填充子项，内部滚动由共享适配层按档位控制。 */
 .docs-widget__content {
-  min-height: 120px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .docs-widget__markdown {
-  max-height: 340px;
-  overflow-y: auto;
   padding-right: 4px;
 }
 
 .docs-widget__empty {
-  min-height: 120px;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;

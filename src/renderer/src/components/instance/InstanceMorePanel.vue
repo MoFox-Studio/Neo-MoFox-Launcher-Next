@@ -37,6 +37,8 @@ const saving = ref(false);
 const validating = ref(false);
 const pendingRemove = ref(false);
 const removing = ref(false);
+// 「删除文件」的两段式确认：第一次点击只进入待确认态，再次点击才真正删除。
+const filesConfirmPending = ref(false);
 // 删除失败弹窗：携带可读描述、堆栈日志与所选模式，支持原地重试或返回主页面。
 const removeError = ref<{
   description: string;
@@ -336,9 +338,23 @@ function cancelRemove(): void {
 const keepRecordButton = ref<HTMLButtonElement | null>(null);
 
 watch(pendingRemove, (open) => {
-  if (!open) return;
+  if (!open) {
+    // 弹窗关闭时撤销「删除文件」的待确认态，避免下次打开残留。
+    filesConfirmPending.value = false;
+    return;
+  }
   void nextTick(() => keepRecordButton.value?.focus());
 });
+
+// 「删除文件」按钮的两段式确认：第一次点击仅进入待确认态，再次点击才执行删除。
+function confirmRemoveFiles(): void {
+  if (removing.value) return;
+  if (!filesConfirmPending.value) {
+    filesConfirmPending.value = true;
+    return;
+  }
+  void confirmRemove('files');
+}
 
 async function confirmRemove(mode: InstanceRemovalMode): Promise<void> {
   if (removing.value) return;
@@ -358,6 +374,8 @@ async function confirmRemove(mode: InstanceRemovalMode): Promise<void> {
     removing.value = false;
   }
   pendingRemove.value = false;
+  // 全局轻提示在路由切回主页面后依然可见，正好在回到主页面时展示。
+  showToast(mode === 'files' ? '实例及文件已删除' : '已移除实例记录');
   emit('deleted');
 }
 
@@ -669,7 +687,7 @@ watch(
     </template>
   </BaseDialog>
 
-  <!-- 删除必须二次确认；提供“仅移除记录”与“连文件一起删除”两种模式 -->
+  <!-- 删除必须二次确认；提供“仅移除记录”与“连文件一起删除”两种模式，后者需再次点击进入确认态 -->
   <BaseDialog
     :open="pendingRemove"
     title="删除实例"
@@ -709,9 +727,13 @@ watch(
         class="btn btn--error state-layer"
         type="button"
         :disabled="removing"
-        @click="confirmRemove('files')"
+        :aria-label="filesConfirmPending ? '再次点击确认删除文件' : undefined"
+        @click="confirmRemoveFiles"
       >
-        删除文件
+        <span v-if="filesConfirmPending" class="msr btn__icon" aria-hidden="true"
+          >delete_forever</span
+        >
+        {{ removing ? '删除中…' : filesConfirmPending ? '确认删除' : '删除文件' }}
       </button>
     </template>
   </BaseDialog>

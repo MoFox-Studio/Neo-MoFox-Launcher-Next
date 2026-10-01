@@ -10,7 +10,11 @@ export interface WidgetGeometry {
 export interface SpannedWidget extends WidgetGeometry {
   id: string;
 }
-export const WIDGET_HEIGHTS: Record<WidgetHeight, number> = { half: 180, full: 360, tall: 540 };
+/** Heights are expressed in grid rows of --home-row-unit (4px by default) so the
+ * whole layout scales with the viewport while keeping the 0.5 : 1 : 1.5 ratios. */
+export const WIDGET_HEIGHTS: Record<WidgetHeight, number> = { half: 45, full: 90, tall: 135 };
+/** Row gutter between bands, in grid rows (16px at the default 4px unit). */
+export const GUTTER_ROWS = 4;
 export const HOME_LAYOUT_KEY = 'mofox.home.geometry.v1';
 export type HomeGeometry = Record<string, WidgetGeometry>;
 
@@ -55,7 +59,7 @@ export interface WidgetPlacement<T> {
 }
 
 /** The opposite stack never exceeds its anchor. Stacked tiles touch vertically
- * so half + full fits tall exactly. Bands and columns retain a 16px gutter. */
+ * so half + full fits tall exactly. Bands and columns retain a row gutter. */
 export function placeWidgets<T extends SpannedWidget>(widgets: readonly T[]): WidgetPlacement<T>[] {
   const placed: WidgetPlacement<T>[] = [];
   let top = 0;
@@ -87,7 +91,7 @@ export function placeWidgets<T extends SpannedWidget>(widgets: readonly T[]): Wi
         index++;
       }
     }
-    top += height + 16;
+    top += height + GUTTER_ROWS;
   }
   return placed;
 }
@@ -96,6 +100,6 @@ export function placementStyle(placement: WidgetPlacement<SpannedWidget>) {
   return {
     gridColumn: `${placement.column} / span ${placement.columns}`,
     gridRow: `${placement.top + 1} / span ${placement.height}`,
-    '--widget-height': `${placement.height}px`,
+    '--widget-height': `calc(var(--home-row-unit, 4px) * ${placement.height})`,
   };
 }

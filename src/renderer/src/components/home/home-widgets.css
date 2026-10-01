@@ -41,6 +41,10 @@
 .home-widget__body {
   flex: 1;
   min-height: 0;
+  /* 填充契约：子项默认保持自然高度，声明 flex: 1 + min-height: 0 的内容区
+     拉伸填满并在内部滚动，此时 body 恰好不溢出，不会出现双滚动条。 */
+  display: flex;
+  flex-direction: column;
   overflow: auto;
   overflow-wrap: anywhere;
   padding: 14px 22px 20px;
@@ -73,9 +77,10 @@
   font-size: 20px;
 }
 
-/* 小部件内的居中占位（加载与错误状态）。 */
+/* 小部件内的居中占位（加载与错误状态）：随可用高度填满并居中。 */
 .home-widget__placeholder {
-  min-height: 96px;
+  flex: 1 1 auto;
+  min-height: min(96px, 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -203,14 +208,44 @@
   border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
-/* All seven widgets share the same sized slot; content scrolls within it. */
+/* 小部件在固定高度槽位内的适配层：按 data-height 档位（half/full/tall）分档，
+   full/tall 舒展、half 紧凑；高度单位见 HomeWidgetGrid 的 --home-row-unit。 */
+
+/* 仪表盘：填满剩余高度，多行时均分拉伸。 */
 .widget-slot .metric-widget {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   align-content: stretch;
 }
+.widget-slot[data-height='half'] .metric-widget__item {
+  min-height: 64px;
+  padding: 12px 16px;
+}
+.widget-slot[data-height='half'] .metric-widget__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+.widget-slot[data-height='half'] .metric-widget__icon .msr {
+  font-size: 20px;
+}
+
+/* 时钟：时间字号按档位缩放，tall 时拉开间距。 */
 .widget-slot .clock-widget__time {
   font-size: clamp(30px, 8cqi, 56px);
 }
+.widget-slot[data-height='half'] .clock-widget__time {
+  font-size: clamp(28px, 7cqi, 40px);
+}
+.widget-slot[data-height='tall'] .clock-widget__time {
+  font-size: clamp(44px, 11cqi, 80px);
+}
+.widget-slot[data-height='tall'] .clock-widget__body {
+  gap: 12px;
+}
+
+/* 名言：引文行数与字号按档位调整。 */
 .widget-slot .quote-widget__figure {
   min-height: 100%;
 }
@@ -218,14 +253,115 @@
   display: block;
   overflow: visible;
 }
+.widget-slot[data-height='half'] .quote-widget__figure blockquote {
+  -webkit-line-clamp: 3;
+}
+.widget-slot[data-height='full'] .quote-widget__figure blockquote {
+  -webkit-line-clamp: 6;
+}
+.widget-slot[data-height='tall'] .quote-widget__figure blockquote {
+  -webkit-line-clamp: 10;
+  font: var(--md-sys-typescale-title-large);
+}
+
+/* 文档与更新日志：内容区填满剩余高度。full/tall 档在内部滚动
+   （单一滚动条 + 底部渐隐）；half 档不滚动，截断 + 底部渐隐，
+   引导用放大阅读弹窗 / GitHub 链接看全文。 */
 .widget-slot .docs-widget__markdown,
 .widget-slot .changelog-widget__notes {
-  max-height: none;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
 }
+.widget-slot[data-height='half'] .docs-widget__markdown,
+.widget-slot[data-height='half'] .changelog-widget__notes {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+}
+.widget-slot[data-height='half'] .docs-widget__tab {
+  min-height: 32px;
+}
+.widget-slot[data-height='half'] .changelog-widget__build {
+  display: none;
+}
+
+/* 常用实例：网格保持自然行高；half 档卡片压缩为紧凑形态，保证半高内完整可见。 */
 .widget-slot .favorites-widget__grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
 }
+.widget-slot[data-height='half'] .instance-card {
+  padding: 10px 12px;
+  gap: 8px;
+}
+.widget-slot[data-height='half'] .instance-card__head {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+}
+.widget-slot[data-height='half'] .instance-card__mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+.widget-slot[data-height='half'] .instance-card__mark .msr {
+  font-size: 22px;
+}
+.widget-slot[data-height='half'] .instance-card__details {
+  display: none;
+}
+.widget-slot[data-height='half'] .instance-card__primary {
+  min-height: 36px;
+  padding: 0 14px;
+}
+.widget-slot[data-height='half'] .instance-card__icon-button {
+  width: 32px;
+  height: 32px;
+}
+.widget-slot[data-height='half'] .instance-card__secondary {
+  padding: 2px;
+}
+.widget-slot[data-height='half'] .favorites-widget__empty-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+.widget-slot[data-height='half'] .favorites-widget__empty-mark .msr {
+  font-size: 24px;
+}
+
+/* 快捷操作：full/tall 档按钮行拉伸填满；half 档垂直居中。 */
+.widget-slot .quick-actions-widget__row {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: stretch;
+}
+.widget-slot[data-height='half'] .quick-actions-widget__row {
+  align-content: center;
+}
+.widget-slot .quick-actions-widget__empty {
+  margin-block: auto;
+}
+
+/* 常用链接：full/tall 档按钮行拉伸填满；half 档垂直居中。 */
+.widget-slot .home-links {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: center;
+}
+.widget-slot[data-height='full'] .home-links,
+.widget-slot[data-height='tall'] .home-links {
+  align-content: stretch;
+}
+
+/* 部件内滚动条比全局更细，贴卡片内边距。 */
+.widget-slot .home-widget__body::-webkit-scrollbar,
+.widget-slot .docs-widget__markdown::-webkit-scrollbar,
+.widget-slot .changelog-widget__notes::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
 .widget-slot .home-widget__header {
   flex: none;
   flex-wrap: wrap;

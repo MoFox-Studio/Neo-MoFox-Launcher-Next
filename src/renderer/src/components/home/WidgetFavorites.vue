@@ -101,7 +101,9 @@ function openInstances(): void {
 }
 
 .favorites-widget__empty {
-  min-height: 180px;
+  /* 填满 body 并垂直居中，避免半高档下溢出。 */
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;

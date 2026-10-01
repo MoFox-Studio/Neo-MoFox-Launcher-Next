@@ -171,6 +171,9 @@ function handleNotesClick(event: MouseEvent): void {
 
 <style scoped>
 .changelog-widget__content {
+  /* 填满 body：构建信息与发行版头部固定，说明区在剩余高度内滚动/截断。 */
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -211,10 +214,8 @@ function handleNotesClick(event: MouseEvent): void {
   font: var(--md-sys-typescale-body-small);
 }
 
-/* 发行说明区：超出固定高度后内部滚动；排版复用全局 .home-markdown。 */
+/* 发行说明区：滚动与截断行为由共享适配层按档位控制；排版复用全局 .home-markdown。 */
 .changelog-widget__notes {
-  max-height: 280px;
-  overflow-y: auto;
   padding: 4px 2px;
 }
 
@@ -225,6 +226,7 @@ function handleNotesClick(event: MouseEvent): void {
 }
 
 .changelog-widget__link {
+  flex: none;
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
@@ -244,6 +246,9 @@ function handleNotesClick(event: MouseEvent): void {
 }
 
 .changelog-widget__dev {
+  /* 填满剩余高度并垂直居中，避免全高/加高下下方留白。 */
+  flex: 1;
+  justify-content: center;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
