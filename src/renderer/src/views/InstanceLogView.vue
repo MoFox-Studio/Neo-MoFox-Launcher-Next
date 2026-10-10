@@ -16,6 +16,7 @@ import {
   createTerminalShortcutHandler,
   handleTerminalShortcut,
 } from '@/composables/use-terminal-shortcuts';
+import { createTerminalLinkHandler, openTerminalLink } from '@/composables/use-terminal-links';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 
 // 实例日志页维护双终端、实时输出、进程控制和日志工具操作。
@@ -173,20 +174,15 @@ function createBundle(source: InstanceProcessSource): TerminalBundle | undefined
     lineHeight: 1.35,
     cursorBlink: false,
     theme: TERMINAL_THEME,
+    // 接管 OSC 8 富链接点击，绕过 xterm 默认的安全确认弹窗。
+    linkHandler: createTerminalLinkHandler(),
   });
   const fit = new FitAddon();
   const search = new SearchAddon();
   terminal.loadAddon(fit);
   terminal.loadAddon(search);
-  terminal.loadAddon(
-    new WebLinksAddon((event, uri) => {
-      event.preventDefault();
-      // 链接统一交给系统浏览器打开，被安全策略拒绝时提示原因。
-      mofoxApi.openExternal(uri).catch((error: unknown) => {
-        showToast(`无法打开链接: ${error instanceof Error ? error.message : String(error)}`);
-      });
-    }),
-  );
+  // 裸文本 URL 与 OSC 8 富链接统一交给系统浏览器打开。
+  terminal.loadAddon(new WebLinksAddon((_event, uri) => openTerminalLink(uri)));
   terminal.open(container);
   fit.fit();
 

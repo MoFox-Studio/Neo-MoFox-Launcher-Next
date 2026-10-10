@@ -9,6 +9,7 @@ import type { TerminalShellOption } from '@shared/domain/terminal-shell';
 import { mofoxApi } from '@/services/mofox-api';
 import { useToast } from '@/composables/use-toast';
 import { createTerminalShortcutHandler } from '@/composables/use-terminal-shortcuts';
+import { createTerminalLinkHandler, openTerminalLink } from '@/composables/use-terminal-links';
 
 // 实例终端面板：内置交互式 shell，可在实例目录、虚拟环境目录与平台目录之间切换，
 // 并通过下拉框选择终端程序（Bash、PowerShell 等）。
@@ -216,17 +217,12 @@ function createTerminal(): boolean {
     lineHeight: 1.35,
     cursorBlink: true,
     theme: TERMINAL_THEME,
+    // 接管 OSC 8 富链接点击，绕过 xterm 默认的安全确认弹窗。
+    linkHandler: createTerminalLinkHandler(),
   });
   fit = new FitAddon();
   terminal.loadAddon(fit);
-  terminal.loadAddon(
-    new WebLinksAddon((event, uri) => {
-      event.preventDefault();
-      mofoxApi
-        .openExternal(uri)
-        .catch((error: unknown) => showToast(`无法打开链接: ${describeError(error)}`));
-    }),
-  );
+  terminal.loadAddon(new WebLinksAddon((_event, uri) => openTerminalLink(uri)));
   terminal.open(container);
   fit.fit();
 
