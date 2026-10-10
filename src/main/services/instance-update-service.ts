@@ -1,4 +1,4 @@
-import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
+import { access, cp, mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type {
@@ -30,6 +30,12 @@ import { fetchReleases } from '../utils/git/github';
 /** 更新操作写入主进程日志文件的回调；`level` 区分信息与错误。 */
 export type UpdateLogWriter = (level: 'info' | 'error', message: string) => void;
 
+/** 实例目录内平台更新缓存目录的命名前缀；完整目录名形如 `.update-cache-<uuid>`。 */
+const UPDATE_CACHE_PREFIX = '.update-cache-';
+
+/** 更新缓存目录内保存更新前原版本安装目录的固定名称。 */
+const BACKUP_DIR_NAME = 'existing';
+
 /**
  * 实例更新服务：管理主程序（Neo-MoFox）分支切换、提交回退与更新，
  * 以及平台适配器的版本切换。
@@ -37,6 +43,8 @@ export type UpdateLogWriter = (level: 'info' | 'error', message: string) => void
  * 平台更新采用缓存目录先行策略：先把现有安装目录移动到实例内的缓存目录，
  * 再把新版本安装进缓存并保留用户配置，全部成功后一次性拉回安装目录；
  * 任一环节失败则把缓存中的原版本还原到安装目录，保证安装目录始终可用。
+ * 若安装目录缺失（例如上次更新被强制退出），会先尝试从遗留缓存恢复原版本，
+ * 仍缺失则按首次安装处理，不再让更新直接失败。
  */
 export class InstanceUpdateService {
   constructor(
@@ -227,6 +235,7 @@ export class InstanceUpdateService {
    * 采用缓存目录先行策略：先停止平台进程并把现有安装目录移动到实例内缓存，
    * 再把新版本安装进缓存并保留用户配置目录，全部成功后一次性拉回安装目录；
    * 失败时还原缓存中的原版本，保证安装目录始终可用。
+   * 安装目录缺失时先尝试恢复上次被中断更新遗留的原版本，仍缺失则按首次安装处理。
    *
    * @param instanceId - 实例 ID。
    * @param version - 目标版本 tag；空字符串表示最新发行版。
@@ -249,18 +258,36 @@ export class InstanceUpdateService {
     }
     const platform = this.registry.get(instance.platform.id);
     const installDir = instance.platform.installDir;
-    const cacheDir = join(dirname(installDir), `.update-cache-${randomUUID()}`);
-    const backup = join(cacheDir, 'existing');
+    const cacheRoot = dirname(installDir);
+    const cacheDir = join(cacheRoot, `${UPDATE_CACHE_PREFIX}${randomUUID()}`);
+    const backup = join(cacheDir, BACKUP_DIR_NAME);
     const target = version.trim() || 'latest';
 
     this.log('info', `[${instance.name}] 开始更新平台 ${platform.name} 到 ${target}`);
     console.info(
       `[update] 平台更新已开始：${instance.name}（${instanceId}）${platform.name} → ${target}`,
     );
-    this.emit(instanceId, 'update-platform', 0.08, '正在把现有平台移动到缓存目录...');
+
+    // 安装目录缺失时先恢复上次被中断更新遗留的原版本；仍缺失则按首次安装处理。
+    let hasExisting = await pathExists(installDir);
+    if (!hasExisting && (await canRecoverOrphanedBackup(this.repository, instanceId, cacheRoot))) {
+      this.emit(instanceId, 'update-platform', 0.05, '正在检查上次未完成的更新...');
+      const recovered = await recoverOrphanedBackup(cacheRoot, installDir);
+      if (recovered) {
+        hasExisting = true;
+        this.log('info', `[${instance.name}] 检测到上次更新被中断，已恢复原平台目录: ${recovered}`);
+      }
+    }
+
+    this.emit(
+      instanceId,
+      'update-platform',
+      0.08,
+      hasExisting ? '正在把现有平台移动到缓存目录...' : '未发现现有平台，将直接安装新版本...',
+    );
     await rm(cacheDir, { recursive: true, force: true });
     await mkdir(cacheDir, { recursive: true });
-    await movePath(installDir, backup);
+    if (hasExisting) await movePath(installDir, backup);
 
     let committed = false;
     let rollbackFailed = false;
@@ -426,4 +453,62 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * 判断中断更新遗留的缓存是否可以安全恢复：仅当没有其他实例的平台安装目录
+ * 也位于同一父目录时，该目录下的更新缓存才必然属于当前实例。
+ *
+ * @param repository - 实例仓库。
+ * @param instanceId - 当前实例 ID。
+ * @param cacheRoot - 更新缓存所在的父目录。
+ * @returns 可以安全恢复时返回 `true`。
+ */
+async function canRecoverOrphanedBackup(
+  repository: { list(): Promise<Instance[]> },
+  instanceId: string,
+  cacheRoot: string,
+): Promise<boolean> {
+  const instances = await repository.list();
+  return !instances.some(
+    (other) =>
+      other.id !== instanceId &&
+      other.platform?.installDir &&
+      dirname(other.platform.installDir) === cacheRoot,
+  );
+}
+
+/**
+ * 把上次被中断更新遗留在缓存目录中的原版本恢复回安装目录。
+ *
+ * 更新进程若在「原版本已移入缓存、新版本尚未提交」之间被强制退出，安装目录会
+ * 保持缺失而原版本留在 `.update-cache-<uuid>/existing`。这里把最近一份此类备份
+ * 移回安装目录并清掉来源缓存，使用户配置不因更新中断而丢失。
+ *
+ * @param cacheRoot - 更新缓存所在的父目录。
+ * @param installDir - 平台安装目录。
+ * @returns 成功恢复时返回来源缓存目录路径；无可恢复内容时返回 `null`。
+ */
+async function recoverOrphanedBackup(
+  cacheRoot: string,
+  installDir: string,
+): Promise<string | null> {
+  const entries = await readdir(cacheRoot).catch(() => [] as string[]);
+  const backups: Array<{ cacheDir: string; existing: string; mtimeMs: number }> = [];
+  for (const name of entries) {
+    if (!name.startsWith(UPDATE_CACHE_PREFIX)) continue;
+    const cacheDir = join(cacheRoot, name);
+    const existing = join(cacheDir, BACKUP_DIR_NAME);
+    if (!(await pathExists(existing))) continue;
+    const mtimeMs = await stat(cacheDir).then((info) => info.mtimeMs, () => 0);
+    backups.push({ cacheDir, existing, mtimeMs });
+  }
+  if (backups.length === 0) return null;
+  // 多份遗留备份时取最近修改的一份，其余视为更早的失效残留。
+  backups.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const newest = backups[0];
+  await movePath(newest.existing, installDir);
+  // 原版本已移出，缓存内只剩下载残留，一并清理。
+  await rm(newest.cacheDir, { recursive: true, force: true }).catch(() => undefined);
+  return newest.cacheDir;
 }
