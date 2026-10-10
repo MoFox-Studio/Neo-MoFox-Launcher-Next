@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { Instance } from '@shared/domain/instance';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import LinearProgress from '@/components/ui/LinearProgress.vue';
+import BaseDialog from '@/components/ui/BaseDialog.vue';
 
 const props = defineProps<{ instance: Instance }>();
 
@@ -44,6 +45,19 @@ function onPrimaryAction(): void {
   if (isRunning.value) emit('stop', props.instance.id);
   else emit('start', props.instance.id);
 }
+
+/** 点击卡片空白区域直接进入日志页；具体按钮内部自行 stop 冒泡。 */
+function onCardClick(): void {
+  emit('logs', props.instance.id);
+}
+
+/** 重启是打断性操作，先弹确认框，用户确认后才真正触发。 */
+const restartConfirming = ref(false);
+
+function confirmRestart(): void {
+  restartConfirming.value = false;
+  emit('restart', props.instance.id);
+}
 </script>
 
 <template>
@@ -54,6 +68,8 @@ function onPrimaryAction(): void {
       'instance-card--busy': isBusy,
       'instance-card--error': instance.status === 'error',
     }"
+    title="点击卡片查看日志"
+    @click="onCardClick"
   >
     <header class="instance-card__head">
       <span class="instance-card__mark" aria-hidden="true">
@@ -95,7 +111,7 @@ function onPrimaryAction(): void {
         class="instance-card__primary state-layer"
         :class="{ 'instance-card__primary--stop': isRunning }"
         :disabled="isBusy"
-        @click="onPrimaryAction"
+        @click.stop="onPrimaryAction"
       >
         <span class="msr" :class="{ 'instance-card__spin': isBusy }" aria-hidden="true">
           {{ primaryIcon }}
@@ -111,7 +127,7 @@ function onPrimaryAction(): void {
           title="重启"
           aria-label="重启实例"
           :disabled="isBusy"
-          @click="emit('restart', instance.id)"
+          @click.stop="restartConfirming = true"
         >
           <span class="msr" aria-hidden="true">restart_alt</span>
         </button>
@@ -120,7 +136,7 @@ function onPrimaryAction(): void {
           type="button"
           title="查看日志"
           aria-label="查看日志"
-          @click="emit('logs', instance.id)"
+          @click.stop="emit('logs', instance.id)"
         >
           <span class="msr" aria-hidden="true">terminal</span>
         </button>
@@ -129,12 +145,27 @@ function onPrimaryAction(): void {
           type="button"
           title="管理实例"
           aria-label="管理实例"
-          @click="emit('manage', instance.id)"
+          @click.stop="emit('manage', instance.id)"
         >
           <span class="msr" aria-hidden="true">tune</span>
         </button>
       </div>
     </footer>
+
+    <!-- 重启二次确认：确认后才向父级发出 restart 事件 -->
+    <BaseDialog
+      :open="restartConfirming"
+      title="重启实例"
+      :width="380"
+      confirm-text="确认重启"
+      cancel-text="取消"
+      @close="restartConfirming = false"
+      @confirm="confirmRestart"
+    >
+      <p class="instance-card__restart-message">
+        确定要重启实例「{{ instance.name }}」吗？运行中的进程会先停止再重新启动。
+      </p>
+    </BaseDialog>
   </article>
 </template>
 
@@ -152,6 +183,7 @@ function onPrimaryAction(): void {
   backdrop-filter: var(--app-glass-card-filter);
   -webkit-backdrop-filter: var(--app-glass-card-filter);
   color: var(--md-sys-color-on-surface);
+  cursor: pointer;
   transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
@@ -321,6 +353,10 @@ function onPrimaryAction(): void {
 
 .instance-card__spin {
   animation: instance-spin 0.9s linear infinite;
+}
+
+.instance-card__restart-message {
+  margin: 0;
 }
 
 @keyframes instance-spin {
