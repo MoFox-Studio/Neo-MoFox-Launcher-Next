@@ -77,6 +77,26 @@ watch(justGenerated, (value) => {
         </div>
 
         <div class="form-group">
+          <label class="field" :class="{ 'field--error': store.isInvalid('webuiHttpPort') }">
+            <input
+              id="input-webui-http-port"
+              class="field__input"
+              type="number"
+              :value="draft.webuiHttpPort"
+              min="1024"
+              max="65535"
+              placeholder=" "
+              @input="onPortInput"
+            />
+            <span class="field__label">HTTP 路由监听端口 *</span>
+          </label>
+          <p v-if="store.isInvalid('webuiHttpPort')" class="field__support field__support--error">
+            {{ store.fieldErrors.webuiHttpPort }}
+          </p>
+          <p v-else class="field__support">1024-65535，浏览器访问 WebUI 控制台使用的端口</p>
+        </div>
+
+        <div class="form-group">
           <div class="api-key-row">
             <label
               class="field field--grow"
@@ -124,26 +144,6 @@ watch(justGenerated, (value) => {
             </div>
             <span class="strength-text" :class="strength.level">{{ strength.text }}</span>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label class="field" :class="{ 'field--error': store.isInvalid('webuiHttpPort') }">
-            <input
-              id="input-webui-http-port"
-              class="field__input"
-              type="number"
-              :value="draft.webuiHttpPort"
-              min="1024"
-              max="65535"
-              placeholder=" "
-              @input="onPortInput"
-            />
-            <span class="field__label">HTTP 路由监听端口 *</span>
-          </label>
-          <p v-if="store.isInvalid('webuiHttpPort')" class="field__support field__support--error">
-            {{ store.fieldErrors.webuiHttpPort }}
-          </p>
-          <p v-else class="field__support">1024-65535，浏览器访问 WebUI 控制台使用的端口</p>
         </div>
 
         <div class="info-box">
