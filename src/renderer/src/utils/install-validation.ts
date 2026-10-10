@@ -43,6 +43,14 @@ export function validateWsPort(value: number): string {
   return '';
 }
 
+/** WebUI HTTP 路由端口：1024-65535 的整数，且不能与 WebSocket 端口相同。 */
+export function validateWebuiHttpPort(value: number, wsPort: number): string {
+  const rangeError = validateWsPort(value);
+  if (rangeError) return rangeError;
+  if (value === wsPort) return 'HTTP 端口不能与 WebSocket 端口相同';
+  return '';
+}
+
 /** WebUI 密钥：至少 8 位。 */
 export function validateWebuiKey(value: string): string {
   const trimmed = value.trim();

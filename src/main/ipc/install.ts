@@ -73,6 +73,7 @@ function requireRequest(value: unknown): InstallRequest {
     typeof request.apiKey !== 'string' ||
     typeof request.installWebui !== 'boolean' ||
     typeof request.webuiApiKey !== 'string' ||
+    typeof request.webuiHttpPort !== 'number' ||
     typeof request.targetDir !== 'string'
   ) {
     throw new MofoxError('INVALID_ARGUMENT', 'Install request fields are invalid');

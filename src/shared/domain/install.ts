@@ -34,6 +34,8 @@ export interface InstallRequest {
   installWebui: boolean;
   /** WebUI 插件的 HTTP 路由访问密钥；仅在 `installWebui` 为真时写入。 */
   webuiApiKey: string;
+  /** WebUI HTTP 路由监听端口，写入 `core.toml` 的 `http_router.http_router_port`。 */
+  webuiHttpPort: number;
   /** 实例安装目录绝对路径；安装完成后作为实例根目录。 */
   targetDir: string;
 }

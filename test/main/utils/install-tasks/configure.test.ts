@@ -38,6 +38,7 @@ describe('configureInstance', () => {
     expect(core.permissions.owner_list).toEqual(['qq:98765432101']);
     expect(core.http_router.enable_http_router).toBe(true);
     expect(core.http_router.api_keys).toEqual(['abcdefgh']);
+    expect(core.http_router.http_router_port).toBe(8000);
 
     const model = parseToml(await readFile(join(mofoxConfig, 'model.toml'), 'utf8')) as any;
     expect(model.api_providers[0].api_key).toBe('sk-test-1234');
@@ -75,6 +76,7 @@ function sampleRequest(overrides: Partial<InstallRequest> = {}): InstallRequest 
     apiKey: 'sk-test-1234',
     installWebui: true,
     webuiApiKey: 'abcdefgh',
+    webuiHttpPort: 8000,
     targetDir: '/tmp/target',
     ...overrides,
   };

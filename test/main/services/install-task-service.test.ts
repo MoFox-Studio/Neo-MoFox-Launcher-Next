@@ -459,6 +459,7 @@ function request(targetDir: string, overrides: Partial<InstallRequest> = {}): In
     apiKey: 'sk-test-1234',
     installWebui: true,
     webuiApiKey: 'abcdefgh',
+    webuiHttpPort: 8000,
     targetDir,
     ...overrides,
   };

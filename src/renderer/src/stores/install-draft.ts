@@ -8,6 +8,7 @@ import {
   validateInstanceName,
   validateQQNumber,
   validateTargetDir,
+  validateWebuiHttpPort,
   validateWebuiKey,
   validateWsPort,
 } from '@/utils/install-validation';
@@ -26,6 +27,7 @@ const createEmptyDraft = (): InstallRequest => ({
   apiKey: '',
   installWebui: true,
   webuiApiKey: '',
+  webuiHttpPort: 8000,
   targetDir: '',
 });
 
@@ -45,6 +47,9 @@ export const useInstallDraftStore = defineStore('install-draft', () => {
     apiKey: validateApiKey(draft.value.apiKey),
     wsPort: validateWsPort(draft.value.wsPort),
     webuiKey: draft.value.installWebui ? validateWebuiKey(draft.value.webuiApiKey) : '',
+    webuiHttpPort: draft.value.installWebui
+      ? validateWebuiHttpPort(draft.value.webuiHttpPort, draft.value.wsPort)
+      : '',
     targetDir: validateTargetDir(draft.value.targetDir),
   }));
 

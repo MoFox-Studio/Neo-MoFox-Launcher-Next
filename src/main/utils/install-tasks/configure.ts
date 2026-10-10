@@ -36,7 +36,7 @@ export async function configureInstance(ctx: InstallTaskContext): Promise<void> 
   ctx.progress('配置完成', 1);
 }
 
-/** 在 `core.toml` 中写入主人列表，并在安装 WebUI 时启用 HTTP 路由与访问密钥。 */
+/** 在 `core.toml` 中写入主人列表，并在安装 WebUI 时启用 HTTP 路由、监听端口与访问密钥。 */
 async function configureCoreToml(path: string, request: InstallRequest): Promise<void> {
   const data = await readTomlFile(path);
   const permissions = ensureSection(data, 'permissions');
@@ -45,6 +45,7 @@ async function configureCoreToml(path: string, request: InstallRequest): Promise
     const httpRouter = ensureSection(data, 'http_router');
     httpRouter.enable_http_router = true;
     httpRouter.http_router_host = '127.0.0.1';
+    httpRouter.http_router_port = request.webuiHttpPort;
     httpRouter.api_keys = [request.webuiApiKey];
   }
   await writeTomlFile(path, data);

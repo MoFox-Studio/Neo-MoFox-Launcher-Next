@@ -138,7 +138,7 @@ function sectionReady(id: ConfigSectionId): boolean {
     case 'network':
       return errors.wsPort === '';
     case 'components':
-      return errors.webuiKey === '';
+      return errors.webuiKey === '' && errors.webuiHttpPort === '';
     case 'location':
       return errors.targetDir === '' && !draftStore.targetDirCheckError;
   }
@@ -183,7 +183,7 @@ function sectionSummary(id: ConfigSectionId): string {
       return `${platform} · ${draft.mofoxBranch} · :${draft.wsPort || '—'}`;
     }
     case 'components':
-      return draft.installWebui ? '安装 WebUI' : '仅安装核心组件';
+      return draft.installWebui ? `安装 WebUI · :${draft.webuiHttpPort || '—'}` : '仅安装核心组件';
     case 'location':
       return draft.targetDir || '需要选择目标目录';
   }
@@ -202,6 +202,7 @@ function touchConfiguration(): void {
     'apiKey',
     'wsPort',
     'webuiKey',
+    'webuiHttpPort',
     'targetDir',
   ]) {
     draftStore.touch(field);

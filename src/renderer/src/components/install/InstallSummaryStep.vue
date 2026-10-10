@@ -95,6 +95,11 @@ const webuiLabel = computed(() => (draft.installWebui ? '是' : '否'));
           <span class="summary-item-label">安装 WebUI</span>
           <span class="summary-item-value">{{ webuiLabel }}</span>
         </div>
+        <div v-if="draft.installWebui" class="summary-item">
+          <span class="summary-item-icon"><span class="msr" aria-hidden="true">http</span></span>
+          <span class="summary-item-label">HTTP 端口</span>
+          <span class="summary-item-value">{{ draft.webuiHttpPort }}</span>
+        </div>
         <div class="summary-item">
           <span class="summary-item-icon"><span class="msr" aria-hidden="true">key</span></span>
           <span class="summary-item-label">API Key</span>

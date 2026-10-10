@@ -685,6 +685,12 @@ function validateRequest(request: InstallRequest): void {
   if (request.wsPort < 1024 || request.wsPort > 65535) {
     throw new MofoxError('INVALID_ARGUMENT', 'WebSocket 端口必须在 1024-65535 之间');
   }
+  if (request.webuiHttpPort < 1024 || request.webuiHttpPort > 65535) {
+    throw new MofoxError('INVALID_ARGUMENT', 'WebUI HTTP 端口必须在 1024-65535 之间');
+  }
+  if (request.installWebui && request.webuiHttpPort === request.wsPort) {
+    throw new MofoxError('INVALID_ARGUMENT', 'WebUI HTTP 端口不能与 WebSocket 端口相同');
+  }
   if (request.mofoxBranch !== 'main' && request.mofoxBranch !== 'dev') {
     throw new MofoxError('INVALID_ARGUMENT', 'MoFox 分支无效');
   }
@@ -713,6 +719,8 @@ function isInstallRequest(value: unknown): value is InstallRequest {
     typeof value.apiKey === 'string' &&
     typeof value.installWebui === 'boolean' &&
     typeof value.webuiApiKey === 'string' &&
+    typeof value.webuiHttpPort === 'number' &&
+    Number.isFinite(value.webuiHttpPort) &&
     typeof value.targetDir === 'string'
   );
 }

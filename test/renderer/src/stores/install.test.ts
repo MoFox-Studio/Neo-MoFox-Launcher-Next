@@ -35,6 +35,7 @@ const request: InstallRequest = {
   apiKey: 'sk-test',
   installWebui: false,
   webuiApiKey: '',
+  webuiHttpPort: 8000,
   targetDir: 'D:\\Bots',
 };
 
