@@ -491,10 +491,14 @@ function goToInstances(): void {
       </template>
     </InstallerTaskShell>
 
+    <!-- zIndex 高于执行阶段的失败错误弹窗（1000）：两弹窗 teleport 到 body 的先后取决于
+         组件挂载顺序（本弹窗在向导挂载时已占位，InstallExecuteStep 进入执行阶段才挂载），
+         仅靠 DOM 顺序时确认弹窗会被错误弹窗盖住，因此显式抬高遮罩层级。 -->
     <BaseDialog
       :open="confirmingCancel"
       :title="cancelTitle"
       :width="380"
+      :z-index="1010"
       confirm-text="确定离开"
       cancel-text="继续当前任务"
       @close="confirmingCancel = false"
@@ -507,6 +511,7 @@ function goToInstances(): void {
       :open="cancelling"
       :dismissible="false"
       :show-actions="false"
+      :z-index="1020"
       title="正在取消安装"
       :width="360"
     >

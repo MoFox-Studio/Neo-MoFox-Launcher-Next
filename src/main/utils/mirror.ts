@@ -3,7 +3,11 @@ import type { MirrorSource } from '../../shared/domain/mirror';
 /** 镜像源存储：维护内置镜像列表并向安装器提供轮询所需的全部地址。 */
 const MIRRORS: readonly MirrorSource[] = [
   { id: 'gh-direct', type: 'github', name: 'GitHub', baseUrl: 'https://github.com' },
+  { id: 'gh-proxy-com', type: 'github', name: 'GH-Proxy', baseUrl: 'https://gh-proxy.com' },
   { id: 'gh-proxy', type: 'github', name: 'GitHub Proxy', baseUrl: 'https://ghproxy.net' },
+  { id: 'ghfast', type: 'github', name: 'GHFast', baseUrl: 'https://ghfast.top' },
+  { id: 'gh-akams', type: 'github', name: 'AKAMS Proxy', baseUrl: 'https://github.akams.cn' },
+  { id: 'ghproxy-vip', type: 'github', name: 'GHProxy VIP', baseUrl: 'https://ghproxy.vip' },
   {
     id: 'py-tuna',
     type: 'python-ftp',

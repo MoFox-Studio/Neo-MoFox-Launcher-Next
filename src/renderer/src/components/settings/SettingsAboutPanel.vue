@@ -327,7 +327,11 @@ const CREDIT_GROUPS: {
     title: '服务与镜像',
     items: [
       { name: 'GitHub', url: 'https://github.com/', tag: '发行版分发' },
+      { name: 'GH-Proxy', url: 'https://gh-proxy.com/', tag: '下载加速' },
       { name: 'GitHub Proxy', url: 'https://ghproxy.net/', tag: '下载加速' },
+      { name: 'GHFast', url: 'https://ghfast.top/', tag: '下载加速' },
+      { name: 'AKAMS GitHub Proxy', url: 'https://github.akams.cn/', tag: '下载加速' },
+      { name: 'GHProxy VIP', url: 'https://ghproxy.vip/', tag: '下载加速' },
       { name: 'PyPI', url: 'https://pypi.org/', tag: 'Python 包索引' },
       { name: '清华 TUNA 镜像站', url: 'https://mirrors.tuna.tsinghua.edu.cn/', tag: 'PyPI 镜像' },
       { name: '阿里云开源镜像站', url: 'https://developer.aliyun.com/mirror/', tag: 'PyPI 镜像' },

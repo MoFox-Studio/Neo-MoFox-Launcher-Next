@@ -17,6 +17,8 @@ interface Props {
   cancelText?: string;
   // 同意按钮是否可用，默认 true。
   confirmDisabled?: boolean;
+  // 遮罩层 z-index；需要叠加显示的弹窗传更大的值压过先打开的弹窗，默认 1000。
+  zIndex?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -27,6 +29,7 @@ const props = withDefaults(defineProps<Props>(), {
   confirmText: '同意',
   cancelText: '关闭',
   confirmDisabled: false,
+  zIndex: 1000,
 });
 
 const emit = defineEmits<{
@@ -63,7 +66,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <Transition name="dialog">
-      <div v-if="open" class="dialog-scrim" @click.self="requestClose">
+      <div v-if="open" class="dialog-scrim" :style="{ zIndex }" @click.self="requestClose">
         <div
           class="dialog"
           role="dialog"
@@ -98,7 +101,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* 遮罩层居中承载弹窗，点击空白区可由上层决定是否关闭 */
+/* 遮罩层居中承载弹窗，点击空白区可由上层决定是否关闭；z-index 默认 1000，
+   可被 props.zIndex 的内联样式覆盖以支持弹窗叠加 */
 .dialog-scrim {
   position: fixed;
   inset: 0;
