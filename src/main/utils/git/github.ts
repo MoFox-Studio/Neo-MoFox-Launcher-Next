@@ -229,11 +229,38 @@ async function downloadAsset(
         'objects.githubusercontent.com',
         'release-assets.githubusercontent.com',
       ];
-      await downloadRange(url, destination, {
-        ...(signal ? { signal } : {}),
-        maxBytes: 4 * 1024 ** 3,
-        allowedRedirectHosts,
-      });
+      const label = `[download] [${repository}] [${asset.name}] [${mirror.name}]`;
+      console.info(`${label} 开始下载`);
+      let lastReportedAt: number | undefined;
+      let lastReceivedBytes = 0;
+      await downloadRange(
+        url,
+        destination,
+        {
+          ...(signal ? { signal } : {}),
+          maxBytes: 4 * 1024 ** 3,
+          allowedRedirectHosts,
+        },
+        ({ receivedBytes, totalBytes, bytesPerSecond }) => {
+          const now = performance.now();
+          // 未知总大小时下载器的收尾事件为 0，保留实际已接收大小。
+          const received = Math.max(lastReceivedBytes, receivedBytes);
+          const completed = totalBytes > 0 && received >= totalBytes;
+          if (lastReportedAt !== undefined) {
+            if (received === lastReceivedBytes) return;
+            if (!completed && now - lastReportedAt < 1_000) return;
+          }
+          lastReportedAt = now;
+          lastReceivedBytes = received;
+          const size = `${(received / 1024 ** 2).toFixed(2)} MiB`;
+          const progress =
+            totalBytes > 0
+              ? `${Math.min(100, (received / totalBytes) * 100).toFixed(1)}% · ${size} / ${(totalBytes / 1024 ** 2).toFixed(2)} MiB`
+              : `${size}（总大小未知）`;
+          console.info(`${label} ${progress} · ${(bytesPerSecond / 1024 ** 2).toFixed(2)} MiB/s`);
+        },
+      );
+      console.info(`${label} 下载完成${expectedDigest ? '，正在校验 SHA-256' : ''}`);
       const actual = expectedDigest ? await sha256(destination) : undefined;
       if (expectedDigest && actual !== expectedDigest) {
         await rm(destination, { force: true }).catch(() => undefined);

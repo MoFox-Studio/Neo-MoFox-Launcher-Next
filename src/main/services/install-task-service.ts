@@ -617,6 +617,13 @@ export class InstallTaskService {
     status: InstallProgressEvent['status'],
     message: string,
   ): void {
+    const cleanMessage = stripVTControlCharacters(message);
+    // console 会由主进程日志器镜像到 launcher.log，详细安装输出与界面保持同步。
+    if (status === 'running') {
+      console.info(
+        `[install] [${task.request.instanceName} / ${task.id}] [${step}] ${cleanMessage}`,
+      );
+    }
     this.events.progress({
       taskId: task.id,
       instanceName: task.request.instanceName,
@@ -627,7 +634,7 @@ export class InstallTaskService {
       progress,
       // 安装子进程常用 ANSI SGR/VT 序列设置颜色与明暗；普通文本视图不会解释它们，
       // 因此在 IPC 边界统一去除，避免界面显示成方框及 `[2m`、`[0m` 等乱码。
-      message: stripVTControlCharacters(message),
+      message: cleanMessage,
     });
   }
 
