@@ -396,6 +396,22 @@ if (!hasSingleInstanceLock) {
             dataDirectory,
           ),
       },
+      launcherLogs: {
+        openDirectory: async () => {
+          const directory = join(dataDirectory, 'logs');
+          await mkdir(directory, { recursive: true });
+          // 文件管理器可能持续运行且让 shell.openPath 长时间不返回；不要让 IPC/设置按钮等待它关闭。
+          void shell
+            .openPath(directory)
+            .then((error) => {
+              if (error) console.error(`[settings] 无法打开启动器日志目录：${error}`);
+            })
+            .catch((error: unknown) => {
+              const message = error instanceof Error ? error.message : String(error);
+              console.error(`[settings] 无法打开启动器日志目录：${message}`);
+            });
+        },
+      },
     });
     registerWallpaperIpc(ipcMain, {
       selectAndStage: async () => {
@@ -455,8 +471,18 @@ if (!hasSingleInstanceLock) {
       async (fileName, content) => {
         const exportsDir = join(dataDirectory, 'exports');
         await mkdir(exportsDir, { recursive: true });
-        const filePath = join(exportsDir, fileName);
-        await writeFile(filePath, content, 'utf8');
+        const options = {
+          title: '导出实例日志',
+          defaultPath: join(exportsDir, fileName),
+          filters: [{ name: '日志文件', extensions: ['log'] }],
+        };
+        const result =
+          mainWindow && !mainWindow.isDestroyed()
+            ? await dialog.showSaveDialog(mainWindow, options)
+            : await dialog.showSaveDialog(options);
+        if (result.canceled || !result.filePath) return null;
+        await writeFile(result.filePath, content, 'utf8');
+        const filePath = result.filePath;
         return filePath;
       },
     );

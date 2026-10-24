@@ -23,7 +23,7 @@ export interface InstanceRuntimeEvents {
   ptyData: (instanceId: string, source: InstanceProcessSource, data: string) => void;
 }
 
-export type WriteExport = (fileName: string, content: string) => Promise<string>;
+export type WriteExport = (fileName: string, content: string) => Promise<string | null>;
 
 const SOURCES: InstanceProcessSource[] = ['mofox', 'platform'];
 const LOG_BUFFER_MAX = 200_000;
@@ -398,10 +398,10 @@ export class InstanceRuntimeService {
    *
    * @param instanceId - 实例 ID。
    * @param source - 进程源。
-   * @returns 导出文件的绝对路径。
+   * @returns 导出文件的绝对路径；写入器返回 `null` 时表示用户取消保存。
    * @throws {MofoxError} 日志为空时抛出 `NOT_FOUND`。
    */
-  async exportLogs(instanceId: string, source: InstanceProcessSource): Promise<string> {
+  async exportLogs(instanceId: string, source: InstanceProcessSource): Promise<string | null> {
     const instance = await this.find(instanceId);
     const content = stripAnsi(this.getLogBuffer(instanceId, source));
     if (!content.trim()) throw new MofoxError('NOT_FOUND', '当前没有可导出的日志');

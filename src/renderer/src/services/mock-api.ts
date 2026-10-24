@@ -721,6 +721,7 @@ export const mockApi: MofoxApi = {
     return '#0078D4';
   },
   async openDataFile() {},
+  async openLauncherLogDirectory() {},
 
   // 旧启动器迁移：演示构建中模拟一次成功的导入，便于在浏览器中预览界面。
   async detectLegacyLauncher(): Promise<LegacyLauncherInfo | null> {

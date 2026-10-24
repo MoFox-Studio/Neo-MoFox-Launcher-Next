@@ -6,9 +6,11 @@ import type { LauncherSettings } from '@shared/domain/settings';
 import { MofoxError } from '@shared/domain/error';
 import { useSettingsStore } from '@/stores/settings';
 import { mofoxApi } from '@/services/mofox-api';
+import { useToast } from '@/composables/use-toast';
 
 const settingsStore = useSettingsStore();
 const { settings } = storeToRefs(settingsStore);
+const { show: showToast } = useToast();
 
 const update = (patch: Partial<LauncherSettings>) => {
   settingsStore.update(patch);
@@ -54,6 +56,20 @@ async function chooseInstallDir(): Promise<void> {
 function handleInstallDirInput(event: Event): void {
   const input = event.target as HTMLInputElement;
   update({ defaultInstallDir: input.value.trim() });
+}
+
+const openingLauncherLogDirectory = ref(false);
+
+async function openLauncherLogDirectory(): Promise<void> {
+  if (openingLauncherLogDirectory.value) return;
+  openingLauncherLogDirectory.value = true;
+  try {
+    await mofoxApi.openLauncherLogDirectory();
+  } catch (error) {
+    showToast(`无法打开日志目录：${describeError(error)}`);
+  } finally {
+    openingLauncherLogDirectory.value = false;
+  }
 }
 </script>
 
@@ -182,7 +198,7 @@ function handleInstallDirInput(event: Event): void {
         <span class="msr">article</span>
         <div>
           <h2>日志</h2>
-          <p>归档与存储限制</p>
+          <p>归档、存储限制与目录快捷入口</p>
         </div>
       </div>
       <div class="settings-group__body">
@@ -232,6 +248,22 @@ function handleInstallDirInput(event: Event): void {
           >
             <div class="md-switch__thumb"></div>
           </div>
+        </div>
+
+        <div class="settings-item">
+          <span class="msr settings-item__icon">folder_open</span>
+          <div class="settings-item__body">
+            <span class="settings-item__label">启动器运行日志目录</span>
+            <span class="settings-item__desc">打开启动器运行日志及归档文件所在位置</span>
+          </div>
+          <button
+            class="text-button state-layer"
+            type="button"
+            :disabled="openingLauncherLogDirectory"
+            @click="openLauncherLogDirectory"
+          >
+            {{ openingLauncherLogDirectory ? '正在打开…' : '打开目录' }}
+          </button>
         </div>
       </div>
     </section>

@@ -107,6 +107,7 @@ export const IPC_INVOKE_CHANNELS = {
   updateSettings: 'settings:update',
   getSystemAccentColor: 'appearance:system-accent-color',
   openDataFile: 'data:open-file',
+  openLauncherLogDirectory: 'logs:open-launcher-directory',
   detectLegacyLauncher: 'migration:detect-legacy',
   previewLegacyMigration: 'migration:preview',
   importLegacyMigration: 'migration:import',
@@ -224,8 +225,8 @@ export interface MofoxApi {
   /** 关闭并销毁实例终端会话；离开终端面板时由渲染端调用。 */
   closeInstanceTerminal(instanceId: string): Promise<void>;
   getInstanceStats(instanceId: string): Promise<InstanceStats>;
-  /** 导出完成后返回生成文件的绝对路径。 */
-  exportInstanceLogs(instanceId: string, source: InstanceProcessSource): Promise<string>;
+  /** 导出完成后返回生成文件的绝对路径；用户取消保存时返回 null。 */
+  exportInstanceLogs(instanceId: string, source: InstanceProcessSource): Promise<string | null>;
   /** 校验全部实例的磁盘文件是否齐全，返回存在缺失项的实例列表。 */
   checkInstancesIntegrity(): Promise<InstanceIntegrityIssue[]>;
 
@@ -257,6 +258,8 @@ export interface MofoxApi {
   updateSettings(patch: Partial<LauncherSettings>): Promise<LauncherSettings>;
   /** 用系统默认程序打开启动器数据源文件；`settings` 为设置 JSON，`instances` 为实例仓库 JSON。 */
   openDataFile(kind: DataFileKind): Promise<void>;
+  /** 在系统文件管理器中打开启动器运行日志目录。 */
+  openLauncherLogDirectory(): Promise<void>;
   /** 当前操作系统强调色；平台不支持或读取失败时返回 null。 */
   getSystemAccentColor(): Promise<string | null>;
 

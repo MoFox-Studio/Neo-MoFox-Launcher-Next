@@ -68,6 +68,7 @@ const processBusy = reactive<Record<InstanceProcessSource, boolean>>({
   mofox: false,
   platform: false,
 });
+const exportBusy = ref(false);
 
 interface TerminalBundle {
   terminal: Terminal;
@@ -494,11 +495,16 @@ async function clearLogs(): Promise<void> {
 }
 
 async function exportLogs(): Promise<void> {
+  if (exportBusy.value) return;
+  exportBusy.value = true;
   try {
     const filePath = await mofoxApi.exportInstanceLogs(instanceId.value, activeTab.value);
+    if (!filePath) return;
     showToast(`已导出: ${filePath}`);
   } catch (error) {
     showToast(`导出失败: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    exportBusy.value = false;
   }
 }
 
@@ -666,8 +672,9 @@ function goBack(): void {
         <button
           class="icon-btn state-layer"
           type="button"
-          title="导出当前日志"
+          :title="exportBusy ? '正在导出日志' : '导出当前日志'"
           aria-label="导出当前日志"
+          :disabled="exportBusy"
           @click="exportLogs"
         >
           <span class="msr" aria-hidden="true">download</span>

@@ -15,7 +15,7 @@ interface InstanceActions {
   writePty(instanceId: string, source: InstanceProcessSource, data: string): void;
   resizePty(instanceId: string, source: InstanceProcessSource, cols: number, rows: number): void;
   getStats(instanceId: string): InstanceStats;
-  exportLogs(instanceId: string, source: InstanceProcessSource): Promise<string>;
+  exportLogs(instanceId: string, source: InstanceProcessSource): Promise<string | null>;
 }
 
 interface IpcMainRegistrar {

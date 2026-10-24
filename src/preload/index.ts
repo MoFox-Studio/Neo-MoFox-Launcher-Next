@@ -92,6 +92,7 @@ export function createMofoxApi(ipc: IpcRendererBridge): MofoxApi {
     getSettings: () => invoke(IPC_INVOKE_CHANNELS.getSettings),
     updateSettings: (patch) => invoke(IPC_INVOKE_CHANNELS.updateSettings, patch),
     openDataFile: (kind) => invoke(IPC_INVOKE_CHANNELS.openDataFile, kind),
+    openLauncherLogDirectory: () => invoke(IPC_INVOKE_CHANNELS.openLauncherLogDirectory),
     getSystemAccentColor: () => invoke(IPC_INVOKE_CHANNELS.getSystemAccentColor),
     detectLegacyLauncher: () => invoke(IPC_INVOKE_CHANNELS.detectLegacyLauncher),
     previewLegacyMigration: () => invoke(IPC_INVOKE_CHANNELS.previewLegacyMigration),

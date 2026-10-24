@@ -20,6 +20,9 @@ interface CoreServices {
   dataFiles: {
     open(kind: DataFileKind): Promise<void>;
   };
+  launcherLogs: {
+    openDirectory(): Promise<void>;
+  };
 }
 
 interface IpcMainRegistrar {
@@ -51,6 +54,9 @@ export function registerCoreIpc(ipcMain: IpcMainRegistrar, services: CoreService
   );
   register(ipcMain, IPC_INVOKE_CHANNELS.openDataFile, (kind) =>
     services.dataFiles.open(requireDataFileKind(kind)),
+  );
+  register(ipcMain, IPC_INVOKE_CHANNELS.openLauncherLogDirectory, () =>
+    services.launcherLogs.openDirectory(),
   );
 }
 
@@ -90,3 +96,4 @@ function requireDataFileKind(value: unknown): DataFileKind {
   }
   return value;
 }
+

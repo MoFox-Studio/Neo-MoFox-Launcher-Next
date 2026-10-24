@@ -18,6 +18,7 @@ describe('registerCoreIpc', () => {
       IPC_INVOKE_CHANNELS.updateSettings,
       IPC_INVOKE_CHANNELS.getSystemAccentColor,
       IPC_INVOKE_CHANNELS.openDataFile,
+      IPC_INVOKE_CHANNELS.openLauncherLogDirectory,
     ]);
   });
 
@@ -85,5 +86,6 @@ function createServices() {
     },
     appearance: { getSystemAccentColor: vi.fn(() => '#0078D4') },
     dataFiles: { open: vi.fn(async () => undefined) },
+    launcherLogs: { openDirectory: vi.fn(async () => undefined) },
   };
 }
