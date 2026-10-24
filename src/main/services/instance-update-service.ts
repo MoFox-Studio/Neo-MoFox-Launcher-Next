@@ -500,7 +500,10 @@ async function recoverOrphanedBackup(
     const cacheDir = join(cacheRoot, name);
     const existing = join(cacheDir, BACKUP_DIR_NAME);
     if (!(await pathExists(existing))) continue;
-    const mtimeMs = await stat(cacheDir).then((info) => info.mtimeMs, () => 0);
+    const mtimeMs = await stat(cacheDir).then(
+      (info) => info.mtimeMs,
+      () => 0,
+    );
     backups.push({ cacheDir, existing, mtimeMs });
   }
   if (backups.length === 0) return null;
