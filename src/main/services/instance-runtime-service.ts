@@ -28,6 +28,20 @@ export type WriteExport = (fileName: string, content: string) => Promise<string 
 const SOURCES: InstanceProcessSource[] = ['mofox', 'platform'];
 const LOG_BUFFER_MAX = 200_000;
 
+/**
+ * 主程序（Neo-MoFox WebUI）通过以该退出码退出，向启动器请求"外部重启"。
+ *
+ * WebUI 独立运行时使用 `os.execv` 原地替换自身，PID 不变、启动器可继续跟踪；
+ * 但 Windows 上 `os.execv` 走 overlay 模式会更换 PID 并结束旧进程，导致重启后的
+ * 主程序成为脱离启动器管理的"野生进程"（即用户反馈的"重启后不被启动器识别"）。
+ * 因此启动器给主程序注入 {@link SUPERVISED_BY_LAUNCHER_ENV}，主程序见到该标记后
+ * 改为以 `RESTART_REQUESTED_EXIT_CODE` 退出，由启动器负责重新拉起，保持全程可识别。
+ */
+const RESTART_REQUESTED_EXIT_CODE = 42;
+
+/** 启动器注入给主程序的环境变量名，值为 `"1"` 时表示当前由启动器监督。 */
+const SUPERVISED_BY_LAUNCHER_ENV = 'NEO_MOFOX_LAUNCHER_SUPERVISED';
+
 export class InstanceRuntimeService {
   /** 实例到仍在运行进程源的索引，全部退出后与仓库状态一并收敛。 */
   private readonly running = new Map<string, Set<InstanceProcessSource>>();
@@ -483,6 +497,8 @@ export class InstanceRuntimeService {
         FORCE_COLOR: '1',
         PYTHONUNBUFFERED: '1',
         PYTHONIOENCODING: 'utf-8',
+        // 告知主程序由启动器监督：WebUI 发起重启时改用约定退出码并由启动器重新拉起。
+        [SUPERVISED_BY_LAUNCHER_ENV]: '1',
       };
       return { command: venvPython, args: ['main.py'], cwd: mofoxDir, env };
     }
@@ -573,6 +589,12 @@ export class InstanceRuntimeService {
     if (exitCode === 0)
       console.info(`[runtime] 实例进程已退出：${instanceId} ${source} 退出码 ${exitCode}`);
     else console.warn(`[runtime] 实例进程已退出：${instanceId} ${source} 退出码 ${exitCode}`);
+    // WebUI 发起的主程序重启：Windows 上 os.execv 无法保留 PID，主程序在启动器监督下
+    // 会改为以约定退出码退出并交由启动器重新拉起，避免重启后的主程序不被启动器识别。
+    if (!stopping && source === 'mofox' && exitCode === RESTART_REQUESTED_EXIT_CODE) {
+      await this.respawnMofoxOnRestartRequest(instanceId);
+      return;
+    }
     if (!stopping) {
       if (exitCode === 0) this.emitLauncherMessage(instanceId, source, 'info', '进程已退出');
       else
@@ -585,6 +607,38 @@ export class InstanceRuntimeService {
         if (instance.status !== 'stopped') await this.saveStatus(instance, 'stopped');
       } else {
         await this.saveStatus(instance, stopping || exitCode === 0 ? 'stopped' : 'error');
+      }
+    }
+  }
+
+  /**
+   * 主程序以 `RESTART_REQUESTED_EXIT_CODE` 退出（WebUI 请求重启时的监督约定）后的处理：
+   * 立即按同一实例解析出的启动命令重新拉起 mofox 来源，保持实例全程可识别、可控。
+   *
+   * 重启失败时不抛出，而是记录错误消息并仅在无任何活动进程时收敛为 error 状态；
+   * 平台进程仍运行时会保持 running，与普通"单来源异常退出"的语义一致。
+   *
+   * @param instanceId - 所属实例 ID。
+   */
+  private async respawnMofoxOnRestartRequest(instanceId: string): Promise<void> {
+    this.emitLauncherMessage(instanceId, 'mofox', 'info', '收到主程序重启请求，正在重新拉起...');
+    try {
+      await this.startSourceUnlocked(instanceId, 'mofox');
+    } catch (error) {
+      console.error(
+        `[runtime] 主程序请求重启失败：${instanceId}：${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      this.emitLauncherMessage(
+        instanceId,
+        'mofox',
+        'error',
+        `重启失败: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      if (!this.hasActive(instanceId)) {
+        const instance = await this.find(instanceId);
+        await this.saveStatus(instance, 'error');
       }
     }
   }

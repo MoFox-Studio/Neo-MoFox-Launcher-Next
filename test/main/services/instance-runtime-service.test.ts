@@ -208,6 +208,35 @@ describe('InstanceRuntimeService', () => {
     await service.stop(instance.id);
   });
 
+  it('passes the launcher supervision marker to the MoFox process', async () => {
+    const mofoxDir = await createMofoxDir();
+    const instance = {
+      ...createInstance(mofoxDir),
+      platform: { id: null, installDir: null, version: null },
+    };
+    const repository = createRepository(instance);
+    const spawned: Array<Parameters<NonNullable<typeof ptyFactory>>> = [];
+    const ptyFactory = vi.fn(
+      (command: string, args: string[], options: Record<string, unknown>) => {
+        spawned.push([command, args, options]);
+        return createPty();
+      },
+    );
+    const service = new InstanceRuntimeService(
+      repository,
+      new PlatformRegistry(),
+      { statusChanged: vi.fn(), ptyData: vi.fn() },
+      new ProcessHelper(ptyFactory, FAST_TIMINGS),
+    );
+
+    await service.startSource(instance.id, 'mofox');
+
+    expect(spawned).toHaveLength(1);
+    const env = spawned[0][2].env as Record<string, string>;
+    expect(env.NEO_MOFOX_LAUNCHER_SUPERVISED).toBe('1');
+    await service.stop(instance.id);
+  });
+
   it('keeps per-source log buffers and clears them independently', async () => {
     const instance = createInstance();
     const repository = createRepository(instance);
@@ -491,6 +520,99 @@ describe('InstanceRuntimeService', () => {
     await service.start(instance.id);
     pty.emitExit(1);
     await vi.waitFor(() => expect(repository.current.status).toBe('error'));
+  });
+
+  it('respawns MoFox when the WebUI requests a restart while the platform keeps running', async () => {
+    const mofoxDir = await createMofoxDir();
+    const instance = createInstance(mofoxDir);
+    const repository = createRepository(instance);
+    const platform = {
+      id: 'test',
+      getStartCommand: vi.fn(async () => ({ command: 'bot', args: [], cwd: 'D:\\Bot' })),
+    };
+    const handles: ReturnType<typeof createPty>[] = [];
+    const factory = vi.fn(() => {
+      const pty = createPty();
+      handles.push(pty);
+      return pty;
+    });
+    const service = new InstanceRuntimeService(
+      repository,
+      new PlatformRegistry([platform as never]),
+      { statusChanged: vi.fn(), ptyData: vi.fn() },
+      new ProcessHelper(factory, FAST_TIMINGS),
+    );
+
+    await service.start(instance.id);
+    expect(handles).toHaveLength(2);
+    handles[0].emitExit(42); // WebUI 在启动器监督下以约定退出码请求重启
+
+    await vi.waitFor(() => expect(handles).toHaveLength(3));
+    await vi.waitFor(() => expect(service.getStats(instance.id).mofox.running).toBe(true));
+    expect(service.getStats(instance.id).platform.running).toBe(true);
+    expect(repository.current.status).toBe('running');
+    expect(service.getLogBuffer(instance.id, 'mofox')).toContain('收到主程序重启请求');
+    await service.stop(instance.id);
+  });
+
+  it('respawns MoFox as the only source when it requests a WebUI restart', async () => {
+    const mofoxDir = await createMofoxDir();
+    const instance = {
+      ...createInstance(mofoxDir),
+      platform: { id: null, installDir: null, version: null },
+    };
+    const repository = createRepository(instance);
+    const handles: ReturnType<typeof createPty>[] = [];
+    const factory = vi.fn(() => {
+      const pty = createPty();
+      handles.push(pty);
+      return pty;
+    });
+    const service = new InstanceRuntimeService(
+      repository,
+      new PlatformRegistry(),
+      { statusChanged: vi.fn(), ptyData: vi.fn() },
+      new ProcessHelper(factory, FAST_TIMINGS),
+    );
+
+    await service.startSource(instance.id, 'mofox');
+    expect(handles).toHaveLength(1);
+
+    handles[0].emitExit(42);
+
+    await vi.waitFor(() => expect(handles).toHaveLength(2));
+    await vi.waitFor(() => expect(service.getStats(instance.id).mofox.running).toBe(true));
+    expect(repository.current.status).toBe('running');
+    await service.stop(instance.id);
+  });
+
+  it('does not respawn on the restart exit code when the stop was user-initiated', async () => {
+    const mofoxDir = await createMofoxDir();
+    const instance = {
+      ...createInstance(mofoxDir),
+      platform: { id: null, installDir: null, version: null },
+    };
+    const repository = createRepository(instance);
+    const pty = createPty();
+    // 树杀阶段不自动退出，进程退出时机由 emitExit 控制，以模拟停止期间进程以约定码结束。
+    pty.kill = vi.fn();
+    const factory = vi.fn(() => pty);
+    const service = new InstanceRuntimeService(
+      repository,
+      new PlatformRegistry(),
+      { statusChanged: vi.fn(), ptyData: vi.fn() },
+      new ProcessHelper(factory, FAST_TIMINGS),
+    );
+
+    await service.startSource(instance.id, 'mofox');
+    const stopPromise = service.stop(instance.id);
+    await vi.waitFor(() => expect(repository.current.status).toBe('stopping'));
+    pty.emitExit(42);
+    await stopPromise;
+
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(service.getStats(instance.id).mofox.running).toBe(false);
+    expect(repository.current.status).toBe('stopped');
   });
 });
 
