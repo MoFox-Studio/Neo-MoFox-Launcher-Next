@@ -56,6 +56,24 @@ describe('configureInstance', () => {
     expect(model.api_providers[0].api_key).toBe('sk-test-1234');
     expect(model.api_providers[0].name).toBe('SiliconFlow');
   });
+
+  it('keeps Windows CRLF configs clean when rewriting (main program re-read crash guard)', async () => {
+    // Windows 上主程序用文本模式落盘，配置文件是 CRLF，且含多行字符串。
+    // 若直接把 CRLF 交给 smol-toml 改写，换行会被序列化成 `\r\n` 转义序列，
+    // 主程序重读后落盘成 `\r\r\n`，tomllib 会因非法 `\r` 崩溃。
+    const root = await createTempRoot();
+    const mofoxConfig = join(root, 'mofox', 'config');
+    await mkdir(mofoxConfig, { recursive: true });
+    await writeFile(
+      join(mofoxConfig, 'core.toml'),
+      '[personality]\r\nreply_style = """\r\n第一行。\r\n第二行。\r\n"""\r\n\r\n[permissions]\r\nowner_list = []\r\n',
+    );
+
+    await configureInstance(createContext(root, sampleRequest({ platformId: '' })));
+
+    const output = await readFile(join(mofoxConfig, 'core.toml'), 'utf8');
+    expect(output).not.toContain('\r');
+  });
 });
 
 async function createTempRoot(): Promise<string> {

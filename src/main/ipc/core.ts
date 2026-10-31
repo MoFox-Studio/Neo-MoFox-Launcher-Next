@@ -96,4 +96,3 @@ function requireDataFileKind(value: unknown): DataFileKind {
   }
   return value;
 }
-

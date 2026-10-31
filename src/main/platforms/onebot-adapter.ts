@@ -36,11 +36,20 @@ export async function writeOnebotAdapterConfig(
 /** 读取 TOML 文件；文件不存在时返回空对象以便写入默认配置。 */
 async function readTomlFile(path: string): Promise<Record<string, unknown>> {
   try {
-    return parseToml(await readFile(path, 'utf8')) as Record<string, unknown>;
+    // Windows 上主程序以文本模式落盘的配置是 CRLF：直接交给 smol-toml 解析会把
+    // 多行字符串内的换行读成 `\r\n`，再序列化时变成 `\r\n` 转义序列，主程序重读
+    // 会生成 `\r\r\n` 并因非法 `\r` 崩溃。读入前先统一成 LF 消除这个隐患。
+    const text = await readFile(path, 'utf8');
+    return parseToml(normalizeLf(text)) as Record<string, unknown>;
   } catch (error) {
     if (isRecord(error) && error.code === 'ENOENT') return {};
     throw error;
   }
+}
+
+/** 把 CRLF / 裸 CR 统一规范化为 LF。 */
+function normalizeLf(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
 /** 以 TOML 格式写入文件，自动创建父目录。 */
