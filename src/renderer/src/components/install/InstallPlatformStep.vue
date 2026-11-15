@@ -20,6 +20,9 @@ const loading = ref(false);
 const platformError = ref('');
 // 平台下拉框引用：选项异步渲染后需手动同步值，否则 Material select 不显示选中项。
 const platformSelect = ref<{ value: string } | null>(null);
+// NapCat / SnowLuma 的上游仓库已归档，内置一键下载安装暂时不可用；
+// 仍保留平台选项，便于选择后在「管理实例」中改平台种类并指向自备的平台目录。
+const platformUnavailable = true;
 
 // 后端已按当前系统过滤，返回的平台均可安装；SnowLuma 优先推荐，作为默认选择。
 const selectedPlatform = computed<BotPlatformMetadata | null>(
@@ -115,6 +118,16 @@ onMounted(async () => {
             </template>
             <template v-else>不安装任何平台适配器，仅安装 Neo-MoFox 核心与已选组件</template>
           </span>
+          <div v-if="platformUnavailable" class="platform-unavailable" role="alert">
+            <span class="msr platform-unavailable__icon" aria-hidden="true">warning</span>
+            <p class="platform-unavailable__text">
+              <strong>NapCat 与 SnowLuma 暂时无法通过启动器直接安装</strong>
+              <span>
+                平台的上游仓库已归档，内置下载暂时不可用。可先选择「不安装平台」完成安装，
+                之后在实例的「更多 → 修改实例信息」中修改平台种类并指定自备的平台目录。
+              </span>
+            </p>
+          </div>
         </template>
       </div>
 
@@ -162,3 +175,39 @@ onMounted(async () => {
     </form>
   </section>
 </template>
+
+<style scoped>
+/* 平台不可用提示条：tonal 警告样式，与向导的 info 提示保持一致的语言。 */
+.platform-unavailable {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-error) 30%, transparent);
+}
+
+.platform-unavailable__icon {
+  color: var(--md-sys-color-error);
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.platform-unavailable__text {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-body-small);
+}
+
+.platform-unavailable__text strong {
+  font-weight: 600;
+}
+
+.platform-unavailable__text span {
+  color: var(--md-sys-color-on-surface-variant);
+}
+</style>
